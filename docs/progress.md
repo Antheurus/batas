@@ -1,5 +1,11 @@
 # batas Progress
 
+## Session — 2026-09-30 (cont) — v0.1.1 (Stop check no longer blocks a reply that only quotes a mistake)
+
+The first live false positive came from the building session itself. The final report's evidence table quoted the test sentence "Mau saya commit dan push sekarang?", the commit-push reply regex matched it, and the Stop hook blocked a reply that was actually compliant: every commit was already pushed. A reply that quotes a mistaken sentence is not making it, so `unquoted()` in `src/triggers.ts` now removes fenced blocks and multi-word double-quoted spans before reply patterns run. The first cut also stripped inline backticks and single-word quotes. The recall test caught that at once: three fixtures went red, because lessons:B2's signal IS the backticked command (`silakan jalankan \`bun test\``) and hook-warn-not-ask's signal IS the one-word `"ask"`. So both of those stay in the checked text. Verified: 17 tests, 0 failed, with a new case pinning both directions (a quoted sentence and a fenced block pass, while an unquoted "I ran git reset --hard after the \"cleanup\" step" still blocks). Replaying the exact reply that was blocked, taken from the session transcript, through `src/hook.ts` now yields `{}`.
+
+---
+
 ## Session — 2026-09-30 — v0.1.0 (guardrail memory: FTS5 index, three hooks, MCP server, skill)
 
 batas exists because the user's hand-written guardrail corpus had grown to ~77k always-on tokens: 289 numbered incident rules in `~/.claude/rules/` plus 215 reference files, 560 memory files across 57 projects, and each repo's progress/changelog. The same session had already split `gotcha-coding.md` and `lessons.md` into path-scoped slices (floor 142.5k to 103.8k tokens), but a `paths:` glob fires only on a Read inside the session's project. That left every command-triggered rule dependent on being always-on. The user asked for a real system rather than more always-on text: an MCP server plus hooks plus a skill, "tooling that the agent can actually see".

@@ -32,6 +32,15 @@ type Compiled = {
 
 const WORD = /[\p{L}\p{N}_]/u;
 
+// A reply that QUOTES a mistaken sentence (a test input, an example, evidence) is not making it, so quoted
+// multi-word spans and fenced blocks are removed before reply patterns run. Inline code and one-word quotes
+// stay: "silakan jalankan `bun test`" and permissionDecision "ask" carry their signal exactly there.
+function unquoted(text: string): string {
+  return text
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/"[^"\n]*\s[^"\n]*"|“[^”\n]*\s[^”\n]*”/g, " ");
+}
+
 // Compiling one `\p{L}` regex per phrase cost ~0.4ms each and ~300ms per hook call across the corpus;
 // a lowercase indexOf with a single shared boundary test does the same match in microseconds.
 function phrase(p: string): { source: string; test: (text: string) => boolean } {
@@ -106,8 +115,9 @@ export class Triggers {
         }
       }
       if (event.reply && c.reply.length) {
-        const hit = c.reply.find((r) => r.test(event.reply as string));
-        if (hit && !c.replyOk.some((r) => r.test(event.reply as string))) {
+        const own = unquoted(event.reply);
+        const hit = c.reply.find((r) => r.test(own));
+        if (hit && !c.replyOk.some((r) => r.test(own))) {
           out.push({ id: c.id, via: "reply", pattern: hit.source });
         }
       }

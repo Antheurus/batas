@@ -1,5 +1,10 @@
 # batas Changelog
 
+## v0.1.1 — Jawaban yang cuma mengutip kesalahan tidak ditahan lagi
+
+- Kalau agent cuma *mengutip* kalimat yang salah, misalnya sebagai contoh atau bukti tes, jawabannya tidak ditahan
+  lagi. Yang ditahan hanya jawaban yang benar-benar mengulang kesalahan itu.
+
 ## v0.1.0 — Batas pertama: aturan muncul sendiri saat dibutuhkan
 
 - Waktu agent mau menjalankan command atau mengedit file yang pernah bikin masalah, aturan yang relevan langsung

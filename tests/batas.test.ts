@@ -104,6 +104,18 @@ describe("hook", () => {
     expect(evaluate({ ...base, stop_hook_active: true, last_assistant_message: "git reset --hard" }, store, t).output).toEqual({});
   });
 
+  test("a reply that only QUOTES the mistake is not blocked", () => {
+    const base = { session_id: "h5", hook_event_name: "Stop" };
+    for (const quoted of [
+      'The test sentence "I ran git reset --hard." was blocked.',
+      "Evidence:\n```\ngit reset --hard\n```",
+    ]) {
+      expect(evaluate({ ...base, last_assistant_message: quoted }, store, t).output).toEqual({});
+    }
+    const real = evaluate({ ...base, last_assistant_message: 'Done — I ran git reset --hard after the "cleanup" step.' }, store, t);
+    expect((real.output as { decision?: string }).decision).toBe("block");
+  });
+
   test("code triggers fire on source edits but not on prose that quotes the pattern", () => {
     const ct = new Triggers({ "gotcha:C4": { code: ["\\bparseInt\\([^()\\n]*\\)\\s*\\|\\|"] } });
     const edit = (file_path: string, session_id: string) =>
