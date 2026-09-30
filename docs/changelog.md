@@ -1,5 +1,12 @@
 # batas Changelog
 
+## v0.1.2 — Command yang cuma menyebut pola tidak memicu aturan lagi
+
+- Aturan tidak lagi muncul hanya karena sebuah command *menyebut* pola berbahaya di dalam tanda kutip. Contohnya
+  pesan commit yang bilang "jangan pernah git reset --hard".
+- Kode yang benar-benar dijalankan, misalnya lewat `bash -c`, `python3 -c`, `ssh server "…"` atau
+  `playwright-cli eval`, tetap dicek seperti biasa.
+
 ## v0.1.1 — Jawaban yang cuma mengutip kesalahan tidak ditahan lagi
 
 - Kalau agent cuma *mengutip* kalimat yang salah, misalnya sebagai contoh atau bukti tes, jawabannya tidak ditahan

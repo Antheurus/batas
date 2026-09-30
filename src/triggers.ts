@@ -41,6 +41,55 @@ function unquoted(text: string): string {
     .replace(/"[^"\n]*\s[^"\n]*"|“[^”\n]*\s[^”\n]*”/g, " ");
 }
 
+const CODE_FLAGS = /(?:^|\s)(?:-c|-lc|-e|--command|--eval|eval|run-code)\s*$/;
+const REMOTE_SEGMENT = /(?:^|[;&|(]\s*)(?:ssh|sshepherd|docker\s+exec|kubectl\s+exec)\b[^;&|]*$/;
+const INTERPRETER = /(?:^|[\s;&|(])(?:python3?|node|bun|psql|sqlite3|bash|sh|zsh|ruby|perl)\b[^\n;&|]*$/;
+
+// Spans of a shell command that are DATA — a quoted argument or a heredoc body — and so cannot be the command
+// the rule is about: `git commit -m "never git push --force"` and `just fire "lsof -ti :3000"` only mention a
+// pattern. Code handed to an interpreter (`psql -c "..."`, `python3 -c`, a heredoc fed to python) is not data.
+export function dataSpans(cmd: string): [number, number][] {
+  const spans: [number, number][] = [];
+  const codeBodies: [number, number][] = [];
+  const heredoc = /<<-?\s*(['"]?)(\w+)\1[^\n]*\n([\s\S]*?)\n\s*\2\s*(?:\n|$)/g;
+  for (let m = heredoc.exec(cmd); m; m = heredoc.exec(cmd)) {
+    const before = cmd.slice(0, m.index);
+    const start = m.index + m[0].indexOf("\n") + 1;
+    const body: [number, number] = [start, start + (m[3]?.length ?? 0)];
+    (INTERPRETER.test(before.split("\n").pop() ?? "") ? codeBodies : spans).push(body);
+  }
+  const inAny = (at: number, list: [number, number][]) => list.some(([a, b]) => at >= a && at < b);
+  let i = 0;
+  while (i < cmd.length) {
+    const ch = cmd[i];
+    if (inAny(i, codeBodies)) {
+      i++;
+      continue;
+    }
+    if ((ch === "'" || ch === '"') && !inAny(i, spans)) {
+      let j = i + 1;
+      while (j < cmd.length && cmd[j] !== ch) j += ch === '"' && cmd[j] === "\\" ? 2 : 1;
+      const before = cmd.slice(0, i);
+      if (!CODE_FLAGS.test(before) && !REMOTE_SEGMENT.test(before)) spans.push([i, j + 1]);
+      i = j + 1;
+      continue;
+    }
+    i++;
+  }
+  return spans;
+}
+
+function matchOutside(re: RegExp, text: string, spans: [number, number][]): boolean {
+  if (!spans.length) return re.test(text);
+  const g = new RegExp(re.source, re.flags.includes("g") ? re.flags : `${re.flags}g`);
+  for (let m = g.exec(text); m; m = g.exec(text)) {
+    const at = m.index;
+    if (!spans.some(([a, b]) => at >= a && at < b)) return true;
+    if (m[0].length === 0) g.lastIndex++;
+  }
+  return false;
+}
+
 // Compiling one `\p{L}` regex per phrase cost ~0.4ms each and ~300ms per hook call across the corpus;
 // a lowercase indexOf with a single shared boundary test does the same match in microseconds.
 function phrase(p: string): { source: string; test: (text: string) => boolean } {
@@ -85,9 +134,10 @@ export class Triggers {
 
   match(event: { cmd?: string; path?: string; code?: string; prompt?: string; reply?: string }): Match[] {
     const out: Match[] = [];
+    const spans = event.cmd ? dataSpans(event.cmd) : [];
     for (const c of this.compiled) {
       if (event.cmd) {
-        const hit = c.cmd.find((r) => r.test(event.cmd as string));
+        const hit = c.cmd.find((r) => matchOutside(r, event.cmd as string, spans));
         if (hit) {
           out.push({ id: c.id, via: "cmd", pattern: hit.source });
           continue;

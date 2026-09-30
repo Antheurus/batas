@@ -1,5 +1,16 @@
 # batas Progress
 
+## Session — 2026-09-30 (cont) — v0.1.2 (cmd triggers ignore patterns that are only mentioned in a quoted argument)
+
+The v0.1.0 build noted the E24 class as open: `just fire "lsof -ti tcp:59999"` injected lessons:B13 although it only mentioned the pattern, and every `git commit -m "..."` naming a destructive command would fire the same way. `dataSpans()` in `src/triggers.ts` now marks the parts of a command that are DATA: quoted arguments, and heredoc bodies fed to a non-interpreter. A cmd regex counts only when a match starts outside them (`matchOutside`). Code is not data. These stay live:
+- arguments to `-c` / `-lc` / `-e` / `--command` / `--eval` / `eval` / `run-code`;
+- quoted commands sent through `ssh` / `sshepherd` / `docker exec` / `kubectl exec`;
+- heredoc bodies fed to python/node/bun/psql/sh, with no quote scanning inside them.
+
+The first cut was driven by the recall fixtures and turned three red. `playwright-cli eval "..."` (B25, B35) and `ssh srv "docker logs ..."` (B55) are code, which is where the eval and remote rules came from. A python heredoc body containing `os.system('lsof ...')` was then masked by the quote scanner running inside it, which is why interpreter bodies are skipped. Verified: 18 tests, 0 failed, including a new case pinning four mentions that must NOT fire and three code forms that must. A cmd match now averages 0.14ms. A heredoc'd commit body naming `git reset --hard` fires only lessons:C4 (the commit rule), not C7. Known limit: text inside `bun -e '...'` is code by design, so a probe script that merely contains a pattern string still fires.
+
+---
+
 ## Session — 2026-09-30 (cont) — v0.1.1 (Stop check no longer blocks a reply that only quotes a mistake)
 
 The first live false positive came from the building session itself. The final report's evidence table quoted the test sentence "Mau saya commit dan push sekarang?", the commit-push reply regex matched it, and the Stop hook blocked a reply that was actually compliant: every commit was already pushed. A reply that quotes a mistaken sentence is not making it, so `unquoted()` in `src/triggers.ts` now removes fenced blocks and multi-word double-quoted spans before reply patterns run. The first cut also stripped inline backticks and single-word quotes. The recall test caught that at once: three fixtures went red, because lessons:B2's signal IS the backticked command (`silakan jalankan \`bun test\``) and hook-warn-not-ask's signal IS the one-word `"ask"`. So both of those stay in the checked text. Verified: 17 tests, 0 failed, with a new case pinning both directions (a quoted sentence and a fenced block pass, while an unquoted "I ran git reset --hard after the \"cleanup\" step" still blocks). Replaying the exact reply that was blocked, taken from the session transcript, through `src/hook.ts` now yields `{}`.

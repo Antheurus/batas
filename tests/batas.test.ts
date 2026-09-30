@@ -128,6 +128,18 @@ describe("hook", () => {
     expect(edit("/r/docs/progress.md", "c2")).toEqual([]);
   });
 
+  test("a command that only MENTIONS a pattern in a quoted argument does not fire; code args still do", () => {
+    const qt = new Triggers({ "lessons:B13": { cmd: ["\\blsof\\s+-ti\\s*(tcp)?:\\d+"] } });
+    const fires = (cmd: string) => qt.match({ cmd }).length > 0;
+    expect(fires("lsof -ti tcp:3000")).toBe(true);
+    expect(fires('just fire "lsof -ti tcp:3000"')).toBe(false);
+    expect(fires("git commit -m 'never lsof -ti tcp:3000 again'")).toBe(false);
+    expect(fires("cat > notes.sh <<'EOF'\nlsof -ti tcp:3000\nEOF")).toBe(false);
+    expect(fires('bash -c "lsof -ti tcp:3000 | xargs kill"')).toBe(true);
+    expect(fires('ssh srv "lsof -ti tcp:3000"')).toBe(true);
+    expect(fires("python3 - <<'EOF'\nimport os; os.system('lsof -ti tcp:3000')\nEOF")).toBe(true);
+  });
+
   test("a Read of an unrelated file stays silent", () => {
     const r = evaluate({ session_id: "h4", hook_event_name: "PreToolUse", tool_name: "Read", tool_input: { file_path: "/x/README.md" } }, store, t);
     expect(r.output).toEqual({});
