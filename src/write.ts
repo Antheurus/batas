@@ -81,6 +81,11 @@ export function logChangelog(a: { projectDir: string; version: string; title: st
 
 export type MemoryType = "user" | "feedback" | "project" | "reference";
 
+// Who started the record: the user asked for it, the agent learned it unprompted, or the user wrote the words.
+// The agent usually does the writing either way, so this is the one fact the file itself cannot show.
+export const ORIGINS = ["user-requested", "agent-initiated", "user-written"] as const;
+export type Origin = (typeof ORIGINS)[number];
+
 export function memoryDir(projectDir: string): string {
   return join(config.projectsDir, projectSlug(projectDir), "memory");
 }
@@ -92,8 +97,10 @@ export function recordMemory(a: {
   title: string;
   description: string;
   body: string;
+  origin: Origin;
   replace?: boolean;
 }): Written {
+  if (!ORIGINS.includes(a.origin)) throw new Error(`origin must be one of ${ORIGINS.join(", ")}`);
   const name = a.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
   if (!name) throw new Error("name must contain letters or digits");
   if (/\n/.test(a.description)) throw new Error("description must be one line");
@@ -107,7 +114,7 @@ export function recordMemory(a: {
   const description = a.description.replace(/"/g, "'");
   writeFileSync(
     file,
-    `---\nname: ${name}\ndescription: "${description}"\nmetadata:\n  type: ${a.type}\n---\n\n${a.body.trim()}\n`,
+    `---\nname: ${name}\ndescription: "${description}"\nmetadata:\n  type: ${a.type}\n  origin: ${a.origin}\n  recorded: ${today()}\n---\n\n${a.body.trim()}\n`,
   );
   const index = join(dir, "MEMORY.md");
   const indexText = existsSync(index) ? readFileSync(index, "utf8") : "# Memory Index\n\n";

@@ -24,6 +24,9 @@ type HookInput = {
 
 type SessionState = { injected: string[]; hinted: string[] };
 
+// Harness-generated turns (a background agent finishing, a system reminder) arrive as UserPromptSubmit too; their
+// text is an agent's report, not the user's request, so matching phrases in it only produces noise.
+const SYSTEM_PROMPT = /<task-notification>|\[SYSTEM NOTIFICATION/;
 const FILE_TOOLS = new Set(["Read", "Edit", "Write", "MultiEdit", "NotebookEdit"]);
 const SESSION_TTL_MS = 7 * 24 * 3600 * 1000;
 
@@ -64,8 +67,9 @@ function resolve(store: Store, id: string): Entry | undefined {
   return undefined;
 }
 
-function render(e: Entry, m: Match): string {
-  return `### ${e.id} — fired by ${m.via} \`${m.pattern}\` (${basename(e.source)}:${e.line})\n${e.body}`;
+function render(e: Entry, m: Match, origin?: string): string {
+  const who = origin ? ` · ${origin}` : "";
+  return `### ${e.id}${who} — fired by ${m.via} \`${m.pattern}\` (${basename(e.source)}:${e.line})\n${e.body}`;
 }
 
 export function evaluate(input: HookInput, store: Store, triggers: Triggers): { output: object; fired: string[] } {
@@ -80,7 +84,7 @@ export function evaluate(input: HookInput, store: Store, triggers: Triggers): { 
       .slice(0, config.inject.maxItems)
       .map((m) => {
         const e = resolve(store, m.id);
-        return e ? render(e, m) : `### ${m.id} (not indexed — run \`just reindex\` in the batas repo)`;
+        return e ? render(e, m, triggers.specs[m.id]?.origin) : `### ${m.id} (not indexed — run \`just reindex\` in the batas repo)`;
       });
     const reason = [
       "batas: your last reply matches a known mistake pattern. Re-check it against the rule below, then correct the",
@@ -103,7 +107,7 @@ export function evaluate(input: HookInput, store: Store, triggers: Triggers): { 
         : [ti.new_string, ti.content, ...(ti.edits ?? []).map((e) => e.new_string)].filter(Boolean).join("\n");
       if (p || code) probe = { path: p, code: code || undefined };
     }
-  } else if (event === "UserPromptSubmit" && input.prompt) {
+  } else if (event === "UserPromptSubmit" && input.prompt && !SYSTEM_PROMPT.test(input.prompt)) {
     probe = { prompt: input.prompt };
   }
   if (!probe.cmd && !probe.path && !probe.code && !probe.prompt) return { output: {}, fired: [] };
@@ -117,7 +121,16 @@ export function evaluate(input: HookInput, store: Store, triggers: Triggers): { 
   let chars = 0;
 
   if (probe.prompt) {
-    const fresh = matches.filter((m) => !state.hinted.includes(m.id)).slice(0, config.inject.maxPromptHints);
+    const unseen = matches.filter((m) => !state.hinted.includes(m.id));
+    const tools: string[] = [];
+    for (const m of unseen.filter((x) => x.id.startsWith("hint:"))) {
+      const text = triggers.specs[m.id]?.text;
+      if (!text) continue;
+      tools.push(text);
+      state.hinted.push(m.id);
+      fired.push(m.id);
+    }
+    const fresh = unseen.filter((m) => !m.id.startsWith("hint:")).slice(0, config.inject.maxPromptHints);
     for (const m of fresh) {
       const e = resolve(store, m.id);
       if (!e) continue;
@@ -125,12 +138,17 @@ export function evaluate(input: HookInput, store: Store, triggers: Triggers): { 
       state.hinted.push(m.id);
       fired.push(m.id);
     }
-    if (!sections.length) return { output: {}, fired: [] };
+    if (!sections.length && !tools.length) return { output: {}, fired: [] };
     saveSession(session, state);
     const text = [
-      "batas: rules that may apply to this request (full text: mcp__batas__get, or they inject when the matching",
-      "command/file comes up):",
-      ...sections,
+      ...tools.map((t) => `batas: ${t}`),
+      ...(sections.length
+        ? [
+            "batas: rules that may apply to this request (full text: mcp__batas__get, or they inject when the matching",
+            "command/file comes up):",
+            ...sections,
+          ]
+        : []),
     ].join("\n");
     return { output: { hookSpecificOutput: { hookEventName: event, additionalContext: text } }, fired };
   }
@@ -139,7 +157,7 @@ export function evaluate(input: HookInput, store: Store, triggers: Triggers): { 
   for (const m of matches) {
     const e = resolve(store, m.id);
     if (!e) continue;
-    const block = render(e, m);
+    const block = render(e, m, triggers.specs[m.id]?.origin);
     if (fired.length >= config.inject.maxItems || chars + block.length > config.inject.maxChars) {
       deferred.push(e.id);
       continue;

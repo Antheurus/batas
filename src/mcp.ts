@@ -7,7 +7,7 @@ import { config } from "./config.ts";
 import type { Entry, Kind } from "./corpus.ts";
 import { Store } from "./store.ts";
 import { Triggers } from "./triggers.ts";
-import { logChangelog, logProgress, recordMemory } from "./write.ts";
+import { logChangelog, logProgress, ORIGINS, recordMemory } from "./write.ts";
 
 const KINDS = ["rule", "rule-section", "reference", "memory", "project-rule", "progress", "changelog", "context"] as const;
 
@@ -132,7 +132,9 @@ server.registerTool(
       const e = s.get(id);
       if (!e) return text(`No entry with id "${id}". Try recall.`);
       const links = s.links(e.id);
-      return text(`${full(e)}${links.length ? `\n\nlinks: ${links.map((l) => l.dst).join(", ")}` : ""}`);
+      const spec = Triggers.load().specs[e.id];
+      const who = spec?.origin ? `\n\norigin: ${spec.origin}${spec.recorded ? ` (recorded ${spec.recorded})` : ""}` : "";
+      return text(`${full(e)}${who}${links.length ? `\n\nlinks: ${links.map((l) => l.dst).join(", ")}` : ""}`);
     } catch (err) {
       return fail(err);
     }
@@ -156,6 +158,12 @@ server.registerTool(
       body: z.string().describe("The fact/rule. For feedback/project follow with **Why:** and **How to apply:** lines"),
       project_dir: z.string().optional().describe("Defaults to the session's working directory"),
       replace: z.boolean().optional().describe("Overwrite an existing memory with the same name"),
+      origin: z
+        .enum(ORIGINS)
+        .describe(
+          "Who started this record: user-requested (the user asked for it to be remembered), agent-initiated (the agent " +
+            "noticed it unprompted), user-written (the user wrote or dictated the words themselves)",
+        ),
     },
   },
   async (a) => {
@@ -177,7 +185,8 @@ server.registerTool(
             "## To apply",
             "Invoke the rules-writer skill (Mode D global / Mode A project). Place a global item by its TRIGGER: the always-on",
             "mother (gotcha-coding.md / lessons.md) for command- or session-triggered rules, a p-gotcha-*/p-lessons-* slice for",
-            `rules that fire only while editing matching files. Then add its triggers to ${config.triggersFile}.`,
+            `rules that fire only while editing matching files. Then add its triggers to ${config.triggersFile},`,
+            `with origin = "${a.origin}" and recorded = "${new Date().toLocaleDateString("sv-SE")}" on the same entry.`,
           ].join("\n"),
         );
       }
@@ -189,6 +198,7 @@ server.registerTool(
         description: a.description,
         body: a.body,
         replace: a.replace,
+        origin: a.origin,
       });
       return text(`${w.note}\n${w.file}`);
     } catch (err) {
@@ -260,7 +270,7 @@ server.registerTool(
       const ruleIds = (s.db.query("SELECT id FROM entries WHERE kind = 'rule'").all() as { id: string }[]).map((r) => r.id);
       const covered = new Set(triggers.ids());
       const missing = ruleIds.filter((id) => !covered.has(id));
-      const orphan = [...covered].filter((id) => !ruleIds.includes(id) && !id.startsWith("memory:"));
+      const orphan = [...covered].filter((id) => !ruleIds.includes(id) && !/^(memory|hint):/.test(id));
       const log = join(config.stateDir, "hook.log.jsonl");
       let activity = "no hook activity recorded yet";
       if (existsSync(log)) {

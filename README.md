@@ -32,6 +32,15 @@ are for questions no trigger can predict.
 
 - `record` with type `user`, `feedback`, `project` or `reference` writes the memory file and its `MEMORY.md`
   pointer directly. It refuses to overwrite silently.
+- Every `record` takes a required `origin`, which states who started the record. The agent usually does the writing
+  either way, so this is the one fact the file cannot show:
+  - `user-requested`: the user asked for it to be remembered.
+  - `agent-initiated`: the agent noticed it unprompted.
+  - `user-written`: the user wrote or dictated the words.
+
+  For a memory, `origin` is written into its frontmatter along with `recorded: <date>`. For a rule, it goes on the
+  rule's entry in `triggers.toml`. It is shown next to the id in hook injections, in `get`, and in `recall` titles.
+  Entries that predate this field carry no origin; nothing guesses one for them.
 - `record` with type `lesson` only **drafts**. It returns the closest existing rules and never writes to
   `~/.claude/rules/`. Global rules reach every repo, so they go through the `rules-writer` skill.
 - `log_changelog` refuses a version that already has a heading or is not newer than the newest one.

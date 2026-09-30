@@ -55,6 +55,9 @@ ToolSearch({query: "select:mcp__batas__check,mcp__batas__recall,mcp__batas__get,
 
 ## Writing through batas
 
+- **Every `record` carries `origin`:** `user-requested` when the user asked for it ("inget ini", "catat"),
+  `agent-initiated` when the agent learned it unprompted, and `user-written` when the user wrote the words. Pick
+  it from what actually happened, never by default. It is shown next to the id wherever the entry surfaces.
 - **Memory** (`record` with user/feedback/project/reference) writes the file and its `MEMORY.md` pointer directly.
   Pass `replace: true` only after reading the existing one with `get` — the tool refuses a silent overwrite.
   Feedback and project bodies carry `**Why:**` and `**How to apply:**` lines; convert relative dates to absolute.

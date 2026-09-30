@@ -1,5 +1,13 @@
 # batas Changelog
 
+## v0.2.0 — Petunjuk alat, dan asal-usul setiap catatan
+
+- Kalau kamu bilang "inget ya", "catat ke progress", "pernah kejadian gini?" atau "mau hapus branch lama", agent
+  langsung diberi tahu tool batas mana yang harus dipakai.
+- Setiap memori dan aturan baru sekarang mencatat siapa yang memulainya: kamu yang minta, agent yang berinisiatif
+  sendiri, atau kamu yang menulis sendiri. Info ini ikut tampil setiap kali aturan itu muncul.
+- Laporan dari agent latar belakang tidak lagi dianggap sebagai ketikan kamu.
+
 ## v0.1.2 — Command yang cuma menyebut pola tidak memicu aturan lagi
 
 - Aturan tidak lagi muncul hanya karena sebuah command *menyebut* pola berbahaya di dalam tanda kutip. Contohnya

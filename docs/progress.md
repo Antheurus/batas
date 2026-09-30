@@ -1,5 +1,30 @@
 # batas Progress
 
+## Session — 2026-09-30 (cont) — v0.2.0 (tool hints, injected-only reachability gate, origin of every record)
+
+**Tool hints.** A 12-session skill-trigger probe showed 3/8 Indonesian paraphrases reaching batas. The hook path is the lever here (lessons I11), so the UserPromptSubmit branch now also emits `hint:*` entries from `triggers.toml`:
+- `hint:record` fires on "inget ya", "jangan sampe keulang", …
+- `hint:log` on "catat ke progress", "changelog";
+- `hint:recall` on "pernah kejadian", "preferensi gua";
+- `hint:check` on "hapus branch", "deploy ulang", "restore dump".
+
+Each injects one line naming the tool, once per session. The hook log showed the hints reaching every positive session. The remaining misses were a harness trap: `--permission-mode plan` forbids writes, so record/log could never be called. Re-running the four write cases unrestricted gave 3/4 on batas, and the fourth went correctly to rules-writer. Overall 7/8 positives, 0/4 negatives.
+
+**Notification filter.** UserPromptSubmit also fires on harness `<task-notification>` turns, and a subagent's report matched five rules. Such prompts are now skipped.
+
+**Reachability gate.** cc-toriq v0.30.0 moved 70 always-on items into injected-only slices whose `paths:` match nothing. A new test fails if any item in a `*-injected.md` slice lacks a cmd/path/code trigger, since such a rule could never reach the agent.
+
+**Origin.** The user asked for every record to say whether the agent or a human started it, because the agent usually writes either way. `record` now requires `origin`:
+- `user-requested`
+- `agent-initiated`
+- `user-written`
+
+For memory it is written into the frontmatter beside `recorded: <date>`, and surfaced as `[type · origin]` in the title. For rules it lives on the rule's `triggers.toml` entry (`origin`, `recorded`), keeping the always-on corpus unchanged, and is shown as `### id · origin` in injections and `origin: … (recorded …)` in `get`. Pre-existing entries carry none. Nothing guesses an origin for them, since a fabricated provenance is worse than a missing one. The only ones set today are those whose origin is known from this session (lessons I10, and the project_batas memory).
+
+Verified: 21 tests, 0 failed. A fresh session's `get lessons:I10` returned `origin: agent-initiated (recorded 2026-09-30)`.
+
+---
+
 ## Session — 2026-09-30 (cont) — v0.1.2 (cmd triggers ignore patterns that are only mentioned in a quoted argument)
 
 The v0.1.0 build noted the E24 class as open: `just fire "lsof -ti tcp:59999"` injected lessons:B13 although it only mentioned the pattern, and every `git commit -m "..."` naming a destructive command would fire the same way. `dataSpans()` in `src/triggers.ts` now marks the parts of a command that are DATA: quoted arguments, and heredoc bodies fed to a non-interpreter. A cmd regex counts only when a match starts outside them (`matchOutside`). Code is not data. These stay live:

@@ -42,7 +42,19 @@ describe("triggers", () => {
   test.skipIf(!ids.length)("cover every numbered rule and no phantom id", () => {
     const rules = (store.db.query("SELECT id FROM entries WHERE kind = 'rule'").all() as { id: string }[]).map((r) => r.id);
     expect(rules.filter((id) => !ids.includes(id))).toEqual([]);
-    expect(ids.filter((id) => !rules.includes(id) && !id.startsWith("memory:"))).toEqual([]);
+    expect(ids.filter((id) => id.startsWith("hint:") && !specs[id]?.text)).toEqual([]);
+    expect(ids.filter((id) => !rules.includes(id) && !/^(memory|hint):/.test(id))).toEqual([]);
+  });
+
+  test.skipIf(!ids.length)("every rule in an injected-only slice has a cmd/path/code trigger — or it can never arrive", () => {
+    const injected = (
+      store.db.query("SELECT id FROM entries WHERE kind = 'rule' AND source LIKE '%-injected.md'").all() as { id: string }[]
+    ).map((r) => r.id);
+    const unreachable = injected.filter((id) => {
+      const s = specs[id] ?? {};
+      return !(s.cmd?.length || s.path?.length || s.code?.length);
+    });
+    expect(unreachable).toEqual([]);
   });
 
   test.skipIf(!ids.length)("every fixture fires its own rule (the recall test)", () => {
@@ -140,6 +152,30 @@ describe("hook", () => {
     expect(fires("python3 - <<'EOF'\nimport os; os.system('lsof -ti tcp:3000')\nEOF")).toBe(true);
   });
 
+  test("a tool hint injects its text once per session; a harness task-notification never matches", () => {
+    const ht = new Triggers({ "hint:record": { prompt: ["inget ya"], text: "call mcp__batas__record" } });
+    const ask = (prompt: string, session_id: string) =>
+      evaluate({ session_id, hook_event_name: "UserPromptSubmit", prompt }, store, ht);
+    const first = ask("inget ya, gua nggak suka popup", "t1").output as { hookSpecificOutput?: { additionalContext: string } };
+    expect(first.hookSpecificOutput?.additionalContext).toBe("batas: call mcp__batas__record");
+    expect(ask("inget ya yang lain juga", "t1").output).toEqual({});
+    expect(ask("<task-notification> inget ya </task-notification>", "t2").output).toEqual({});
+  });
+
+  test("origin shows on an injected rule and in a memory's title", () => {
+    const ot = new Triggers({ "gotcha:B1": { cmd: ["\\bpg_restore\\b"], origin: "user-written" } });
+    const r = evaluate(
+      { session_id: "o1", hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command: "pg_restore -d x a.dump" } },
+      store,
+      ot,
+    ).output as { hookSpecificOutput: { additionalContext: string } };
+    expect(r.hookSpecificOutput.additionalContext).toContain("### gotcha:B1 · user-written — fired by");
+    const w = recordMemory({ projectDir: demo, type: "project", name: "origin-probe", title: "t", description: "d", body: "b", origin: "agent-initiated" });
+    const s2 = new Store();
+    s2.refresh("all");
+    expect(s2.get(`memory:${w.file.split("/").at(-3)}/origin-probe`)?.title).toStartWith("[project · agent-initiated]");
+  });
+
   test("a Read of an unrelated file stays silent", () => {
     const r = evaluate({ session_id: "h4", hook_event_name: "PreToolUse", tool_name: "Read", tool_input: { file_path: "/x/README.md" } }, store, t);
     expect(r.output).toEqual({});
@@ -164,9 +200,10 @@ describe("writers", () => {
   });
 
   test("memory is written with frontmatter and a MEMORY.md pointer, and refuses silent overwrite", () => {
-    const a = { projectDir: demo, type: "feedback" as const, name: "No Popups", title: "No popups", description: "warn, never ask", body: "Rule.\n\n**Why:** x\n**How to apply:** y" };
+    const a = { projectDir: demo, type: "feedback" as const, name: "No Popups", title: "No popups", description: "warn, never ask", body: "Rule.\n\n**Why:** x\n**How to apply:** y", origin: "user-requested" as const };
     const w = recordMemory(a);
-    expect(readFileSync(w.file, "utf8")).toContain("type: feedback");
+    expect(readFileSync(w.file, "utf8")).toContain("type: feedback\n  origin: user-requested\n  recorded: ");
+    expect(() => recordMemory({ ...a, name: "bad-origin", origin: "somebody" as never })).toThrow(/origin must be one of/);
     const index = readFileSync(join(w.file, "..", "MEMORY.md"), "utf8");
     expect(index).toContain("- [No popups](no-popups.md) — warn, never ask");
     expect(() => recordMemory(a)).toThrow(/already exists/);
@@ -198,10 +235,11 @@ describe("mcp server", () => {
     expect(get.content[0]?.text).toContain("git stash push");
     const draft = (await client.callTool({
       name: "record",
-      arguments: { type: "lesson", name: "x", title: "stash pop takes another session's work", description: "d", body: "git stash pop after a failed push" },
+      arguments: { type: "lesson", name: "x", title: "stash pop takes another session's work", description: "d", body: "git stash pop after a failed push", origin: "agent-initiated" },
     })) as { content: { text: string }[] };
     expect(draft.content[0]?.text).toContain("Draft only");
     expect(draft.content[0]?.text).toContain("lessons:C18");
+    expect(draft.content[0]?.text).toContain('origin = "agent-initiated"');
     await client.close();
   }, 30000);
 

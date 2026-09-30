@@ -193,14 +193,15 @@ export function globalSources(): Source[] {
 
 export function parseMemory(file: string, project: string): Entry {
   const { fm, body } = stripFrontmatter(readFileSync(file, "utf8"));
-  const typeMatch = readFileSync(file, "utf8").match(/^\s+type:\s*(\w+)/m);
-  const type = fm.type ?? typeMatch?.[1] ?? "note";
+  const raw = readFileSync(file, "utf8");
+  const type = fm.type ?? raw.match(/^\s+type:\s*(\w+)/m)?.[1] ?? "note";
+  const origin = fm.origin ?? raw.match(/^\s+origin:\s*([\w-]+)/m)?.[1];
   const name = basename(file, ".md");
   return {
     id: `memory:${project}/${name}`,
     kind: "memory",
     scope: project,
-    title: `[${type}] ${fm.name ?? name} — ${fm.description ?? ""}`.trim(),
+    title: `[${type}${origin ? ` · ${origin}` : ""}] ${fm.name ?? name} — ${fm.description ?? ""}`.trim(),
     body: body.trim(),
     source: file,
     line: 1,

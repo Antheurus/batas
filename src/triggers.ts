@@ -9,6 +9,9 @@ export type TriggerSpec = {
   reply?: string[];
   reply_ok?: string[];
   code?: string[];
+  text?: string;
+  origin?: string;
+  recorded?: string;
   t_code?: string[];
   t_cmd?: string[];
   t_path?: string[];
