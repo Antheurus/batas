@@ -61,6 +61,12 @@ ToolSearch({query: "select:mcp__batas__check,mcp__batas__recall,mcp__batas__get,
 - **Memory** (`record` with user/feedback/project/reference) writes the file and its `MEMORY.md` pointer directly.
   Pass `replace: true` only after reading the existing one with `get` — the tool refuses a silent overwrite.
   Feedback and project bodies carry `**Why:**` and `**How to apply:**` lines; convert relative dates to absolute.
+- **Every memory carries `triggers`** — pass 4–10 words or short phrases the user would actually TYPE when it
+  applies, Indonesian AND English, colloquial included (`"mac panas, kipas kenceng, overheat"`). A memory written by
+  hand gets the same as one frontmatter line, `triggers: "a, b, c"`. A trigger hit is the ONLY thing that injects a
+  memory in full, so a memory without triggers is effectively invisible to the hook. Never a bare generic word that
+  would fire on unrelated prompts (`fix`, `deploy`, `landing`, or the platform name inside that platform's own repo);
+  pair it with its subject instead (`deploy lms`). After adding triggers, run `just trigger-audit` in the batas repo.
 - **Rules are never written by batas.** A global rule reaches every repo on the machine, so it goes through
   `rules-writer` (draft, prove absent, pick one owner, edit against a snapshot). `record(type: "lesson")` does the
   duplicate search that step needs.
@@ -71,12 +77,21 @@ ToolSearch({query: "select:mcp__batas__check,mcp__batas__recall,mcp__batas__get,
 ## When a hook fires
 
 An injected block starting `batas:` is a rule that matched what is about to happen. Read it before running the
-command. When the Stop hook blocks with `batas: your last reply matches a known mistake pattern`, either correct
+command. A fired `gotcha:`/`lessons:` item arrives as its verbatim FULL text (from `~/.claude/references/{gotcha,
+lessons}-full.md`), not the condensed line already in context — that is where the recipe and the incident live. On a
+prompt, `batas: project memories that may bear on this request` carries up to two memories whose triggers the prompt
+said; use one only if it actually applies, and open a listed id with `get` when it bears on the work. When the Stop hook blocks with `batas: your last reply matches a known mistake pattern`, either correct
 the reply or the work, or state in one line why the reply complies — it blocks once per stop, never twice.
 
 ## Adding a trigger
 
-Triggers live in `~/.claude/batas/triggers.toml`, one table per id (`["gotcha:B1"]`, `["memory:<slug>/<name>"]`):
+**Memory triggers live in the memory's own frontmatter (`triggers:`), never in `triggers.toml`.** Matching uses the
+user's own words only (quoted `>` lines and side-agent notes are cut), a whole-word hit, and multi-word triggers in any
+order. `just trigger-audit [threshold]` replays every memory trigger against `~/.claude/history.jsonl` and reports the
+hit rate, memories without triggers, and terms firing on more than 3% of their project's prompts — make those more
+specific rather than deleting the memory's only route in.
+
+**Rule triggers** live in `~/.claude/batas/triggers.toml`, one table per id (`["gotcha:B1"]`):
 `cmd` (JS regex on a Bash command), `path` (glob on a file path), `prompt` (phrases), `reply` + `reply_ok` (regex on
 the final reply; `reply_ok` suppresses), each with `t_*` fixtures that must fire. `bun test` in the batas repo
 fails when a fixture does not fire its own rule — that is the recall test, and a rule without a passing fixture is
