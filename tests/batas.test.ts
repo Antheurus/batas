@@ -9,6 +9,7 @@ import { evaluate } from "../src/hook.ts";
 import { auditPrompts } from "../scripts/prompt-audit.ts";
 import { gitIndex, judgePath, namedPaths, resolveRoot } from "../scripts/memory-audit.ts";
 import { mine, signature } from "../scripts/lesson-mine.ts";
+import { copiesOf, shareMemory } from "../scripts/memory-share.ts";
 import { errorsIn } from "../scripts/transcripts.ts";
 import { memorySources } from "../src/corpus.ts";
 import { mutedIds, readAcks, readFeedback, setMuted } from "../src/feedback.ts";
@@ -254,6 +255,34 @@ describe("hook", () => {
       ["(eval):<n>: == not found", 3, []],
       ["pg_restore: error: connection to server at <path> failed", 3, ["gotcha:B1"]],
     ]);
+  });
+
+  test("memory-share stores one copy and links every project to it, refusing drifted copies without a merge", () => {
+    const root = mkdtempSync(join(tmpdir(), "batas-share-"));
+    const projectsDir = join(root, "projects");
+    const sharedDir = join(root, "memory", "shared");
+    const backupDir = join(root, "backup");
+    const put = (slug: string, name: string, text: string) => {
+      mkdirSync(join(projectsDir, slug, "memory"), { recursive: true });
+      writeFileSync(join(projectsDir, slug, "memory", name), text);
+    };
+    for (const slug of ["-a", "-b", "-c"]) put(slug, "same.md", "---\nname: same\n---\nshared fact\n");
+    put("-a", "drift.md", "v1\n");
+    put("-b", "drift.md", "v2\n");
+    const opts = { projectsDir, sharedDir, backupDir };
+    expect(shareMemory("same.md", opts).plan).toHaveLength(4);
+    expect(copiesOf("same.md", projectsDir).every((c) => !c.shared)).toBe(true);
+    expect(shareMemory("same.md", { ...opts, apply: true }).error).toBeUndefined();
+    const linked = copiesOf("same.md", projectsDir);
+    expect(linked.map((c) => [c.shared, c.text])).toEqual([[true, "---\nname: same\n---\nshared fact\n"], [true, "---\nname: same\n---\nshared fact\n"], [true, "---\nname: same\n---\nshared fact\n"]]);
+    writeFileSync(join(projectsDir, "-b", "memory", "same.md"), "corrected once\n");
+    expect(readFileSync(join(projectsDir, "-c", "memory", "same.md"), "utf8")).toBe("corrected once\n");
+    expect(existsSync(join(backupDir, "-a", "same.md"))).toBe(true);
+    expect(shareMemory("drift.md", { ...opts, apply: true }).error).toContain("2 different versions");
+    expect(copiesOf("drift.md", projectsDir).some((c) => c.shared)).toBe(false);
+    writeFileSync(join(root, "merged.md"), "v1+v2\n");
+    expect(shareMemory("drift.md", { ...opts, apply: true, from: join(root, "merged.md") }).error).toBeUndefined();
+    expect(copiesOf("drift.md", projectsDir).map((c) => c.text)).toEqual(["v1+v2\n", "v1+v2\n"]);
   });
 
   test("a trigger word alone recalls its memory here, and is listed from another project's cwd", () => {

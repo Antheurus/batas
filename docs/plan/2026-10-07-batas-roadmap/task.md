@@ -24,7 +24,7 @@ research.md, each item is built directly, measured, falsified, committed and pus
 - [x] **Roadmap 8 — context budget per session.** First MEASURE bytes injected per session from the hook log and
       transcripts (`hook_success` attachments carry the injected text), then cap: past the cap, list ids instead of
       full text. Do not pick the cap before the measurement.
-- [ ] **Roadmap 5 — one shared memory instead of copies.** `just trigger-audit` shows the same memory copied into up to
+- [x] **Roadmap 5 — one shared memory instead of copies.** `just trigger-audit` shows the same memory copied into up to
       11 Brighty projects. Design decision needed (where the shared copy lives, how MEMORY.md points at it); bring the
       design to the user before building — it touches every project's memory directory.
 - [x] **Roadmap 7 — mine lessons from transcripts.** The same error signature fixed 3+ times across sessions becomes a

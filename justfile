@@ -43,6 +43,10 @@ trigger-audit threshold="0.03":
 lesson-mine days="30" min="3":
     bun scripts/lesson-mine.ts {{days}} {{min}}
 
+# one memory used by several projects, stored once and symlinked: no args lists copies (identical or drifted); `just memory-share <name> [--from merged.md] [--apply]`
+memory-share *args:
+    bun scripts/memory-share.ts {{args}}
+
 # memories naming a file that no longer exists: stale only when git once tracked it, with the rename target (report only)
 memory-audit:
     bun scripts/memory-audit.ts

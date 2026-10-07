@@ -34,7 +34,12 @@ Agreed with the user on 2026-10-07. Each item names the evidence that put it her
    stay unjudged. Symbols and ports are not checked yet: a symbol needs each repo's GitNexus index and a port has no
    source of truth beyond `~/.claude/references/infra.md`.
 5. **One shared memory instead of copies** — a memory used by several projects is stored once with a project list.
-   Evidence: `just trigger-audit` found the same memory copied into 11 Brighty projects.
+   Evidence: `just trigger-audit` found the same memory copied into 11 Brighty projects. Status: **done 2026-10-08** —
+   `just memory-share`: one file in `~/.claude/memory/shared/`, each project's copy replaced by a relative symlink
+   (read natively by Claude Code, batas and the mirror; a frontmatter `projects:` list was rejected because Claude Code
+   would not load it). Copies must be identical or merged first. Measured: only 2 memories were copied (19 files);
+   hegemoni-product-brand-domains had drifted into 3 versions across 9 projects, merged without conflict (one added
+   the staging domain fact, one only had other triggers).
 6. **Enforce rules-writer Step 5b at edit time** — a rules edit without its `triggers.toml` / `*-full.md` update warns
    immediately. Evidence: memory triggers needed a 586-file backfill because nothing enforced them from the start.
    Status: **done 2026-10-07** — a memory written without `triggers:` warns at the write; a family rule edit shows the

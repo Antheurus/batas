@@ -1,5 +1,12 @@
 # batas Changelog
 
+## v0.12.0 — Satu memory untuk banyak project
+
+- Perintah baru `just memory-share`: memory yang sama di beberapa project sekarang disimpan sekali di `~/.claude/memory/shared/`, dan tiap project menunjuk ke file itu. Koreksi di satu project langsung berlaku di semua.
+- Tanpa argumen, perintah ini menampilkan memory yang tercopy di beberapa project dan apakah isinya masih sama atau sudah beda.
+- Sudah diterapkan: `hegemoni-product-brand-domains` (9 project, tadinya 3 versi berbeda, sekarang digabung lengkap dengan fakta domain staging `scops-dev`) dan `prod-dev-ssh-and-db-creds-location` (10 project).
+- Salinan lama dicadangkan di `~/.batas/memory-share-backup/`.
+
 ## v0.11.0 — Kesalahan yang berulang di banyak sesi ketahuan sendiri
 
 - Perintah baru `just lesson-mine`: membaca semua tool call yang gagal di transcript 30 hari terakhir, mengelompokkan error yang sama, dan melaporkan yang muncul di 3 sesi atau lebih. Hasilnya dibagi dua: kesalahan yang belum punya aturan (calon lesson), dan kesalahan yang tetap berulang walaupun aturannya sudah muncul.

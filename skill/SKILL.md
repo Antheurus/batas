@@ -126,5 +126,5 @@ prefixed with `BATAS_ACK_FOREIGN=1 ` / `BATAS_ACK_LIVE=1 `; every ack that bypas
 `status`, so acking by reflex is visible. "Before this session started" means before its transcript was created. Other
 shared-checkout git commands only warn.
 
-Repo: `~/Documents/PROJECT_MISPAQUL_ATTORIQ/batas` — `just install | check | recall "<q>" | fire "<cmd>" | log | rule-audit | prompt-audit | trigger-audit | effect-audit | memory-audit | lesson-mine`.
+Repo: `~/Documents/PROJECT_MISPAQUL_ATTORIQ/batas` — `just install | check | recall "<q>" | fire "<cmd>" | log | rule-audit | prompt-audit | trigger-audit | effect-audit | memory-audit | memory-share | lesson-mine`.
 `just check` includes a latency budget (60 ms tool call, 150 ms prompt, in-process, at ~600-memory scale).

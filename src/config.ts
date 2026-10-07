@@ -11,6 +11,7 @@ export const config = {
   referenceDirs: [join(claudeHome, "references")],
   skillsDir: join(claudeHome, "skills"),
   projectsDir: join(claudeHome, "projects"),
+  sharedMemoryDir: join(claudeHome, "memory", "shared"),
   triggersFile: process.env.BATAS_TRIGGERS ?? join(claudeHome, "batas", "triggers.toml"),
   projectRoots: (process.env.BATAS_PROJECT_ROOTS ?? join(home, "Documents", "PROJECT_MISPAQUL_ATTORIQ"))
     .split(":")
