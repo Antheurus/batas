@@ -105,5 +105,11 @@ the batas repo and `just sync` in cc-toriq.
 through the hook's own matcher and lists noisy ids (with the share of SESSIONS they reach, since an id injects once per
 session) and cmd/path/code ids that never fired — a broken regex and a rare situation look identical until replayed.
 
-Repo: `~/Documents/PROJECT_MISPAQUL_ATTORIQ/batas` — `just install | check | recall "<q>" | fire "<cmd>" | log | rule-audit | trigger-audit`.
+**Whether an injection works is measured, not assumed:** `just effect-audit [days] [min]` compares, per rule, how often its
+trigger matched AGAIN later in a session, before batas went live versus after. Mistake-shaped rules should drop and
+situational ones (`git push`) stay flat as the control. A mistake-shaped rule that does not drop is being ignored,
+so fix its wording or delivery. A shared-checkout git command also warns when another session is live in the same
+repo root (roadmap item 1, `docs/roadmap.md`).
+
+Repo: `~/Documents/PROJECT_MISPAQUL_ATTORIQ/batas` — `just install | check | recall "<q>" | fire "<cmd>" | log | rule-audit | trigger-audit | effect-audit`.
 `just check` includes a latency budget (60 ms tool call, 150 ms prompt, in-process, at ~600-memory scale).

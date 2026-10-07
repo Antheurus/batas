@@ -1,5 +1,12 @@
 # batas Changelog
 
+## v0.5.0 — Penjaga sesi bentrok, aturan dipilah pakai data, dan bukti batas bekerja
+
+- Kalau ada sesi Claude lain yang aktif di repo yang sama dalam 15 menit terakhir, agent diberi peringatan sebelum menjalankan perintah git yang mengubah isi repo (commit, push, add, stash, reset, dan lain-lain).
+- 11 aturan yang jarang terpakai dan tidak berbahaya dipindahkan dari rules yang selalu dimuat ke mode "dikirim saat relevan". Aturan yang bersifat merusak tetap selalu dimuat, karena kiriman batas baru tiba setelah perintahnya jalan.
+- Perintah baru `just effect-audit` membandingkan perilaku agent sebelum dan sesudah batas aktif. Contohnya, kesalahan `| head && echo` turun dari 50% ke 19% sesi, sementara aturan pembanding seperti `git push` tetap datar.
+- Daftar rencana lengkap (9 item) ada di `docs/roadmap.md`.
+
 ## v0.4.1 — "batas nyasar" sekarang mengenai yang benar
 
 - "batas nyasar" sekarang hanya membisukan memory yang dikirim di prompt terakhirmu, bukan aturan yang muncul dari perintah agent (misalnya aturan git push).

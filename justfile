@@ -42,3 +42,7 @@ trigger-audit threshold="0.03":
 # replay real tool calls from recent transcripts through the rule triggers: noisy and never-firing ids (days, noisy share)
 rule-audit days="14" share="0.02" promote="0.3" demote="0.02":
     bun scripts/rule-audit.ts {{days}} {{share}} {{promote}} {{demote}}
+
+# did injections change behaviour? repeat rate of each trigger per session, before vs after batas went live (days per side, min sessions)
+effect-audit days="21" min="8":
+    bun scripts/effect-audit.ts {{days}} {{min}}

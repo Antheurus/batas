@@ -1,52 +1,17 @@
 // Replay real tool calls from recent session transcripts through the hook's own Triggers, to find rule triggers that
 // never fire (a broken regex looks exactly like a rare situation until replayed) and ones that fire on too much.
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
 import { config } from "../src/config.ts";
 import { readFeedback } from "../src/feedback.ts";
 import { readHookLog } from "../src/log.ts";
 import { Store } from "../src/store.ts";
 import { Triggers } from "../src/triggers.ts";
+import { type Call, callsIn, transcriptFiles } from "./transcripts.ts";
 
 const days = Number(process.argv[2] ?? 14);
 const noisyShare = Number(process.argv[3] ?? 0.02);
 const since = Date.now() - days * 24 * 3600 * 1000;
 
-function transcripts(dir: string, out: string[] = []): string[] {
-  for (const name of readdirSync(dir)) {
-    const p = join(dir, name);
-    const st = statSync(p);
-    if (st.isDirectory()) transcripts(p, out);
-    else if (name.endsWith(".jsonl") && st.mtimeMs >= since) out.push(p);
-  }
-  return out;
-}
-
-type Call = { cmd?: string; path?: string; code?: string; session: string };
-const calls: Call[] = [];
-for (const file of transcripts(config.projectsDir)) {
-  for (const line of readFileSync(file, "utf8").split("\n")) {
-    if (!line.includes('"tool_use"')) continue;
-    let row: { message?: { content?: unknown } };
-    try {
-      row = JSON.parse(line);
-    } catch {
-      continue;
-    }
-    const content = row.message?.content;
-    if (!Array.isArray(content)) continue;
-    for (const b of content as { type?: string; name?: string; input?: Record<string, unknown> }[]) {
-      if (b.type !== "tool_use" || !b.input) continue;
-      const i = b.input;
-      if (b.name === "Bash" && typeof i.command === "string") calls.push({ cmd: i.command, session: file });
-      else if (typeof i.file_path === "string") {
-        const prose = /\.(md|mdx|txt|rst|toml)$/i.test(i.file_path);
-        const code = prose ? undefined : [i.new_string, i.content].filter((x) => typeof x === "string").join("\n").slice(0, 20000);
-        calls.push({ path: i.file_path, code: code || undefined, session: file });
-      }
-    }
-  }
-}
+const calls: Call[] = transcriptFiles(config.projectsDir, since).flatMap(callsIn);
 
 const triggers = Triggers.load();
 const ruleIds = triggers.ids().filter((id) => !/^(hint|memory):/.test(id));
