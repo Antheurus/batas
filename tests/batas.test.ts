@@ -123,10 +123,11 @@ describe("hook", () => {
     const none = new Triggers({});
     const ask = (prompt: string, session_id: string) =>
       evaluate({ session_id, cwd: "/tmp/demo", hook_event_name: "UserPromptSubmit", prompt }, store, none);
-    const hit = ask("bikin hooks yang warn aja, jangan popups", "m1").output as { hookSpecificOutput?: { additionalContext: string } };
+    const hit = ask("bikin hooks yang warn aja, jangan ask popups advisory", "m1").output as { hookSpecificOutput?: { additionalContext: string } };
     expect(hit.hookSpecificOutput?.additionalContext).toContain("memory:-tmp-demo/hooks-warn-not-ask");
     expect(hit.hookSpecificOutput?.additionalContext).toContain("permissionDecision allow");
-    expect(ask("bikin hooks yang warn aja, jangan popups", "m1").output).toEqual({});
+    expect(ask("bikin hooks yang warn aja, jangan ask popups advisory", "m1").output).toEqual({});
+    expect(ask("perketat\n\nHere is a note offered by a side agent:\n> hooks warn ask popups advisory", "m4").output).toEqual({});
   });
 
   test("an unrelated prompt or another project's cwd recalls no memory", () => {

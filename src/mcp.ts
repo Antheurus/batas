@@ -155,6 +155,13 @@ server.registerTool(
       name: z.string().describe("kebab-case slug, e.g. 'hooks-warn-not-ask'"),
       title: z.string().describe("Human title for the MEMORY.md index line"),
       description: z.string().describe("One line, used to decide relevance later"),
+      triggers: z
+        .array(z.string())
+        .optional()
+        .describe(
+          "4-10 words or short phrases the user would actually TYPE when this memory applies, Indonesian AND English, " +
+            "colloquial included (e.g. 'panas', 'lemot', 'hot', 'slow'). The hook injects the memory when a prompt says one.",
+        ),
       body: z.string().describe("The fact/rule. For feedback/project follow with **Why:** and **How to apply:** lines"),
       project_dir: z.string().optional().describe("Defaults to the session's working directory"),
       replace: z.boolean().optional().describe("Overwrite an existing memory with the same name"),
@@ -199,6 +206,7 @@ server.registerTool(
         body: a.body,
         replace: a.replace,
         origin: a.origin,
+        triggers: a.triggers,
       });
       return text(`${w.note}\n${w.file}`);
     } catch (err) {

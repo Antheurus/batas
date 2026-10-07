@@ -191,17 +191,32 @@ export function globalSources(): Source[] {
   return sources;
 }
 
+const TRIGGERS_MARK = " · triggers: ";
+
+// A memory's `triggers:` are the words the user actually types when it applies (Indonesian and English); they ride in
+// the indexed title so FTS ranks them high, and memoryTriggers() reads them back out for the hook's exact match.
+export function memoryTriggers(title: string): string[] {
+  const i = title.indexOf(TRIGGERS_MARK);
+  if (i < 0) return [];
+  return title
+    .slice(i + TRIGGERS_MARK.length)
+    .split(",")
+    .map((t) => t.trim().toLowerCase())
+    .filter((t) => t.length > 1);
+}
+
 export function parseMemory(file: string, project: string): Entry {
   const { fm, body } = stripFrontmatter(readFileSync(file, "utf8"));
   const raw = readFileSync(file, "utf8");
   const type = fm.type ?? raw.match(/^\s+type:\s*(\w+)/m)?.[1] ?? "note";
   const origin = fm.origin ?? raw.match(/^\s+origin:\s*([\w-]+)/m)?.[1];
+  const triggers = (fm.triggers ?? raw.match(/^\s+triggers:\s*(.+)$/m)?.[1] ?? "").replace(/^["'\[]|["'\]]$/g, "").trim();
   const name = basename(file, ".md");
   return {
     id: `memory:${project}/${name}`,
     kind: "memory",
     scope: project,
-    title: `[${type}${origin ? ` · ${origin}` : ""}] ${fm.name ?? name} — ${fm.description ?? ""}`.trim(),
+    title: `[${type}${origin ? ` · ${origin}` : ""}] ${fm.name ?? name} — ${fm.description ?? ""}${triggers ? `${TRIGGERS_MARK}${triggers}` : ""}`.trim(),
     body: body.trim(),
     source: file,
     line: 1,

@@ -1,7 +1,7 @@
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { config } from "./config.ts";
-import { memorySources, parseMemory, projectSlug, type Entry } from "./corpus.ts";
+import { memorySources, memoryTriggers, parseMemory, projectSlug, type Entry } from "./corpus.ts";
 import { Store } from "./store.ts";
 import { type Match, Triggers } from "./triggers.ts";
 
@@ -90,22 +90,56 @@ const STOPWORDS = new Set(
   "this that with from have what when where which there their they them then than into about would could should yang dengan untuk dari juga udah sudah bisa harus kalau atau tapi biar nggak gimana kita lagi buat jadi aja mana sama ini itu banget masih perlu secara mungkin terus padahal kenapa ngapain dong deh sih tuh nih kayak gitu gini pake pakai mau minta tolong coba please make sure".split(" "),
 );
 
-// Every prompt shares some word with some memory, so a bare FTS hit is noise; a memory is injected only when it
-// shares two distinct content words with the prompt and at least one of them sits in its title or description.
-function relevantMemories(store: Store, prompt: string, project: string, skip: string[]): Entry[] {
-  const words = [...new Set(prompt.toLowerCase().split(/[^\p{L}\p{N}_]+/u))].filter(
-    (w) => w.length >= 4 && !STOPWORDS.has(w),
-  );
-  if (words.length < 2) return [];
-  return store
-    .search(words.join(" "), { kinds: ["memory"], scope: project, limit: 12 })
-    .filter((h) => !skip.includes(h.id))
-    .filter((h) => {
-      const title = h.title.toLowerCase();
-      const text = `${title}\n${h.body.toLowerCase()}`;
-      return words.filter((w) => text.includes(w)).length >= 2 && words.some((w) => title.includes(w));
-    })
-    .slice(0, config.inject.maxMemories);
+function saysTrigger(promptLower: string, trigger: string): boolean {
+  const escaped = trigger.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(^|[^\\p{L}\\p{N}])${escaped}($|[^\\p{L}\\p{N}])`, "u").test(promptLower);
+}
+
+// Only the user's own words count: a quoted line or a side agent's note pasted into the prompt is someone else's
+// text, and matching it pulled unrelated memories in on the first live day.
+function ownWords(prompt: string): string {
+  const cut = prompt.search(/Here is a note offered by a side agent/i);
+  return (cut >= 0 ? prompt.slice(0, cut) : prompt)
+    .split("\n")
+    .filter((l) => !/^\s*>/.test(l))
+    .join("\n");
+}
+
+// Every prompt shares some word with some memory, so a bare FTS hit is noise. A memory matches when the prompt says
+// one of its trigger words, or — without a trigger — shares three distinct content words with it, two of them in its
+// title or description. Only trigger hits are listed beyond the injected two, and other projects' memories need one.
+function relevantMemories(
+  store: Store,
+  prompt: string,
+  project: string,
+  skip: string[],
+): { full: Entry[]; more: Entry[] } {
+  const lower = ownWords(prompt).toLowerCase();
+  const tokens = [...new Set(lower.split(/[^\p{L}\p{N}_]+/u))].filter((w) => w.length > 2 && !STOPWORDS.has(w));
+  const words = tokens.filter((w) => w.length >= 4);
+  if (!tokens.length) return { full: [], more: [] };
+  const triggered = (h: Entry) => memoryTriggers(h.title).some((t) => saysTrigger(lower, t));
+  const shared = (h: Entry) => {
+    const title = h.title.toLowerCase();
+    const text = `${title}\n${h.body.toLowerCase()}`;
+    return words.filter((w) => text.includes(w)).length >= 3 && words.filter((w) => title.includes(w)).length >= 2;
+  };
+  const local = store
+    .search(tokens.join(" "), { kinds: ["memory"], scope: project, limit: 40 })
+    .filter((h) => !skip.includes(h.id));
+  const strong = local.filter(triggered);
+  const weak = local.filter((h) => !strong.includes(h) && shared(h));
+  const matched = [...strong, ...weak];
+  const elsewhere = store
+    .search(tokens.join(" "), { kinds: ["memory"], limit: 40 })
+    .filter((h) => h.scope !== project && !skip.includes(h.id) && triggered(h));
+  return {
+    full: matched.slice(0, config.inject.maxMemories),
+    more: [...strong.filter((h) => !matched.slice(0, config.inject.maxMemories).includes(h)), ...elsewhere].slice(
+      0,
+      config.inject.maxMoreMemories,
+    ),
+  };
 }
 
 export function evaluate(input: HookInput, store: Store, triggers: Triggers): { output: object; fired: string[] } {
@@ -151,8 +185,11 @@ export function evaluate(input: HookInput, store: Store, triggers: Triggers): { 
   const state = loadSession(session);
   const matches = triggers.match(probe).filter((m) => !state.injected.includes(m.id));
   const project = input.cwd ? projectSlug(input.cwd) : "";
-  const memories = probe.prompt && project ? relevantMemories(store, probe.prompt, project, state.injected) : [];
-  if (!matches.length && !memories.length) return { output: {}, fired: [] };
+  const memories =
+    probe.prompt && project
+      ? relevantMemories(store, probe.prompt, project, [...state.injected, ...state.hinted])
+      : { full: [], more: [] };
+  if (!matches.length && !memories.full.length && !memories.more.length) return { output: {}, fired: [] };
 
   const sections: string[] = [];
   const fired: string[] = [];
@@ -177,17 +214,26 @@ export function evaluate(input: HookInput, store: Store, triggers: Triggers): { 
       fired.push(m.id);
     }
     const recalled: string[] = [];
-    for (const mem of memories) {
+    for (const mem of memories.full) {
       const body = mem.body.length > config.inject.memoryChars ? `${mem.body.slice(0, config.inject.memoryChars)}…` : mem.body;
       recalled.push(`### ${mem.id} — ${mem.title}\n${body}`);
       state.injected.push(mem.id);
       fired.push(mem.id);
     }
-    if (!sections.length && !tools.length && !recalled.length) return { output: {}, fired: [] };
+    const listed: string[] = [];
+    for (const mem of memories.more) {
+      listed.push(`- ${mem.id} — ${mem.title}`);
+      state.hinted.push(mem.id);
+      fired.push(mem.id);
+    }
+    if (!sections.length && !tools.length && !recalled.length && !listed.length) return { output: {}, fired: [] };
     saveSession(session, state);
     const text = [
       ...(recalled.length
-        ? ["batas: memories from this project that match the request — act on them, they are the user's own decisions:", ...recalled, ""]
+        ? ["batas: project memories that may bear on this request — use one only if it actually applies to what was asked:", ...recalled, ""]
+        : []),
+      ...(listed.length
+        ? ["batas: more memories that match (full text: mcp__batas__get <id>) — open any that bear on the work:", ...listed, ""]
         : []),
       ...tools.map((t) => `batas: ${t}`),
       ...(sections.length
