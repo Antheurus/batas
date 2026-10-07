@@ -6,7 +6,7 @@ import { z } from "zod";
 import { config } from "./config.ts";
 import type { Entry, Kind } from "./corpus.ts";
 import { Store } from "./store.ts";
-import { mutedIds, readFeedback, reportWrong, setMuted } from "./feedback.ts";
+import { mutedIds, readAcks, readFeedback, reportWrong, setMuted } from "./feedback.ts";
 import { readHookLog } from "./log.ts";
 import { Triggers } from "./triggers.ts";
 import { logChangelog, logProgress, ORIGINS, recordMemory } from "./write.ts";
@@ -329,6 +329,10 @@ server.registerTool(
           `hooks: ${activity}`,
           `reported wrong ("batas nyasar"): ${reported.size ? [...reported].sort((x, y) => y[1] - x[1]).map(([id, n]) => `${id} ×${n}`).join(", ") : "none"}`,
           `muted everywhere: ${muted.length ? muted.map(([id, why]) => `${id} (${why})`).join(", ") : "none"}`,
+          `collision-guard acks in 7 days (each one bypassed a block): ${(() => {
+            const acks = readAcks(Date.now() - 7 * 24 * 3600 * 1000);
+            return acks.length ? `${acks.length} — ${[...new Set(acks.map((a) => a.kind))].join(", ")}` : "none";
+          })()}`,
           `session repo: ${repoName(process.cwd())}`,
         ].join("\n"),
       );

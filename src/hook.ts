@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync,
 import { basename, dirname, join } from "node:path";
 import { config } from "./config.ts";
 import { memorySources, memoryTriggers, parseMemory, projectSlug, type Entry } from "./corpus.ts";
-import { mutedIds, reportWrong } from "./feedback.ts";
+import { mutedIds, recordAck, reportWrong } from "./feedback.ts";
 import { appendHookLog, liveSessions } from "./log.ts";
 import { Store } from "./store.ts";
 import { dataSpans, type Match, matchOutside, Triggers } from "./triggers.ts";
@@ -10,6 +10,7 @@ import { dataSpans, type Match, matchOutside, Triggers } from "./triggers.ts";
 type HookInput = {
   session_id?: string;
   cwd?: string;
+  transcript_path?: string;
   hook_event_name?: string;
   tool_name?: string;
   tool_input?: {
@@ -127,9 +128,22 @@ function attributeBash(input: HookInput, state: SessionState): boolean {
   return added;
 }
 
+// The session's real start is its transcript's creation time. Defaulting to "first seen by this hook" made every
+// session already open when the rule shipped treat its OWN earlier work as pre-existing and get blocked; without a
+// transcript the pre-session rule is skipped rather than guessed.
+function sessionStart(input: HookInput): number | undefined {
+  if (!input.transcript_path) return undefined;
+  try {
+    const st = statSync(input.transcript_path);
+    return st.birthtimeMs || st.ctimeMs;
+  } catch {
+    return undefined;
+  }
+}
+
 // Dirty files that are not this session's work: written by another session (even an idle one, which the 15-minute
 // live window cannot see), or already dirty before this session started and never touched by it since.
-function foreignDirty(repo: string, session: string, state: SessionState): { file: string; why: string }[] {
+function foreignDirty(repo: string, session: string, state: SessionState, started: number | undefined): { file: string; why: string }[] {
   const dirty = dirtyFiles(repo);
   const mine = state.touched;
   if (!dirty.length) return [];
@@ -150,7 +164,9 @@ function foreignDirty(repo: string, session: string, state: SessionState): { fil
   for (const d of dirty) {
     if (mineSet.has(d)) continue;
     if (theirs.has(d)) out.push({ file: d, why: "written by another session" });
-    else if ((mtime(d) ?? Number.POSITIVE_INFINITY) < state.started) out.push({ file: d, why: "dirty before this session started" });
+    else if (started !== undefined && (mtime(d) ?? Number.POSITIVE_INFINITY) < started) {
+      out.push({ file: d, why: "dirty before this session started" });
+    }
   }
   return out;
 }
@@ -170,35 +186,39 @@ export function shellSurface(cmd: string): string {
 
 // Blocks only the two shapes that carried another session's work on 2026-10-07: a sweeping stage/discard while their
 // files are dirty, and a push while they are live. Each has a code-supported way through, so it can never dead-lock.
-function collisionDeny(input: HookInput, state: SessionState): string | undefined {
+function collisionDeny(input: HookInput, state: SessionState): { deny?: string; acked?: string } {
   const raw = input.tool_input?.command;
-  if (!raw) return undefined;
+  if (!raw) return {};
   const cmd = shellSurface(raw);
   const repo = repoRoot(commandDir(raw, input.cwd));
-  if (!repo) return undefined;
-  if (SWEEPING.some((re) => re.test(cmd)) && !ACK_FOREIGN.test(cmd)) {
-    const foreign = foreignDirty(repo, input.session_id ?? "", state);
+  if (!repo) return {};
+  if (SWEEPING.some((re) => re.test(cmd))) {
+    const foreign = foreignDirty(repo, input.session_id ?? "", state, sessionStart(input));
+    // An ack that was actually needed is logged, so a habit of acking past the guard shows up in status.
+    if (foreign.length && ACK_FOREIGN.test(cmd)) return { acked: "guard:ack-foreign" };
     if (foreign.length) {
-      return [
+      return { deny: [
         `batas BLOCKED: this command takes every dirty file in ${repo}, and ${foreign.length} of them are not this session's work:`,
         ...foreign.slice(0, 12).map((f) => `  ${f.file.slice(repo.length + 1)}  (${f.why})`),
         ...(foreign.length > 12 ? [`  … and ${foreign.length - 12} more`] : []),
-        "Stage or discard by explicit path instead (`git add <your files>`). If you have checked that sweeping these is",
-        "intended, re-run the same command prefixed with `BATAS_ACK_FOREIGN=1 `.",
-      ].join("\n");
+        "Do this instead: stage or discard YOUR files by explicit path (`git add <path> <path>`). That is the fix in",
+        "almost every case. Only if you have read each file above and sweeping it is genuinely intended, re-run prefixed",
+        "with `BATAS_ACK_FOREIGN=1 ` — every ack is logged and shown in batas status.",
+      ].join("\n") };
     }
   }
-  if (PUSH.test(cmd) && !ACK_LIVE.test(cmd)) {
+  if (PUSH.test(cmd)) {
     const others = liveSessions(repo, input.session_id ?? "", Date.now() - config.liveWindowMs);
+    if (others.size && ACK_LIVE.test(cmd)) return { acked: "guard:ack-live" };
     if (others.size) {
-      return [
+      return { deny: [
         `batas BLOCKED: ${others.size} other Claude session(s) were active in ${repo} within the last ${config.liveWindowMs / 60000} minutes,`,
         "and a push carries every commit on this branch — including any they made. Read `git log @{u}..HEAD` (or",
         "`git log origin/<branch>..HEAD`) and confirm every commit is yours, then re-run prefixed with `BATAS_ACK_LIVE=1 `.",
-      ].join("\n");
+      ].join("\n") };
     }
   }
-  return undefined;
+  return {};
 }
 
 function liveNote(input: HookInput, state: SessionState): { id: string; text: string } | undefined {
@@ -422,13 +442,14 @@ export function evaluate(input: HookInput, store: Store, triggers: Triggers): { 
     }
   }
   if (probe.cmd) {
-    const reason = collisionDeny(input, state);
-    if (reason) {
+    const guard = collisionDeny(input, state);
+    if (guard.deny) {
       return {
-        output: { hookSpecificOutput: { hookEventName: event, permissionDecision: "deny", permissionDecisionReason: reason } },
+        output: { hookSpecificOutput: { hookEventName: event, permissionDecision: "deny", permissionDecisionReason: guard.deny } },
         fired: ["guard:collision"],
       };
     }
+    if (guard.acked) recordAck(guard.acked, session, probe.cmd);
   }
   if (probe.prompt && MUTE_PROMPT.test(ownWords(probe.prompt))) {
     if (!state.lastPrompt.length) return { output: {}, fired: [] };

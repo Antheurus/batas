@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, utimesSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -7,7 +7,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { config } from "../src/config.ts";
 import { evaluate } from "../src/hook.ts";
 import { memorySources } from "../src/corpus.ts";
-import { mutedIds, readFeedback, setMuted } from "../src/feedback.ts";
+import { mutedIds, readAcks, readFeedback, setMuted } from "../src/feedback.ts";
 import { appendHookLog, readHookLog } from "../src/log.ts";
 import { Store } from "../src/store.ts";
 import { Triggers } from "../src/triggers.ts";
@@ -385,8 +385,8 @@ describe("live-session collision guard", () => {
 });
 
 describe("collision guard blocks", () => {
-  const run2 = (cwd: string, session_id: string, command: string) =>
-    evaluate({ session_id, cwd, hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command } }, store, new Triggers({})).output as {
+  const run2 = (cwd: string, session_id: string, command: string, transcript_path?: string) =>
+    evaluate({ session_id, cwd, transcript_path, hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command } }, store, new Triggers({})).output as {
       hookSpecificOutput?: { permissionDecision?: string; permissionDecisionReason?: string };
     };
   const repo = mkdtempSync(join(tmpdir(), "batas-deny-"));
@@ -453,13 +453,42 @@ describe("collision guard blocks", () => {
     expect(out.hookSpecificOutput?.permissionDecisionReason).not.toContain("mine-by-script.ts");
   });
 
-  test("a file already dirty before this session started counts as not its work", () => {
+  test("session start is the transcript's birth: older dirt is foreign, the session's own earlier work is not", () => {
     const r = mkdtempSync(join(tmpdir(), "batas-pre-"));
     Bun.spawnSync(["git", "init", "-q", r]);
+    const hourAgo = new Date(Date.now() - 3_600_000);
     writeFileSync(join(r, "leftover.ts"), "old\n");
-    utimesSync(join(r, "leftover.ts"), new Date(Date.now() - 3_600_000), new Date(Date.now() - 3_600_000));
-    const out = run2(r, "fresh-session", "git add -A");
+    utimesSync(join(r, "leftover.ts"), hourAgo, hourAgo);
+    const fresh = join(mkdtempSync(join(tmpdir(), "batas-tr-")), "fresh.jsonl");
+    writeFileSync(fresh, "");
+    const out = run2(r, "fresh-session", "git add -A", fresh);
     expect(out.hookSpecificOutput?.permissionDecisionReason).toContain("leftover.ts  (dirty before this session started)");
+    expect(run2(r, "no-transcript", "git add -A").hookSpecificOutput).toBeUndefined();
+  });
+
+  test("a session open before tracking existed is not blocked by its own untracked earlier work", () => {
+    const r = mkdtempSync(join(tmpdir(), "batas-open-"));
+    Bun.spawnSync(["git", "init", "-q", r]);
+    // The session (its transcript) exists first; then it edits a file in a way nothing attributed — the state of
+    // every session already open when the rule shipped. Its first guarded command must pass.
+    const transcript = join(mkdtempSync(join(tmpdir(), "batas-tr-")), "open.jsonl");
+    writeFileSync(transcript, "");
+    Bun.sleepSync(20);
+    writeFileSync(join(r, "own-earlier-work.ts"), "mine\n");
+    expect(statSync(transcript).birthtimeMs).toBeLessThan(statSync(join(r, "own-earlier-work.ts")).mtimeMs);
+    expect(run2(r, "open-session", "git add -A", transcript).hookSpecificOutput).toBeUndefined();
+  });
+
+  test("an ack that bypassed a real block is recorded", () => {
+    const r = mkdtempSync(join(tmpdir(), "batas-ack-"));
+    Bun.spawnSync(["git", "init", "-q", r]);
+    writeFileSync(join(r, "x.ts"), "x\n");
+    mkdirSync(config.sessionsDir, { recursive: true });
+    writeFileSync(join(config.sessionsDir, "ack-other.json"), JSON.stringify({ touched: [join(r, "x.ts")] }));
+    expect(run2(r, "acker", "BATAS_ACK_FOREIGN=1 git add -A").hookSpecificOutput).toBeUndefined();
+    expect(readAcks(0).some((a) => a.session === "acker" && a.kind === "guard:ack-foreign")).toBe(true);
+    run2(r, "acker2", "BATAS_ACK_FOREIGN=1 git add x.ts");
+    expect(readAcks(0).some((a) => a.session === "acker2")).toBe(false);
   });
 
   test("the repo is the one the command cds into, not the session's cwd", () => {

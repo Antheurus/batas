@@ -1,5 +1,11 @@
 # batas Changelog
 
+## v0.6.2 — Sesi yang sudah terbuka tidak lagi terblokir oleh kerjaannya sendiri
+
+- Waktu mulai sesi sekarang diambil dari waktu transcript-nya dibuat, bukan dari saat batas pertama kali melihat sesi itu. Sesi yang sudah terbuka sebelum update ini tidak lagi menganggap kerjaannya sendiri sebagai "bukan milik sendiri".
+- Pesan blok sekarang menyuruh stage per file terlebih dahulu. ACK hanya untuk kasus yang benar-benar sudah dicek.
+- Setiap ACK yang benar-benar melewati blok dicatat dan dihitung di `status`, jadi kebiasaan asal ACK kelihatan.
+
 ## v0.6.1 — Penjaga sesi bentrok juga melihat edit lewat script
 
 - File yang diubah lewat perintah Bash atau script (python, sed, redirect) sekarang tercatat sebagai milik sesi yang menjalankannya, jadi `git add -A` di sesi lain tetap diblokir kalau akan menyapu file itu.

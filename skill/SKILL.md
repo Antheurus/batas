@@ -112,7 +112,9 @@ so fix its wording or delivery. **The collision guard BLOCKS two shapes** (roadm
 `checkout .`, `reset --hard`, `clean -f`) while the repo holds a dirty file that is not this session's work — written by
 another session (Edit/Write, and any file a Bash command or script changed, via the PostToolUse hook), idle sessions
 included, or already dirty before this session started — and a `git push` while another session is live in the same root. Read the denial: it names the files.
-Stage by explicit path; only after checking, re-run prefixed with `BATAS_ACK_FOREIGN=1 ` / `BATAS_ACK_LIVE=1 `. Other
+**Stage by explicit path — that is the fix in almost every case.** Only after reading each listed file, re-run
+prefixed with `BATAS_ACK_FOREIGN=1 ` / `BATAS_ACK_LIVE=1 `; every ack that bypassed a real block is logged and counted in
+`status`, so acking by reflex is visible. "Before this session started" means before its transcript was created. Other
 shared-checkout git commands only warn.
 
 Repo: `~/Documents/PROJECT_MISPAQUL_ATTORIQ/batas` — `just install | check | recall "<q>" | fire "<cmd>" | log | rule-audit | trigger-audit | effect-audit`.
