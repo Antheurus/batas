@@ -1,5 +1,11 @@
 # batas Changelog
 
+## v0.7.0 — Aturan Step 5b dijaga langsung saat menulis
+
+- Kalau agent menulis memory tanpa baris `triggers:`, batas langsung memperingatkan dan menunjukkan formatnya. Memory baru tidak perlu backfill lagi.
+- Saat file aturan gotcha/lessons diedit pertama kali di sebuah sesi, batas menampilkan checklist: entri triggers.toml dan teks lengkap di *-full.md.
+- `status` sekarang juga menampilkan aturan always-on yang belum punya teks lengkap. Hari ini 0 dari 91.
+
 ## v0.6.2 — Sesi yang sudah terbuka tidak lagi terblokir oleh kerjaannya sendiri
 
 - Waktu mulai sesi sekarang diambil dari waktu transcript-nya dibuat, bukan dari saat batas pertama kali melihat sesi itu. Sesi yang sudah terbuka sebelum update ini tidak lagi menganggap kerjaannya sendiri sebagai "bukan milik sendiri".
