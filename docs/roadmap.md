@@ -40,4 +40,10 @@ Agreed with the user on 2026-10-07. Each item names the evidence that put it her
 7. **Mine lessons from transcripts** — the same error fixed 3+ times across sessions becomes a drafted lesson with a
    trigger. Evidence: the learning loop in `~/.claude/CLAUDE.md` currently depends on an agent remembering to write it.
 8. **Context budget per session** — a ceiling on bytes batas may inject into one session.
-9. **Audit rule `prompt` triggers against prompt history** — `trigger-audit` covers memories only.
+9. **Audit rule `prompt` triggers against prompt history** — `trigger-audit` covers memories only. Status: **done
+   2026-10-07** — `just prompt-audit` replays 15,379 real prompts through each phrase via the hook's own matcher. Two
+   fixes came out of it: gotcha:D2 listed on 372 prompts (2.4%) through the bare words `tiktok`/`tokopedia`/`affiliate`,
+   of which about 30 were about pacing a loop, so it now fires on throttling words only; and rule phrases were matched
+   against quoted lines and side-agent notes while memory recall was not, so both now read the user's own words.
+   Prompts listing any rule: 11.4% -> 9.4%. The remaining top phrases (`handover`, `deploy`, `xlsx`) are on-topic for
+   their rules and stay. 58 prompt-only rules were never reached by any prompt; reported, not changed.

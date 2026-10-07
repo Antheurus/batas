@@ -1,5 +1,12 @@
 # batas Changelog
 
+## v0.8.0 — Audit kata pemicu aturan terhadap prompt asli
+
+- Perintah baru `just prompt-audit`: memutar ulang semua prompt yang pernah kamu ketik (15.379) ke setiap kata pemicu aturan, dengan pencocokan yang persis sama dengan hook. Hasilnya: kata yang terlalu umum, dan aturan yang tidak pernah tersentuh oleh prompt apa pun.
+- Aturan soal throttle TikTok/Tokopedia (gotcha:D2) tidak lagi muncul setiap kali kamu menyebut "tiktok", "tokopedia" atau "affiliate". Sekarang hanya muncul saat kamu bicara soal captcha, throttle, atau rate limit.
+- Aturan sekarang hanya dicocokkan dengan kata-katamu sendiri, sama seperti memory: baris kutipan (`>`) dan catatan side agent tidak lagi memicu aturan.
+- Prompt yang memunculkan aturan turun dari 11,4% ke 9,4%.
+
 ## v0.7.0 — Aturan Step 5b dijaga langsung saat menulis
 
 - Kalau agent menulis memory tanpa baris `triggers:`, batas langsung memperingatkan dan menunjukkan formatnya. Memory baru tidak perlu backfill lagi.

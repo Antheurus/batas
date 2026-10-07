@@ -108,6 +108,8 @@ the batas repo and `just sync` in cc-toriq.
 **Rule triggers are audited by replay:** `just rule-audit [days] [share]` runs the real tool calls of recent transcripts
 through the hook's own matcher and lists noisy ids (with the share of SESSIONS they reach, since an id injects once per
 session) and cmd/path/code ids that never fired — a broken regex and a rare situation look identical until replayed.
+`just prompt-audit [share]` does the same for `prompt` phrases against every prompt in `~/.claude/history.jsonl`, own
+words only like the hook: a phrase listing its rule on more than ~1% of all prompts is a business word, not a signal.
 
 **Whether an injection works is measured, not assumed:** `just effect-audit [days] [min]` compares, per rule, how often its
 trigger matched AGAIN later in a session, before batas went live versus after. Mistake-shaped rules should drop and
@@ -121,5 +123,5 @@ prefixed with `BATAS_ACK_FOREIGN=1 ` / `BATAS_ACK_LIVE=1 `; every ack that bypas
 `status`, so acking by reflex is visible. "Before this session started" means before its transcript was created. Other
 shared-checkout git commands only warn.
 
-Repo: `~/Documents/PROJECT_MISPAQUL_ATTORIQ/batas` — `just install | check | recall "<q>" | fire "<cmd>" | log | rule-audit | trigger-audit | effect-audit`.
+Repo: `~/Documents/PROJECT_MISPAQUL_ATTORIQ/batas` — `just install | check | recall "<q>" | fire "<cmd>" | log | rule-audit | prompt-audit | trigger-audit | effect-audit`.
 `just check` includes a latency budget (60 ms tool call, 150 ms prompt, in-process, at ~600-memory scale).

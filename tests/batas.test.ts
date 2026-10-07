@@ -6,6 +6,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { config } from "../src/config.ts";
 import { evaluate } from "../src/hook.ts";
+import { auditPrompts } from "../scripts/prompt-audit.ts";
 import { memorySources } from "../src/corpus.ts";
 import { mutedIds, readAcks, readFeedback, setMuted } from "../src/feedback.ts";
 import { appendHookLog, readHookLog } from "../src/log.ts";
@@ -132,6 +133,29 @@ describe("hook", () => {
     expect(hit.hookSpecificOutput?.additionalContext).not.toContain("### memory:-tmp-demo/hooks-warn-not-ask");
     expect(ask("bikin hooks yang warn aja, jangan ask popups advisory", "m1").output).toEqual({});
     expect(ask("perketat\n\nHere is a note offered by a side agent:\n> hooks warn ask popups advisory", "m4").output).toEqual({});
+  });
+
+  test("a rule prompt phrase fires on the user's own words, never on a quoted line or a side agent's note", () => {
+    const rt = new Triggers({ "gotcha:D2": { prompt: ["captcha"] } });
+    const ask = (prompt: string, session_id: string) =>
+      JSON.stringify(evaluate({ session_id, hook_event_name: "UserPromptSubmit", prompt }, store, rt).output);
+    expect(ask("loop creator kena captcha terus", "q1")).toContain("gotcha:D2");
+    expect(ask("benerin ini\n> it got a captcha", "q2")).not.toContain("gotcha:D2");
+    expect(ask("perketat\n\nHere is a note offered by a side agent:\ncaptcha everywhere", "q3")).not.toContain("gotcha:D2");
+  });
+
+  test("prompt-audit counts each phrase the way the hook matches it, and names rules no prompt reached", () => {
+    const specs = {
+      "gotcha:D2": { prompt: ["captcha", "affiliate"] },
+      "lessons:X1": { prompt: ["never said"], cmd: ["\\bfoo\\b"] },
+      _negative: { t_prompt: ["captcha"] },
+    };
+    const a = auditPrompts(["affiliate dashboard", "kena captcha", "affiliate report\n> captcha", "unrelated"], specs);
+    const hits = Object.fromEntries(a.phrases.map((p) => [p.phrase, p.hits]));
+    expect(hits).toEqual({ captcha: 1, affiliate: 2, "never said": 0 });
+    expect(a.pulling).toBe(3);
+    expect(a.perPrompt).toEqual({ 0: 1, 1: 3 });
+    expect(a.silentIds).toEqual(["lessons:X1"]);
   });
 
   test("a trigger word alone recalls its memory here, and is listed from another project's cwd", () => {

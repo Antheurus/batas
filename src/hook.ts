@@ -379,7 +379,7 @@ function saysTrigger(promptLower: string, trigger: string): boolean {
 
 // Only the user's own words count: a quoted line or a side agent's note pasted into the prompt is someone else's
 // text, and matching it pulled unrelated memories in on the first live day.
-function ownWords(prompt: string): string {
+export function ownWords(prompt: string): string {
   const cut = prompt.search(/Here is a note offered by a side agent/i);
   return (cut >= 0 ? prompt.slice(0, cut) : prompt)
     .split("\n")
@@ -513,7 +513,9 @@ export function evaluate(input: HookInput, store: Store, triggers: Triggers): { 
     return { output: { hookSpecificOutput: { hookEventName: event, additionalContext: text } }, fired: [] };
   }
   const silenced = new Set([...state.muted, ...Object.keys(mutedIds())]);
-  const matches = triggers.match(probe).filter((m) => !state.injected.includes(m.id) && !silenced.has(m.id));
+  // Rule phrases read only the user's own words too, the same cut as memory recall: a quoted line is not a request.
+  const own = probe.prompt ? { ...probe, prompt: ownWords(probe.prompt) } : probe;
+  const matches = triggers.match(own).filter((m) => !state.injected.includes(m.id) && !silenced.has(m.id));
   const project = input.cwd ? projectSlug(input.cwd) : "";
   const memories =
     probe.prompt && project
