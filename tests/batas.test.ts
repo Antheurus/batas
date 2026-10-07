@@ -130,6 +130,17 @@ describe("hook", () => {
     expect(ask("perketat\n\nHere is a note offered by a side agent:\n> hooks warn ask popups advisory", "m4").output).toEqual({});
   });
 
+  test("a trigger word alone recalls its memory here, and is listed from another project's cwd", () => {
+    const none = new Triggers({});
+    const here = evaluate({ session_id: "g1", cwd: "/tmp/demo", hook_event_name: "UserPromptSubmit", prompt: "commit terus push ya" }, store, none)
+      .output as { hookSpecificOutput?: { additionalContext: string } };
+    expect(here.hookSpecificOutput?.additionalContext).toContain("### memory:-tmp-demo/land-without-asking");
+    const there = evaluate({ session_id: "g2", cwd: "/tmp/other", hook_event_name: "UserPromptSubmit", prompt: "commit terus push ya" }, store, none)
+      .output as { hookSpecificOutput?: { additionalContext: string } };
+    expect(there.hookSpecificOutput?.additionalContext).toContain("- memory:-tmp-demo/land-without-asking");
+    expect(there.hookSpecificOutput?.additionalContext).not.toContain("### memory:");
+  });
+
   test("an unrelated prompt or another project's cwd recalls no memory", () => {
     const none = new Triggers({});
     expect(evaluate({ session_id: "m2", cwd: "/tmp/demo", hook_event_name: "UserPromptSubmit", prompt: "deploy kubernetes cluster tonight" }, store, none).output).toEqual({});

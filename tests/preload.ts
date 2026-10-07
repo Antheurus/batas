@@ -18,6 +18,11 @@ writeFileSync(
   "---\nname: hooks-warn-not-ask\ndescription: \"Advisory hooks should warn via additionalContext, never ask popups\"\nmetadata:\n  type: feedback\n---\n\nThe user prefers permissionDecision allow plus additionalContext over ask popups.\n",
 );
 
+writeFileSync(
+  join(memDir, "land-without-asking.md"),
+  "---\nname: land-without-asking\ndescription: \"Agent lands its own work on the base\"\ntriggers: \"commit, push, tunggu aba-aba\"\nmetadata:\n  type: feedback\n---\n\nNever wait for a go-signal to land finished work.\n",
+);
+
 const repos = join(root, "repos");
 const demo = join(repos, "demo-app");
 mkdirSync(join(demo, "docs"), { recursive: true });
