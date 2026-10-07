@@ -300,17 +300,31 @@ describe("mcp server", () => {
 });
 
 describe("feedback and log", () => {
-  test("'batas nyasar' mutes the last injection for the session and records the report", () => {
-    const t = new Triggers({ "gotcha:B1": { cmd: ["\\bpg_restore\\b"] }, "lessons:C7": { cmd: ["\\bpg_dump\\b"] } });
-    const tool = (command: string) => evaluate({ session_id: "mu1", hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command } }, store, t);
-    expect(tool("pg_restore -d a x.dump").fired).toEqual(["gotcha:B1"]);
-    const muted = evaluate({ session_id: "mu1", hook_event_name: "UserPromptSubmit", prompt: "batas nyasar itu" }, store, t).output as {
-      hookSpecificOutput: { additionalContext: string };
-    };
-    expect(muted.hookSpecificOutput.additionalContext).toContain("gotcha:B1");
-    expect(readFeedback().some((f) => f.session === "mu1" && f.ids.includes("gotcha:B1"))).toBe(true);
-    expect(tool("pg_dump app > x.sql").fired).toEqual(["lessons:C7"]);
+  test("'batas nyasar' mutes what the last PROMPT injected, never a rule the agent's own tool call fired", () => {
+    const t = new Triggers({ "gotcha:B1": { cmd: ["\\bpg_restore\\b"] } });
+    const prompt = (text: string) =>
+      evaluate({ session_id: "mu1", cwd: "/tmp/demo", hook_event_name: "UserPromptSubmit", prompt: text }, store, t).output as {
+        hookSpecificOutput?: { additionalContext: string };
+      };
+    const tool = () =>
+      evaluate({ session_id: "mu1", hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command: "pg_restore -d a x.dump" } }, store, t);
+    expect(prompt("commit terus push ya").hookSpecificOutput?.additionalContext).toContain("land-without-asking");
+    expect(tool().fired).toEqual(["gotcha:B1"]);
+    const muted = prompt("batas nyasar itu");
+    expect(muted.hookSpecificOutput?.additionalContext).toContain("memory:-tmp-demo/land-without-asking");
+    expect(muted.hookSpecificOutput?.additionalContext).not.toContain("gotcha:B1");
+    const report = readFeedback().find((f) => f.session === "mu1");
+    expect(report?.ids).toEqual(["memory:-tmp-demo/land-without-asking"]);
+  });
+
+  test("'batas nyasar' with no prompt injection, or only inside a quoted note, does nothing", () => {
+    const t = new Triggers({ "gotcha:B1": { cmd: ["\\bpg_restore\\b"] } });
+    evaluate({ session_id: "mu2", hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command: "pg_restore x" } }, store, t);
     expect(evaluate({ session_id: "mu2", hook_event_name: "UserPromptSubmit", prompt: "batas nyasar" }, store, t).output).toEqual({});
+    evaluate({ session_id: "mu3", cwd: "/tmp/demo", hook_event_name: "UserPromptSubmit", prompt: "commit terus push ya" }, store, t);
+    const quoted = "ok\n\nHere is a note offered by a side agent:\n> kalau nyasar ketik batas nyasar";
+    expect(evaluate({ session_id: "mu3", cwd: "/tmp/demo", hook_event_name: "UserPromptSubmit", prompt: quoted }, store, t).output).toEqual({});
+    expect(readFeedback().some((f) => f.session === "mu2" || f.session === "mu3")).toBe(false);
   });
 
   test("a permanent mute silences an id in every session until unmuted", () => {

@@ -25,7 +25,9 @@ type HookInput = {
   stop_hook_active?: boolean;
 };
 
-type SessionState = { injected: string[]; hinted: string[]; last: string[]; muted: string[] };
+// lastPrompt is what the PROMPT hook injected most recently — the only thing "batas nyasar" can be about, since the
+// user never sees the rules fired by the agent's own tool calls.
+type SessionState = { injected: string[]; hinted: string[]; lastPrompt: string[]; muted: string[] };
 
 // Harness-generated turns (a background agent finishing, a system reminder) arrive as UserPromptSubmit too; their
 // text is an agent's report, not the user's request, so matching phrases in it only produces noise.
@@ -42,9 +44,9 @@ function sessionFile(id: string): string {
 function loadSession(id: string): SessionState {
   try {
     const s = JSON.parse(readFileSync(sessionFile(id), "utf8")) as Partial<SessionState>;
-    return { injected: s.injected ?? [], hinted: s.hinted ?? [], last: s.last ?? [], muted: s.muted ?? [] };
+    return { injected: s.injected ?? [], hinted: s.hinted ?? [], lastPrompt: s.lastPrompt ?? [], muted: s.muted ?? [] };
   } catch {
-    return { injected: [], hinted: [], last: [], muted: [] };
+    return { injected: [], hinted: [], lastPrompt: [], muted: [] };
   }
 }
 
@@ -202,12 +204,12 @@ export function evaluate(input: HookInput, store: Store, triggers: Triggers): { 
   if (!probe.cmd && !probe.path && !probe.code && !probe.prompt) return { output: {}, fired: [] };
 
   const state = loadSession(session);
-  if (probe.prompt && MUTE_PROMPT.test(probe.prompt)) {
-    if (!state.last.length) return { output: {}, fired: [] };
-    const ids = state.last;
+  if (probe.prompt && MUTE_PROMPT.test(ownWords(probe.prompt))) {
+    if (!state.lastPrompt.length) return { output: {}, fired: [] };
+    const ids = state.lastPrompt;
     reportWrong(ids, session, probe.prompt);
     state.muted.push(...ids);
-    state.last = [];
+    state.lastPrompt = [];
     saveSession(session, state);
     const text = [
       `batas: muted for the rest of this session: ${ids.join(", ")}. The report is logged for the trigger audits.`,
@@ -260,7 +262,7 @@ export function evaluate(input: HookInput, store: Store, triggers: Triggers): { 
       fired.push(mem.id);
     }
     if (!sections.length && !tools.length && !recalled.length && !listed.length) return { output: {}, fired: [] };
-    state.last = fired.filter((id) => !id.startsWith("hint:"));
+    state.lastPrompt = fired.filter((id) => !id.startsWith("hint:"));
     saveSession(session, state);
     const text = [
       ...(recalled.length
@@ -296,7 +298,6 @@ export function evaluate(input: HookInput, store: Store, triggers: Triggers): { 
     state.injected.push(e.id);
   }
   if (!sections.length) return { output: {}, fired: [] };
-  state.last = [...fired];
   saveSession(session, state);
   const head = `batas: ${fired.length} rule(s) apply to this ${probe.cmd ? "command" : "edit"} — read before proceeding.`;
   const tail = deferred.length ? `\n\nAlso matched (fetch with mcp__batas__get): ${deferred.join(", ")}` : "";

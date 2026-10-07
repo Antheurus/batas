@@ -1,5 +1,11 @@
 # batas Changelog
 
+## v0.4.1 — "batas nyasar" sekarang mengenai yang benar
+
+- "batas nyasar" sekarang hanya membisukan memory yang dikirim di prompt terakhirmu, bukan aturan yang muncul dari perintah agent (misalnya aturan git push).
+- Kata "batas nyasar" di dalam catatan side agent atau kutipan (`>`) tidak lagi dianggap sebagai teguranmu.
+- Satu laporan salah yang sempat tercatat akibat bug ini sudah dihapus.
+
 ## v0.4.0 — batas lebih cepat, bisa ditegur, dan kelihatan kalau rusak
 
 - Kalau batas mengirim aturan atau memory yang nyasar, cukup bilang "batas nyasar" (atau salah/ngaco/keliru). Isinya langsung dibisukan sampai sesi selesai dan laporanmu dicatat. Untuk membisukan selamanya, agent bisa memakai tool `mute`.
