@@ -30,3 +30,7 @@ fire cmd:
 # hook activity: calls, fires, latency
 log n="20":
     tail -n {{n}} ~/.batas/hook.log.jsonl
+
+# shorten every project's MEMORY.md pointer lines to a short hook (dry run; `just memory-index apply` writes, backing up to ~/.batas/memory-index-backup)
+memory-index mode="dry":
+    bun -e 'import {readdirSync, existsSync} from "node:fs"; import {join} from "node:path"; import {config} from "./src/config.ts"; import {compactMemoryIndex} from "./src/write.ts"; const apply = process.argv[1] === "apply"; let b = 0, a = 0; for (const p of readdirSync(config.projectsDir)) { const f = join(config.projectsDir, p, "memory", "MEMORY.md"); if (!existsSync(f)) continue; const r = compactMemoryIndex(f, join(config.stateDir, "memory-index-backup"), apply); b += r.before; a += r.after; if (r.before !== r.after) console.log(String(r.before).padStart(6), "->", String(r.after).padStart(6), p.slice(0, 70)); } console.log(apply ? "APPLIED" : "DRY RUN", b, "->", a)' "{{mode}}"

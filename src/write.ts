@@ -90,6 +90,37 @@ export function memoryDir(projectDir: string): string {
   return join(config.projectsDir, projectSlug(projectDir), "memory");
 }
 
+// MEMORY.md is loaded whole into every session of its project, while the hook now injects a memory's full body when a
+// prompt matches it — so the index line only has to say what the memory is about, not carry its content.
+export const INDEX_HOOK_MAX = 80;
+
+export function indexHook(text: string, max = INDEX_HOOK_MAX): string {
+  const t = text.replace(/\s+/g, " ").trim();
+  if (t.length <= max) return t;
+  const clause = t.slice(0, max + 1).search(/ — |; |(?<!\betc|\be\.g|\bi\.e|\bvs)\. |: | \(/);
+  if (clause >= 30) return t.slice(0, clause).replace(/[,.;:]$/, "");
+  const cut = t.slice(0, max).replace(/\s+\S*$/, "");
+  return `${cut}…`;
+}
+
+export function compactMemoryIndex(index: string, backupDir: string, apply: boolean): { before: number; after: number } {
+  const text = readFileSync(index, "utf8");
+  const next = text
+    .split("\n")
+    .map((line) => {
+      const m = line.match(/^(- \[[^\]]+\]\([^)]+\))(?:\s+—\s+(.*))?$/);
+      return m?.[1] && m[2] ? `${m[1]} — ${indexHook(m[2])}` : line;
+    })
+    .join("\n");
+  if (apply && next !== text) {
+    mkdirSync(backupDir, { recursive: true });
+    const project = basename(dirname(dirname(index)));
+    writeFileSync(join(backupDir, `${project}.${Date.now()}.MEMORY.md`), text);
+    writeFileSync(index, next);
+  }
+  return { before: text.length, after: next.length };
+}
+
 export function recordMemory(a: {
   projectDir: string;
   type: MemoryType;
@@ -118,7 +149,7 @@ export function recordMemory(a: {
   );
   const index = join(dir, "MEMORY.md");
   const indexText = existsSync(index) ? readFileSync(index, "utf8") : "# Memory Index\n\n";
-  const pointer = `- [${a.title}](${name}.md) — ${a.description}`;
+  const pointer = `- [${a.title}](${name}.md) — ${indexHook(a.description)}`;
   const has = indexText.split("\n").findIndex((l) => l.includes(`](${name}.md)`));
   let nextIndex: string;
   if (has >= 0) {

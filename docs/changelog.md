@@ -1,5 +1,12 @@
 # batas Changelog
 
+## v0.3.0 — Memory datang sendiri, rules datang lengkap
+
+- Kalau permintaanmu nyambung dengan sebuah memory di project itu, isi lengkap memory tersebut langsung dikirim ke agent (maksimal 2, sekali per sesi), tanpa perlu dicari dulu.
+- Saat sebuah aturan gotcha/lessons terpicu oleh perintah atau file, agent sekarang menerima teks aslinya yang lengkap, bukan versi ringkas yang sudah ada di konteks.
+- Perintah baru `just memory-index` memendekkan baris di setiap MEMORY.md (dry run dulu; `just memory-index apply` menulis dan menyimpan backup di ~/.batas/memory-index-backup). Total semua index turun dari 116k jadi 81k karakter.
+- Memory baru yang dicatat lewat batas otomatis memakai baris index yang pendek.
+
 ## v0.2.0 — Petunjuk alat, dan asal-usul setiap catatan
 
 - Kalau kamu bilang "inget ya", "catat ke progress", "pernah kejadian gini?" atau "mau hapus branch lama", agent

@@ -21,6 +21,8 @@ git, and readable by a human. batas indexes them and puts them in front of the a
 |---|---|---|
 | `PreToolUse` hook | a Bash command or a Read/Edit/Write path matches a trigger | injects the full rule via `additionalContext`, once per session |
 | `UserPromptSubmit` hook | a prompt phrase matches | injects one-line hints naming the rule ids |
+| `UserPromptSubmit` hook | the prompt shares two content words with a memory of the session's project (one in its title or description) | injects up to 2 memory bodies in full, once per session — so `MEMORY.md` only needs a short pointer line (`just memory-index` keeps it short) |
+| `PreToolUse` hook, always-on family rule | a `gotcha:`/`lessons:` trigger fires | injects the item's verbatim full text from `~/.claude/references/{gotcha,lessons}-full.md`, not the condensed line already in context |
 | `Stop` hook | the final reply matches a known mistake pattern | blocks once with the rule, and honours `stop_hook_active` |
 | MCP `batas` | when the agent calls it | `check`, `recall`, `get`, `record`, `log_progress`, `log_changelog`, `status` |
 | Skill `batas` | on its trigger phrases | tells the agent which tool fits which situation |

@@ -7,7 +7,7 @@ import { config } from "../src/config.ts";
 import { evaluate } from "../src/hook.ts";
 import { Store } from "../src/store.ts";
 import { Triggers } from "../src/triggers.ts";
-import { logChangelog, logProgress, recordMemory } from "../src/write.ts";
+import { indexHook, INDEX_HOOK_MAX, logChangelog, logProgress, recordMemory } from "../src/write.ts";
 
 const root = process.env.BATAS_TEST_ROOT as string;
 const demo = join(root, "repos", "demo-app");
@@ -85,6 +85,18 @@ describe("triggers", () => {
   });
 });
 
+describe("memory index", () => {
+  test("indexHook cuts at a clause break, then a word boundary, and leaves short hooks alone", () => {
+    expect(indexHook("short hook")).toBe("short hook");
+    expect(indexHook("its TOP CPU column is ps %CPU, not live load; confirm with top -l 2 before blaming a process and more")).toBe(
+      "its TOP CPU column is ps %CPU, not live load",
+    );
+    const long = indexHook("a".repeat(10) + " word".repeat(40));
+    expect(long.length).toBeLessThanOrEqual(INDEX_HOOK_MAX + 1);
+    expect(long.endsWith("…")).toBe(true);
+  });
+});
+
 describe("hook", () => {
   const t = new Triggers({
     "gotcha:B1": { cmd: ["\\bpg_restore\\b"], prompt: ["pg_dump"] },
@@ -98,6 +110,29 @@ describe("hook", () => {
     expect(ctx).toContain("gotcha:B1");
     expect(ctx).toContain("genuinely empty database");
     expect(evaluate(input, store, t).output).toEqual({});
+  });
+
+  test("a fired always-on family rule injects its verbatim full text, not the condensed line", () => {
+    const input = { session_id: "f1", hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command: "pg_restore -d app y.dump" } };
+    const ctx = (evaluate(input, store, t).output as { hookSpecificOutput: { additionalContext: string } }).hookSpecificOutput.additionalContext;
+    expect(ctx).toContain("restore reports success");
+    expect(ctx).not.toContain("_linked from");
+  });
+
+  test("a prompt sharing two content words with a project memory injects that memory once", () => {
+    const none = new Triggers({});
+    const ask = (prompt: string, session_id: string) =>
+      evaluate({ session_id, cwd: "/tmp/demo", hook_event_name: "UserPromptSubmit", prompt }, store, none);
+    const hit = ask("bikin hooks yang warn aja, jangan popups", "m1").output as { hookSpecificOutput?: { additionalContext: string } };
+    expect(hit.hookSpecificOutput?.additionalContext).toContain("memory:-tmp-demo/hooks-warn-not-ask");
+    expect(hit.hookSpecificOutput?.additionalContext).toContain("permissionDecision allow");
+    expect(ask("bikin hooks yang warn aja, jangan popups", "m1").output).toEqual({});
+  });
+
+  test("an unrelated prompt or another project's cwd recalls no memory", () => {
+    const none = new Triggers({});
+    expect(evaluate({ session_id: "m2", cwd: "/tmp/demo", hook_event_name: "UserPromptSubmit", prompt: "deploy kubernetes cluster tonight" }, store, none).output).toEqual({});
+    expect(evaluate({ session_id: "m3", cwd: "/tmp/other", hook_event_name: "UserPromptSubmit", prompt: "hooks warn popups" }, store, none).output).toEqual({});
   });
 
   test("prompt matches give one-line hints, not full text", () => {

@@ -20,7 +20,8 @@ export const config = {
   sessionsDir: join(stateDir, "sessions"),
   families: { "gotcha-coding.md": "gotcha", "lessons.md": "lessons" } as Record<string, string>,
   familySlicePrefix: { gotcha: "p-gotcha-", lessons: "p-lessons-" } as Record<string, string>,
-  inject: { maxItems: 3, maxChars: 9000, maxPromptHints: 5 },
+  familyFullText: { gotcha: "gotcha-full.md", lessons: "lessons-full.md" } as Record<string, string>,
+  inject: { maxItems: 3, maxChars: 9000, maxPromptHints: 5, maxMemories: 2, memoryChars: 1500 },
 };
 
 export type Config = typeof config;

@@ -2,7 +2,7 @@ import { Database } from "bun:sqlite";
 import { mkdirSync, statSync } from "node:fs";
 import { dirname } from "node:path";
 import { config } from "./config.ts";
-import { allSources, type Entry, type Kind } from "./corpus.ts";
+import { allSources, type Source, type Entry, type Kind } from "./corpus.ts";
 
 const LINK_TO = /_linked to (\S+?) of ([A-Z]\d+)_/g;
 const WIKI = /\[\[([^\]]+)\]\]/g;
@@ -28,8 +28,8 @@ export class Store {
       id UNINDEXED, title, body, tokenize = 'porter unicode61')`);
   }
 
-  refresh(scope: "rules" | "all" = "all"): { changed: number; removed: number } {
-    const sources = allSources(scope);
+  refresh(scope: "rules" | "all" = "all", extra: Source[] = []): { changed: number; removed: number } {
+    const sources = [...allSources(scope), ...extra];
     const known = new Map<string, number>(
       (this.db.query("SELECT path, mtime FROM files").all() as { path: string; mtime: number }[]).map((r) => [
         r.path,

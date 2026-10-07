@@ -251,9 +251,28 @@ export function projectSources(): Source[] {
   return sources;
 }
 
+// The always-on family files are condensed; the hook injects the full original item from these references instead,
+// so they ride the hook's cheap "rules" refresh rather than waiting for the MCP server's full one.
+function familyFullTextSources(): Source[] {
+  const dir = config.referenceDirs[0] ?? "";
+  return Object.values(config.familyFullText)
+    .map((name) => join(dir, name))
+    .filter((file) => existsSync(file))
+    .map((file) => ({
+      file,
+      parse: () => parseSections(file, `ref:${relative(config.claudeHome, file)}`, "reference", "global"),
+    }));
+}
+
+export function memorySources(project: string): Source[] {
+  return listMd(join(config.projectsDir, project, "memory"))
+    .filter((file) => basename(file) !== "MEMORY.md")
+    .map((file) => ({ file, parse: () => [parseMemory(file, project)] }));
+}
+
 export function allSources(scope: "rules" | "all"): Source[] {
   if (scope === "rules") {
-    return listMd(config.rulesDir).map((file) => {
+    return [...familyFullTextSources(), ...listMd(config.rulesDir).map((file) => {
       const family = familyOf(file);
       return {
         file,
@@ -262,7 +281,7 @@ export function allSources(scope: "rules" | "all"): Source[] {
             ? parseFamily(file, family)
             : parseSections(file, `rule:${basename(file)}`, "rule-section", "global"),
       };
-    });
+    })];
   }
   return [...globalSources(), ...projectSources()];
 }
