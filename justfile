@@ -38,3 +38,7 @@ memory-index mode="dry":
 # measure memory triggers against the real prompt history: hit rate, memories without triggers, over-general terms (default threshold 3%)
 trigger-audit threshold="0.03":
     python3 scripts/trigger-audit.py {{threshold}}
+
+# replay real tool calls from recent transcripts through the rule triggers: noisy and never-firing ids (days, noisy share)
+rule-audit days="14" share="0.02":
+    bun scripts/rule-audit.ts {{days}} {{share}}

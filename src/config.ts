@@ -21,6 +21,8 @@ export const config = {
   families: { "gotcha-coding.md": "gotcha", "lessons.md": "lessons" } as Record<string, string>,
   familySlicePrefix: { gotcha: "p-gotcha-", lessons: "p-lessons-" } as Record<string, string>,
   familyFullText: { gotcha: "gotcha-full.md", lessons: "lessons-full.md" } as Record<string, string>,
+  log: { maxBytes: 5 * 1024 * 1024, keep: 3 },
+  latencyBudgetMs: { tool: 60, prompt: 150 },
   inject: { maxItems: 3, maxChars: 9000, maxPromptHints: 5, maxMemories: 2, memoryChars: 1500, maxMoreMemories: 8 },
 };
 

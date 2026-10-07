@@ -6,6 +6,8 @@ import { z } from "zod";
 import { config } from "./config.ts";
 import type { Entry, Kind } from "./corpus.ts";
 import { Store } from "./store.ts";
+import { mutedIds, readFeedback, reportWrong, setMuted } from "./feedback.ts";
+import { readHookLog } from "./log.ts";
 import { Triggers } from "./triggers.ts";
 import { logChangelog, logProgress, ORIGINS, recordMemory } from "./write.ts";
 
@@ -265,6 +267,30 @@ server.registerTool(
 );
 
 server.registerTool(
+  "mute",
+  {
+    description:
+      "Stop a rule or memory id from being injected anywhere (unmute: true reverses it). Use when the user says an " +
+      "injection keeps being wrong ('batas nyasar' mutes for one session only; this is permanent). Then tighten the " +
+      "id's triggers — muting is the stopgap, not the fix.",
+    inputSchema: {
+      id: z.string().describe("e.g. 'lessons:B24' or 'memory:<slug>/<name>'"),
+      reason: z.string().optional().describe("Why it is wrong here — shown in status"),
+      unmute: z.boolean().optional(),
+    },
+  },
+  async (a) => {
+    try {
+      setMuted(a.id, a.unmute ? null : (a.reason ?? "muted by the user"));
+      if (!a.unmute) reportWrong([a.id], "mcp", a.reason ?? "", true);
+      return text(`${a.unmute ? "unmuted" : "muted everywhere"}: ${a.id}`);
+    } catch (err) {
+      return fail(err);
+    }
+  },
+);
+
+server.registerTool(
   "status",
   {
     description: "Health of the guardrail corpus: entry counts, rules without triggers, hook activity and latency over the last 24h.",
@@ -279,20 +305,21 @@ server.registerTool(
       const covered = new Set(triggers.ids());
       const missing = ruleIds.filter((id) => !covered.has(id));
       const orphan = [...covered].filter((id) => !ruleIds.includes(id) && !/^(memory|hint):/.test(id));
-      const log = join(config.stateDir, "hook.log.jsonl");
-      let activity = "no hook activity recorded yet";
-      if (existsSync(log)) {
-        const since = Date.now() - 24 * 3600 * 1000;
-        const rows = readFileSync(log, "utf8")
-          .trim()
-          .split("\n")
-          .slice(-5000)
-          .map((l) => JSON.parse(l) as { ts: string; event?: string; fired: string[]; ms: number })
-          .filter((r) => Date.parse(r.ts) > since);
+      const rows = readHookLog(Date.now() - 24 * 3600 * 1000);
+      let activity = "no hook activity recorded in 24h";
+      if (rows.length) {
         const fires = rows.filter((r) => r.fired.length);
         const ms = rows.map((r) => r.ms).sort((a, b) => a - b);
-        activity = `${rows.length} hook calls in 24h, ${fires.length} injected/blocked, p50 ${ms[Math.floor(ms.length / 2)] ?? 0}ms, p95 ${ms[Math.floor(ms.length * 0.95)] ?? 0}ms`;
+        const errors = rows.filter((r) => r.error);
+        activity =
+          `${rows.length} hook calls in 24h, ${fires.length} injected/blocked, p50 ${ms[Math.floor(ms.length / 2)] ?? 0}ms, ` +
+          `p95 ${ms[Math.floor(ms.length * 0.95)] ?? 0}ms, ${errors.length} errors` +
+          (errors.length ? ` (last: ${errors[errors.length - 1]?.error})` : "");
       }
+      const reports = readFeedback();
+      const reported = new Map<string, number>();
+      for (const r of reports) for (const id of r.ids) reported.set(id, (reported.get(id) ?? 0) + 1);
+      const muted = Object.entries(mutedIds());
       return text(
         [
           `index: ${config.indexFile} (${Math.round(statSync(config.indexFile).size / 1024)} KB)`,
@@ -300,6 +327,8 @@ server.registerTool(
           `triggers: ${covered.size} ids in ${config.triggersFile}; ${missing.length} rules without triggers${missing.length ? `: ${missing.slice(0, 40).join(" ")}${missing.length > 40 ? " …" : ""}` : ""}`,
           orphan.length ? `orphan trigger ids (no such rule): ${orphan.join(" ")}` : "orphan trigger ids: none",
           `hooks: ${activity}`,
+          `reported wrong ("batas nyasar"): ${reported.size ? [...reported].sort((x, y) => y[1] - x[1]).map(([id, n]) => `${id} ×${n}`).join(", ") : "none"}`,
+          `muted everywhere: ${muted.length ? muted.map(([id, why]) => `${id} (${why})`).join(", ") : "none"}`,
           `session repo: ${repoName(process.cwd())}`,
         ].join("\n"),
       );

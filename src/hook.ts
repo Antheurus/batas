@@ -1,7 +1,9 @@
-import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { config } from "./config.ts";
 import { memorySources, memoryTriggers, parseMemory, projectSlug, type Entry } from "./corpus.ts";
+import { mutedIds, reportWrong } from "./feedback.ts";
+import { appendHookLog } from "./log.ts";
 import { Store } from "./store.ts";
 import { type Match, Triggers } from "./triggers.ts";
 
@@ -23,11 +25,13 @@ type HookInput = {
   stop_hook_active?: boolean;
 };
 
-type SessionState = { injected: string[]; hinted: string[] };
+type SessionState = { injected: string[]; hinted: string[]; last: string[]; muted: string[] };
 
 // Harness-generated turns (a background agent finishing, a system reminder) arrive as UserPromptSubmit too; their
 // text is an agent's report, not the user's request, so matching phrases in it only produces noise.
 const SYSTEM_PROMPT = /<task-notification>|\[SYSTEM NOTIFICATION/;
+// The user's way of saying the last injection did not belong; it mutes those ids for the session and is recorded.
+const MUTE_PROMPT = /\bbatas\s+(nyasar|salah|ngaco|keliru|wrong|irrelevant)\b/i;
 const FILE_TOOLS = new Set(["Read", "Edit", "Write", "MultiEdit", "NotebookEdit"]);
 const SESSION_TTL_MS = 7 * 24 * 3600 * 1000;
 
@@ -37,9 +41,10 @@ function sessionFile(id: string): string {
 
 function loadSession(id: string): SessionState {
   try {
-    return JSON.parse(readFileSync(sessionFile(id), "utf8")) as SessionState;
+    const s = JSON.parse(readFileSync(sessionFile(id), "utf8")) as Partial<SessionState>;
+    return { injected: s.injected ?? [], hinted: s.hinted ?? [], last: s.last ?? [], muted: s.muted ?? [] };
   } catch {
-    return { injected: [], hinted: [] };
+    return { injected: [], hinted: [], last: [], muted: [] };
   }
 }
 
@@ -91,6 +96,9 @@ const STOPWORDS = new Set(
 );
 
 function saysWord(promptLower: string, word: string): boolean {
+  // Every memory's triggers are checked on every prompt; compiling a unicode regex for each costs ~1 s in total, so
+  // a plain substring test rules out almost all of them first.
+  if (!promptLower.includes(word)) return false;
   const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return new RegExp(`(^|[^\\p{L}\\p{N}])${escaped}($|[^\\p{L}\\p{N}])`, "u").test(promptLower);
 }
@@ -118,26 +126,32 @@ function relevantMemories(
   prompt: string,
   project: string,
   skip: string[],
-): { full: Entry[]; more: Entry[] } {
+): { full: Entry[]; more: Pick<Entry, "id" | "title">[] } {
   const lower = ownWords(prompt).toLowerCase();
   const tokens = [...new Set(lower.split(/[^\p{L}\p{N}_]+/u))].filter((w) => w.length > 2 && !STOPWORDS.has(w));
   const words = tokens.filter((w) => w.length >= 4);
   if (!tokens.length) return { full: [], more: [] };
-  const triggered = (h: Entry) => memoryTriggers(h.title).some((t) => saysTrigger(lower, t));
-  const shared = (h: Entry) => {
+  // Reads memories through the (kind, scope) index and matches in JS: an FTS query over the whole corpus matched
+  // progress and changelog rows before filtering to memories, and cost ~50 ms a prompt on its own.
+  const triggered = (h: Pick<Entry, "title">) => memoryTriggers(h.title).some((t) => saysTrigger(lower, t));
+  const overlap = (h: Entry) => {
     const title = h.title.toLowerCase();
     const text = `${title}\n${h.body.toLowerCase()}`;
-    return words.filter((w) => text.includes(w)).length >= 3 && words.filter((w) => title.includes(w)).length >= 2;
+    const inText = words.filter((w) => text.includes(w)).length;
+    return inText >= 3 && words.filter((w) => title.includes(w)).length >= 2 ? inText : 0;
   };
-  const local = store
-    .search(tokens.join(" "), { kinds: ["memory"], scope: project, limit: 40 })
-    .filter((h) => !skip.includes(h.id));
+  const local = store.memories(project).filter((h) => !skip.includes(h.id));
   const strong = local.filter(triggered);
-  const weak = local.filter((h) => !strong.includes(h) && shared(h));
+  const weak = local
+    .filter((h) => !strong.includes(h))
+    .map((h) => ({ h, n: overlap(h) }))
+    .filter((x) => x.n > 0)
+    .sort((a, b) => b.n - a.n)
+    .map((x) => x.h);
   const matched = [...strong, ...weak];
   const elsewhere = store
-    .search(tokens.join(" "), { kinds: ["memory"], limit: 40 })
-    .filter((h) => h.scope !== project && !skip.includes(h.id) && triggered(h))
+    .memoryTitlesOutside(project)
+    .filter((h) => !skip.includes(h.id) && triggered(h))
     // The same memory is often copied into several sibling projects; list each name once.
     .filter((h, i, all) => all.findIndex((o) => o.id.split("/").pop() === h.id.split("/").pop()) === i);
   const full = strong.slice(0, config.inject.maxMemories);
@@ -188,11 +202,25 @@ export function evaluate(input: HookInput, store: Store, triggers: Triggers): { 
   if (!probe.cmd && !probe.path && !probe.code && !probe.prompt) return { output: {}, fired: [] };
 
   const state = loadSession(session);
-  const matches = triggers.match(probe).filter((m) => !state.injected.includes(m.id));
+  if (probe.prompt && MUTE_PROMPT.test(probe.prompt)) {
+    if (!state.last.length) return { output: {}, fired: [] };
+    const ids = state.last;
+    reportWrong(ids, session, probe.prompt);
+    state.muted.push(...ids);
+    state.last = [];
+    saveSession(session, state);
+    const text = [
+      `batas: muted for the rest of this session: ${ids.join(", ")}. The report is logged for the trigger audits.`,
+      "If one of these should never fire again, call mcp__batas__mute({id, reason}) — and tighten its triggers.",
+    ].join("\n");
+    return { output: { hookSpecificOutput: { hookEventName: event, additionalContext: text } }, fired: [] };
+  }
+  const silenced = new Set([...state.muted, ...Object.keys(mutedIds())]);
+  const matches = triggers.match(probe).filter((m) => !state.injected.includes(m.id) && !silenced.has(m.id));
   const project = input.cwd ? projectSlug(input.cwd) : "";
   const memories =
     probe.prompt && project
-      ? relevantMemories(store, probe.prompt, project, [...state.injected, ...state.hinted])
+      ? relevantMemories(store, probe.prompt, project, [...state.injected, ...state.hinted, ...silenced])
       : { full: [], more: [] };
   if (!matches.length && !memories.full.length && !memories.more.length) return { output: {}, fired: [] };
 
@@ -232,6 +260,7 @@ export function evaluate(input: HookInput, store: Store, triggers: Triggers): { 
       fired.push(mem.id);
     }
     if (!sections.length && !tools.length && !recalled.length && !listed.length) return { output: {}, fired: [] };
+    state.last = fired.filter((id) => !id.startsWith("hint:"));
     saveSession(session, state);
     const text = [
       ...(recalled.length
@@ -267,6 +296,7 @@ export function evaluate(input: HookInput, store: Store, triggers: Triggers): { 
     state.injected.push(e.id);
   }
   if (!sections.length) return { output: {}, fired: [] };
+  state.last = [...fired];
   saveSession(session, state);
   const head = `batas: ${fired.length} rule(s) apply to this ${probe.cmd ? "command" : "edit"} — read before proceeding.`;
   const tail = deferred.length ? `\n\nAlso matched (fetch with mcp__batas__get): ${deferred.join(", ")}` : "";
@@ -278,6 +308,7 @@ async function main() {
   const started = performance.now();
   let input: HookInput = {};
   let result: { output: object; fired: string[] } = { output: {}, fired: [] };
+  let error: string | undefined;
   try {
     input = JSON.parse(await Bun.stdin.text()) as HookInput;
     const store = new Store();
@@ -286,22 +317,20 @@ async function main() {
     store.close();
     pruneSessions();
   } catch (err) {
-    console.error(`batas hook error: ${String(err)}`);
+    error = err instanceof Error ? `${err.message} @ ${err.stack?.split("\n")[1]?.trim() ?? "?"}` : String(err);
+    console.error(`batas hook error: ${error}`);
   }
   process.stdout.write(JSON.stringify(result.output));
   try {
-    mkdirSync(config.stateDir, { recursive: true });
-    appendFileSync(
-      join(config.stateDir, "hook.log.jsonl"),
-      `${JSON.stringify({
-        ts: new Date().toISOString(),
-        event: input.hook_event_name,
-        tool: input.tool_name,
-        session: input.session_id,
-        fired: result.fired,
-        ms: Math.round(performance.now() - started),
-      })}\n`,
-    );
+    appendHookLog({
+      ts: new Date().toISOString(),
+      event: input.hook_event_name,
+      tool: input.tool_name,
+      session: input.session_id,
+      fired: result.fired,
+      ms: Math.round(performance.now() - started),
+      ...(error ? { error } : {}),
+    });
   } catch {}
 }
 

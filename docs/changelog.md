@@ -1,5 +1,13 @@
 # batas Changelog
 
+## v0.4.0 — batas lebih cepat, bisa ditegur, dan kelihatan kalau rusak
+
+- Kalau batas mengirim aturan atau memory yang nyasar, cukup bilang "batas nyasar" (atau salah/ngaco/keliru). Isinya langsung dibisukan sampai sesi selesai dan laporanmu dicatat. Untuk membisukan selamanya, agent bisa memakai tool `mute`.
+- Pengecekan memory di setiap prompt sekarang sekitar 42 ms, sebelumnya 252 ms.
+- Error di hook batas sekarang tercatat dan ditampilkan di `status`. Log hook juga dirotasi otomatis (5 MB × 3 file), jadi tidak lagi membengkak terus.
+- Perintah baru `just rule-audit` mengecek trigger setiap aturan terhadap ~64 ribu perintah asli dari transcript 14 hari terakhir, untuk menemukan trigger yang mati atau terlalu sering muncul.
+- `just check` sekarang juga gagal kalau hook jadi lambat (anggaran 60 ms per tool call dan 150 ms per prompt, diuji dengan skala ~600 memory).
+
 ## v0.3.0 — Memory datang sendiri, rules datang lengkap
 
 - Kalau permintaanmu nyambung dengan sebuah memory di project itu, isi lengkap memory tersebut langsung dikirim ke agent (maksimal 2, sekali per sesi), tanpa perlu dicari dulu.

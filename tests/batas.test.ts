@@ -5,6 +5,9 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { config } from "../src/config.ts";
 import { evaluate } from "../src/hook.ts";
+import { memorySources } from "../src/corpus.ts";
+import { mutedIds, readFeedback, setMuted } from "../src/feedback.ts";
+import { appendHookLog, readHookLog } from "../src/log.ts";
 import { Store } from "../src/store.ts";
 import { Triggers } from "../src/triggers.ts";
 import { indexHook, INDEX_HOOK_MAX, logChangelog, logProgress, recordMemory } from "../src/write.ts";
@@ -262,7 +265,7 @@ describe("writers", () => {
 });
 
 describe("mcp server", () => {
-  test("lists the seven tools and answers recall and get over stdio", async () => {
+  test("lists the eight tools and answers recall and get over stdio", async () => {
     const client = new Client({ name: "batas-test", version: "0" });
     await client.connect(
       new StdioClientTransport({
@@ -273,7 +276,7 @@ describe("mcp server", () => {
       }),
     );
     const tools = (await client.listTools()).tools.map((x) => x.name).sort();
-    expect(tools).toEqual(["check", "get", "log_changelog", "log_progress", "recall", "record", "status"]);
+    expect(tools).toEqual(["check", "get", "log_changelog", "log_progress", "mute", "recall", "record", "status"]);
     const recall = (await client.callTool({ name: "recall", arguments: { query: "pg_dump restore empty database", limit: 3 } })) as {
       content: { text: string }[];
     };
@@ -295,3 +298,74 @@ describe("mcp server", () => {
     expect(existsSync(join(config.claudeHome, "rules"))).toBe(true);
   });
 });
+
+describe("feedback and log", () => {
+  test("'batas nyasar' mutes the last injection for the session and records the report", () => {
+    const t = new Triggers({ "gotcha:B1": { cmd: ["\\bpg_restore\\b"] }, "lessons:C7": { cmd: ["\\bpg_dump\\b"] } });
+    const tool = (command: string) => evaluate({ session_id: "mu1", hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command } }, store, t);
+    expect(tool("pg_restore -d a x.dump").fired).toEqual(["gotcha:B1"]);
+    const muted = evaluate({ session_id: "mu1", hook_event_name: "UserPromptSubmit", prompt: "batas nyasar itu" }, store, t).output as {
+      hookSpecificOutput: { additionalContext: string };
+    };
+    expect(muted.hookSpecificOutput.additionalContext).toContain("gotcha:B1");
+    expect(readFeedback().some((f) => f.session === "mu1" && f.ids.includes("gotcha:B1"))).toBe(true);
+    expect(tool("pg_dump app > x.sql").fired).toEqual(["lessons:C7"]);
+    expect(evaluate({ session_id: "mu2", hook_event_name: "UserPromptSubmit", prompt: "batas nyasar" }, store, t).output).toEqual({});
+  });
+
+  test("a permanent mute silences an id in every session until unmuted", () => {
+    const t = new Triggers({ "gotcha:B1": { cmd: ["\\bpg_restore\\b"] } });
+    const run = (session_id: string) =>
+      evaluate({ session_id, hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command: "pg_restore x" } }, store, t).fired;
+    setMuted("gotcha:B1", "probe");
+    expect(mutedIds()["gotcha:B1"]).toBe("probe");
+    expect(run("pm1")).toEqual([]);
+    setMuted("gotcha:B1", null);
+    expect(run("pm2")).toEqual(["gotcha:B1"]);
+  });
+
+  test("the hook log rotates by size and is read back across files, errors included", () => {
+    const saved = config.log.maxBytes;
+    config.log.maxBytes = 300;
+    for (let i = 0; i < 12; i++) appendHookLog({ ts: new Date().toISOString(), fired: [], ms: i, ...(i === 11 ? { error: "boom" } : {}) });
+    config.log.maxBytes = saved;
+    expect(existsSync(join(config.stateDir, "hook.log.1.jsonl"))).toBe(true);
+    const rows = readHookLog(Date.now() - 60_000);
+    expect(rows.some((r) => r.error === "boom")).toBe(true);
+    expect(rows.length).toBeGreaterThan(3);
+  });
+});
+
+describe("latency budget", () => {
+  // The hook runs on every tool call of every session; a regression here is paid thousands of times a day, and
+  // nothing else would notice it. Measures the in-process path main() runs: refresh, then evaluate.
+  const p95 = (xs: number[]) => xs.sort((a, b) => a - b)[Math.floor(xs.length * 0.95)] ?? 0;
+  const t = Triggers.load();
+
+  test(`a tool call stays under ${config.latencyBudgetMs.tool}ms p95`, () => {
+    const ms: number[] = [];
+    for (let i = 0; i < 40; i++) {
+      const started = performance.now();
+      const s = new Store();
+      s.refresh("rules");
+      evaluate({ session_id: `lat-t${i}`, hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command: "git commit -m x && git push origin main" } }, s, t);
+      s.close();
+      ms.push(performance.now() - started);
+    }
+    expect(p95(ms)).toBeLessThan(config.latencyBudgetMs.tool);
+  });
+
+  test(`a prompt with memory recall stays under ${config.latencyBudgetMs.prompt}ms p95`, () => {
+    const ms: number[] = [];
+    for (let i = 0; i < 40; i++) {
+      const started = performance.now();
+      const s = new Store();
+      s.refresh("rules", memorySources("-tmp-demo"));
+      evaluate({ session_id: `lat-p${i}`, cwd: "/tmp/demo", hook_event_name: "UserPromptSubmit", prompt: "commit terus push, hooks warn popups" }, s, t);
+      s.close();
+      ms.push(performance.now() - started);
+    }
+    expect(p95(ms)).toBeLessThan(config.latencyBudgetMs.prompt);
+  });
+});
+

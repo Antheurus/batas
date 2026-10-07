@@ -51,7 +51,8 @@ ToolSearch({query: "select:mcp__batas__check,mcp__batas__recall,mcp__batas__get,
 | A project decision or constraint not derivable from the code | `record({type: "project", ...})` |
 | A new gotcha worth a rule | `record({type: "lesson", ...})` → returns a draft plus the closest existing rules; apply it with the `rules-writer` skill |
 | End of a session where real engineering landed | `log_progress` + `log_changelog`, same version |
-| Is the corpus healthy / are hooks firing / which rules lack triggers | `status()` |
+| Is the corpus healthy / are hooks firing / which rules lack triggers | `status()` — also shows hook errors, "batas nyasar" reports and permanent mutes |
+| The user says an injected rule or memory keeps being wrong | `mute({id, reason})` (permanent, every session) — then tighten that id's triggers; `unmute: true` reverses |
 
 ## Writing through batas
 
@@ -77,7 +78,8 @@ ToolSearch({query: "select:mcp__batas__check,mcp__batas__recall,mcp__batas__get,
 ## When a hook fires
 
 An injected block starting `batas:` is a rule that matched what is about to happen. Read it before running the
-command. A fired `gotcha:`/`lessons:` item arrives as its verbatim FULL text (from `~/.claude/references/{gotcha,
+command. **If the user says "batas nyasar" (or salah/ngaco/keliru), the hook mutes the last injection for the rest of
+the session and logs the report** — nothing to do unless they want it gone for good, which is `mute`. A fired `gotcha:`/`lessons:` item arrives as its verbatim FULL text (from `~/.claude/references/{gotcha,
 lessons}-full.md`), not the condensed line already in context — that is where the recipe and the incident live. On a
 prompt, `batas: project memories that may bear on this request` carries up to two memories whose triggers the prompt
 said; use one only if it actually applies, and open a listed id with `get` when it bears on the work. When the Stop hook blocks with `batas: your last reply matches a known mistake pattern`, either correct
@@ -98,4 +100,9 @@ fails when a fixture does not fire its own rule — that is the recall test, and
 a rule that can silently stop firing. After a rules change, add or update the entry, then run `just check` in
 the batas repo and `just sync` in cc-toriq.
 
-Repo: `~/Documents/PROJECT_MISPAQUL_ATTORIQ/batas` — `just install | test | recall "<q>" | fire "<cmd>" | log`.
+**Rule triggers are audited by replay:** `just rule-audit [days] [share]` runs the real tool calls of recent transcripts
+through the hook's own matcher and lists noisy ids (with the share of SESSIONS they reach, since an id injects once per
+session) and cmd/path/code ids that never fired — a broken regex and a rare situation look identical until replayed.
+
+Repo: `~/Documents/PROJECT_MISPAQUL_ATTORIQ/batas` — `just install | check | recall "<q>" | fire "<cmd>" | log | rule-audit | trigger-audit`.
+`just check` includes a latency budget (60 ms tool call, 150 ms prompt, in-process, at ~600-memory scale).

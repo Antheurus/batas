@@ -24,6 +24,8 @@ export class Store {
     this.db.run(`CREATE INDEX IF NOT EXISTS entries_source ON entries(source)`);
     this.db.run(`CREATE TABLE IF NOT EXISTS links (src TEXT NOT NULL, dst TEXT NOT NULL, kind TEXT NOT NULL)`);
     this.db.run(`CREATE INDEX IF NOT EXISTS links_src ON links(src)`);
+    // Without it the hook's first memory read scanned the whole 112 MB entries table, ~150 ms on every prompt.
+    this.db.run(`CREATE INDEX IF NOT EXISTS entries_kind_scope ON entries(kind, scope)`);
     this.db.run(`CREATE VIRTUAL TABLE IF NOT EXISTS fts USING fts5(
       id UNINDEXED, title, body, tokenize = 'porter unicode61')`);
   }
@@ -108,6 +110,16 @@ export class Store {
       .query("SELECT * FROM entries WHERE id LIKE ? ORDER BY length(id) LIMIT 1")
       .get(`%${id}%`) as Entry | null;
     return loose ?? undefined;
+  }
+
+  memories(scope: string): Entry[] {
+    return this.db.query("SELECT * FROM entries WHERE kind = 'memory' AND scope = ?").all(scope) as Entry[];
+  }
+
+  memoryTitlesOutside(scope: string): Pick<Entry, "id" | "scope" | "title">[] {
+    return this.db
+      .query("SELECT id, scope, title FROM entries WHERE kind = 'memory' AND scope != ?")
+      .all(scope) as Pick<Entry, "id" | "scope" | "title">[];
   }
 
   links(id: string): { dst: string; kind: string }[] {
