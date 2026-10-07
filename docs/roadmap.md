@@ -67,3 +67,16 @@ Agreed with the user on 2026-10-07. Each item names the evidence that put it her
    against quoted lines and side-agent notes while memory recall was not, so both now read the user's own words.
    Prompts listing any rule: 11.4% -> 9.4%. The remaining top phrases (`handover`, `deploy`, `xlsx`) are on-topic for
    their rules and stay. 58 prompt-only rules were never reached by any prompt; reported, not changed.
+
+## Priority 4 — learning loop (approved 2026-10-08)
+
+Plan: `docs/plan/2026-10-08-learning-loop/plan.md`. Evidence: in one mendadak-pos session the user repeated the same
+correction four times, 2 of 8 paraphrased recall probes missed content that was present, and nothing stopped a 780 KB
+raw dump into `docs/lessons/`.
+
+10. **Correction capture** — a correction in the user's own words injects "record this" and the Stop hook blocks once
+    if no `record` followed. Status: planned.
+11. **Content contract** — rule + `just lessons-lint` + a hook denying dump-shaped writes into `docs/lessons/`.
+    Status: planned.
+12. **Semantic recall** — local multilingual embeddings fused with BM25 in the MCP server; eval 6/8 → target ≥ 7/8.
+    Status: planned.
