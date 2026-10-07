@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -369,7 +369,7 @@ describe("live-session collision guard", () => {
     const first = git("git add -A && git commit -m x", "me-1");
     expect(first.hookSpecificOutput?.additionalContext).toContain("1 other Claude session(s) active in this checkout");
     expect(first.hookSpecificOutput?.additionalContext).toContain("never `git add -A`");
-    expect(git("git push origin main", "me-1")).toEqual({});
+    expect(git("git commit -m second", "me-1")).toEqual({});
   });
 
   test("stays silent for a quoted mention, a read-only git command, a stale session, or only your own session", () => {
@@ -381,6 +381,80 @@ describe("live-session collision guard", () => {
     appendHookLog({ ts: new Date(Date.now() - 3_600_000).toISOString(), session: "old", repo: lonely, fired: [], ms: 1 });
     appendHookLog({ ts: new Date().toISOString(), session: "me-3", repo: lonely, fired: [], ms: 1 });
     expect(git("git commit -m y", "me-3", lonely)).toEqual({});
+  });
+});
+
+describe("collision guard blocks", () => {
+  const repo = mkdtempSync(join(tmpdir(), "batas-deny-"));
+  Bun.spawnSync(["git", "init", "-q", repo]);
+  writeFileSync(join(repo, "mine.ts"), "export const a = 1;\n");
+  writeFileSync(join(repo, "theirs.ts"), "export const b = 2;\n");
+  // An IDLE other session: it wrote theirs.ts and has logged nothing since, so the live window cannot see it.
+  mkdirSync(config.sessionsDir, { recursive: true });
+  writeFileSync(join(config.sessionsDir, "idle-other.json"), JSON.stringify({ touched: [join(repo, "theirs.ts")] }));
+  const t = new Triggers({});
+  evaluate({ session_id: "me-d", cwd: repo, hook_event_name: "PreToolUse", tool_name: "Edit", tool_input: { file_path: join(repo, "mine.ts"), new_string: "x" } }, store, t);
+  const run = (command: string, session_id = "me-d") =>
+    evaluate({ session_id, cwd: repo, hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command } }, store, t).output as {
+      hookSpecificOutput?: { permissionDecision?: string; permissionDecisionReason?: string };
+    };
+  const denied = (command: string, session_id?: string) => run(command, session_id).hookSpecificOutput?.permissionDecision === "deny";
+
+  test("a sweeping command is denied while an idle session's file is dirty, and the denial names it", () => {
+    const out = run("git add -A");
+    expect(out.hookSpecificOutput?.permissionDecision).toBe("deny");
+    expect(out.hookSpecificOutput?.permissionDecisionReason).toContain("theirs.ts");
+    expect(out.hookSpecificOutput?.permissionDecisionReason).not.toContain("mine.ts");
+    for (const c of ["git add .", "git commit -am wip", "git stash", "git checkout -- .", "git reset --hard", "git clean -fd"]) {
+      expect(denied(c)).toBe(true);
+    }
+  });
+
+  test("every way through works: explicit paths, the ack prefix, a mention in quotes or a heredoc", () => {
+    for (const c of [
+      "git add mine.ts",
+      "git stash -- mine.ts",
+      "git stash pop",
+      "BATAS_ACK_FOREIGN=1 git add -A",
+      'echo "never git add -A here"',
+      "python3 - <<'EOF'\nprint('git add -A')\nEOF",
+    ]) {
+      expect(denied(c)).toBe(false);
+    }
+  });
+
+  test("push is denied only while another session is live, and the ack prefix lets it through", () => {
+    expect(denied("git push origin main", "me-p")).toBe(false);
+    appendHookLog({ ts: new Date().toISOString(), session: "live-other", repo, fired: [], ms: 1 });
+    const out = run("git push origin main", "me-p");
+    expect(out.hookSpecificOutput?.permissionDecision).toBe("deny");
+    expect(out.hookSpecificOutput?.permissionDecisionReason).toContain("git log @{u}..HEAD");
+    expect(denied("BATAS_ACK_LIVE=1 git push origin main", "me-p")).toBe(false);
+  });
+
+  test("the repo is the one the command cds into, not the session's cwd", () => {
+    const busy = mkdtempSync(join(tmpdir(), "batas-busy-"));
+    Bun.spawnSync(["git", "init", "-q", busy]);
+    const quiet = mkdtempSync(join(tmpdir(), "batas-quiet-"));
+    Bun.spawnSync(["git", "init", "-q", quiet]);
+    appendHookLog({ ts: new Date().toISOString(), session: "busy-other", repo: busy, fired: [], ms: 1 });
+    const push = (command: string) =>
+      (evaluate({ session_id: "me-cd", cwd: busy, hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command } }, store, t).output as {
+        hookSpecificOutput?: { permissionDecision?: string };
+      }).hookSpecificOutput?.permissionDecision;
+    expect(push(`cd ${quiet} && git push origin main`)).toBeUndefined();
+    expect(push(`git -C ${quiet} push origin main`)).toBeUndefined();
+    expect(push(`cd ${quiet} && git commit -F - <<'EOF'\nmsg naming the last cd X / git -C X rule\nEOF\ngit push origin main`)).toBeUndefined();
+    expect(push("git push origin main")).toBe("deny");
+  });
+
+  test("with no other session's dirty file, sweeping is allowed", () => {
+    const clean = mkdtempSync(join(tmpdir(), "batas-clean-"));
+    Bun.spawnSync(["git", "init", "-q", clean]);
+    writeFileSync(join(clean, "a.ts"), "x\n");
+    const out = evaluate({ session_id: "solo", cwd: clean, hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command: "git add -A" } }, store, t)
+      .output as { hookSpecificOutput?: { permissionDecision?: string } };
+    expect(out.hookSpecificOutput?.permissionDecision).toBeUndefined();
   });
 });
 

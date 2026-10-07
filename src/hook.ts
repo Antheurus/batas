@@ -27,7 +27,8 @@ type HookInput = {
 
 // lastPrompt is what the PROMPT hook injected most recently — the only thing "batas nyasar" can be about, since the
 // user never sees the rules fired by the agent's own tool calls.
-type SessionState = { injected: string[]; hinted: string[]; lastPrompt: string[]; muted: string[] };
+// touched is every file this session wrote through a file tool — what tells its dirty files from another session's.
+type SessionState = { injected: string[]; hinted: string[]; lastPrompt: string[]; muted: string[]; touched: string[] };
 
 // Harness-generated turns (a background agent finishing, a system reminder) arrive as UserPromptSubmit too; their
 // text is an agent's report, not the user's request, so matching phrases in it only produces noise.
@@ -36,6 +37,25 @@ const SYSTEM_PROMPT = /<task-notification>|\[SYSTEM NOTIFICATION/;
 // Commands that read or write the shared index and working tree — exactly what a second session in the same checkout
 // can corrupt or carry along (another session's push deployed a local commit on 2026-10-07).
 const SHARED_GIT = /\bgit\s+(commit|push|add|stash|reset|checkout|switch|merge|rebase|pull|restore|clean|cherry-pick|revert)\b/;
+
+// The directory a Bash command actually runs git in: a `cd X &&` or `git -C X` in the command beats the session's cwd.
+// Using the session cwd blocked a `cd batas && git push` over activity in a different repo.
+export function commandDir(raw: string | undefined, cwd: string | undefined): string | undefined {
+  if (!raw) return cwd;
+  // A heredoc body is data (a commit message quoting `cd x && git push` sent the guard to the wrong repo); quotes are
+  // kept, since `cd "/path with spaces"` is a real target.
+  const cmd = withoutHeredocs(raw);
+  const home = process.env.HOME ?? "";
+  const pick = (re: RegExp) => {
+    let last: string | undefined;
+    for (const m of cmd.matchAll(re)) last = m[2] ?? m[3] ?? m[4];
+    return last;
+  };
+  const target = pick(/\bgit\s+-C\s+("([^"]+)"|'([^']+)'|(\S+))/g) ?? pick(/(?:^|[;&|(]\s*)cd\s+("([^"]+)"|'([^']+)'|([^\s;&|)]+))/g);
+  if (!target) return cwd;
+  const expanded = target.replace(/^~(?=\/|$)/, home).replace(/^\$HOME(?=\/|$)/, home).replace(/^\$\{HOME\}(?=\/|$)/, home);
+  return expanded.startsWith("/") ? expanded : join(cwd ?? home, expanded);
+}
 
 export function repoRoot(cwd: string | undefined): string | undefined {
   let dir = cwd;
@@ -46,10 +66,98 @@ export function repoRoot(cwd: string | undefined): string | undefined {
   return undefined;
 }
 
+// Commands that take EVERY dirty file in the tree, so they cannot tell this session's work from another's.
+const SWEEPING = [
+  /\bgit\s+add\s+(?:[^|;&]*\s)?(-A|--all|-u|--update|\.)(?=\s|$|[;&|])/,
+  /\bgit\s+commit\s+(?:[^|;&]*\s)?(-[a-zA-Z]*a[a-zA-Z]*|--all)(?=\s|$|[;&|])/,
+  /\bgit\s+stash(?!\s+(list|show|pop|apply|drop|branch)\b)(?![^|;&]*\s--\s)/,
+  /\bgit\s+(checkout|restore)\s+(?:[^|;&]*\s)?(--\s+)?\.(?=\s|$|[;&|])/,
+  /\bgit\s+reset\s+(?:[^|;&]*\s)?--hard\b/,
+  /\bgit\s+clean\s+(?:[^|;&]*\s)?-[a-zA-Z]*f/,
+];
+const PUSH = /\bgit\s+push\b/;
+const ACK_FOREIGN = /(^|[\s;&|])BATAS_ACK_FOREIGN=1\s/;
+const ACK_LIVE = /(^|[\s;&|])BATAS_ACK_LIVE=1\s/;
+const OTHERS_TOUCHED_WINDOW_MS = 24 * 3600 * 1000;
+
+// Dirty files in the repo that another session wrote and this one did not — visible even when that session has
+// gone idle, which the 15-minute live window cannot see.
+function foreignDirty(repo: string, session: string, mine: string[]): string[] {
+  const out = Bun.spawnSync(["git", "-C", repo, "status", "--porcelain"], { stdout: "pipe", stderr: "ignore" });
+  if (out.exitCode !== 0) return [];
+  const dirty = out.stdout
+    .toString()
+    .split("\n")
+    .filter((l) => l.length > 3)
+    .map((l) => join(repo, (l.slice(3).split(" -> ").pop() ?? "").replace(/^"|"$/g, "")));
+  if (!dirty.length || !existsSync(config.sessionsDir)) return [];
+  const theirs = new Set<string>();
+  const since = Date.now() - OTHERS_TOUCHED_WINDOW_MS;
+  const own = sessionFile(session);
+  for (const f of readdirSync(config.sessionsDir)) {
+    const p = join(config.sessionsDir, f);
+    if (p === own || statSync(p).mtimeMs < since) continue;
+    try {
+      for (const t of (JSON.parse(readFileSync(p, "utf8")) as Partial<SessionState>).touched ?? []) {
+        if (t.startsWith(`${repo}/`)) theirs.add(t);
+      }
+    } catch {}
+  }
+  const mineSet = new Set(mine);
+  return dirty.filter((d) => theirs.has(d) && !mineSet.has(d));
+}
+
+// A block must never fire on text that only MENTIONS a command, so deny decisions read the bare shell surface: every
+// heredoc body and quoted string removed. (A warning may read deeper; a deny that fired on a script writing the
+// words "git add -A" would stop legitimate work.)
+export function withoutHeredocs(cmd: string): string {
+  return cmd.replace(/<<-?\s*(['"]?)(\w+)\1[^\n]*\n[\s\S]*?\n\s*\2(?=\n|$)/g, " ");
+}
+
+export function shellSurface(cmd: string): string {
+  return withoutHeredocs(cmd)
+    .replace(/'[^']*'/g, " ")
+    .replace(/"(?:\\.|[^"\\])*"/g, " ");
+}
+
+// Blocks only the two shapes that carried another session's work on 2026-10-07: a sweeping stage/discard while their
+// files are dirty, and a push while they are live. Each has a code-supported way through, so it can never dead-lock.
+function collisionDeny(input: HookInput, state: SessionState): string | undefined {
+  const raw = input.tool_input?.command;
+  if (!raw) return undefined;
+  const cmd = shellSurface(raw);
+  const repo = repoRoot(commandDir(raw, input.cwd));
+  if (!repo) return undefined;
+  if (SWEEPING.some((re) => re.test(cmd)) && !ACK_FOREIGN.test(cmd)) {
+    const foreign = foreignDirty(repo, input.session_id ?? "", state.touched);
+    if (foreign.length) {
+      return [
+        `batas BLOCKED: this command takes every dirty file in ${repo}, and ${foreign.length} of them were written by another`,
+        "Claude session, not this one:",
+        ...foreign.slice(0, 12).map((f) => `  ${f.slice(repo.length + 1)}`),
+        ...(foreign.length > 12 ? [`  … and ${foreign.length - 12} more`] : []),
+        "Stage or discard by explicit path instead (`git add <your files>`). If you have checked that sweeping these is",
+        "intended, re-run the same command prefixed with `BATAS_ACK_FOREIGN=1 `.",
+      ].join("\n");
+    }
+  }
+  if (PUSH.test(cmd) && !ACK_LIVE.test(cmd)) {
+    const others = liveSessions(repo, input.session_id ?? "", Date.now() - config.liveWindowMs);
+    if (others.size) {
+      return [
+        `batas BLOCKED: ${others.size} other Claude session(s) were active in ${repo} within the last ${config.liveWindowMs / 60000} minutes,`,
+        "and a push carries every commit on this branch — including any they made. Read `git log @{u}..HEAD` (or",
+        "`git log origin/<branch>..HEAD`) and confirm every commit is yours, then re-run prefixed with `BATAS_ACK_LIVE=1 `.",
+      ].join("\n");
+    }
+  }
+  return undefined;
+}
+
 function liveNote(input: HookInput, state: SessionState): { id: string; text: string } | undefined {
   const cmd = input.tool_input?.command;
   if (!cmd || !matchOutside(SHARED_GIT, cmd, dataSpans(cmd))) return undefined;
-  const repo = repoRoot(input.cwd);
+  const repo = repoRoot(commandDir(cmd, input.cwd));
   if (!repo) return undefined;
   const others = liveSessions(repo, input.session_id ?? "", Date.now() - config.liveWindowMs);
   if (!others.size) return undefined;
@@ -70,6 +178,7 @@ function liveNote(input: HookInput, state: SessionState): { id: string; text: st
 
 const MUTE_PROMPT = /\bbatas\s+(nyasar|salah|ngaco|keliru|wrong|irrelevant)\b/i;
 const FILE_TOOLS = new Set(["Read", "Edit", "Write", "MultiEdit", "NotebookEdit"]);
+const WRITE_TOOLS = new Set(["Edit", "Write", "MultiEdit", "NotebookEdit"]);
 const SESSION_TTL_MS = 7 * 24 * 3600 * 1000;
 
 function sessionFile(id: string): string {
@@ -79,9 +188,9 @@ function sessionFile(id: string): string {
 function loadSession(id: string): SessionState {
   try {
     const s = JSON.parse(readFileSync(sessionFile(id), "utf8")) as Partial<SessionState>;
-    return { injected: s.injected ?? [], hinted: s.hinted ?? [], lastPrompt: s.lastPrompt ?? [], muted: s.muted ?? [] };
+    return { injected: s.injected ?? [], hinted: s.hinted ?? [], lastPrompt: s.lastPrompt ?? [], muted: s.muted ?? [], touched: s.touched ?? [] };
   } catch {
-    return { injected: [], hinted: [], lastPrompt: [], muted: [] };
+    return { injected: [], hinted: [], lastPrompt: [], muted: [], touched: [] };
   }
 }
 
@@ -239,6 +348,22 @@ export function evaluate(input: HookInput, store: Store, triggers: Triggers): { 
   if (!probe.cmd && !probe.path && !probe.code && !probe.prompt) return { output: {}, fired: [] };
 
   const state = loadSession(session);
+  if (event === "PreToolUse" && input.tool_name && WRITE_TOOLS.has(input.tool_name)) {
+    const p = input.tool_input?.file_path ?? input.tool_input?.notebook_path;
+    if (p?.startsWith("/") && !state.touched.includes(p)) {
+      state.touched.push(p);
+      saveSession(session, state);
+    }
+  }
+  if (probe.cmd) {
+    const reason = collisionDeny(input, state);
+    if (reason) {
+      return {
+        output: { hookSpecificOutput: { hookEventName: event, permissionDecision: "deny", permissionDecisionReason: reason } },
+        fired: ["guard:collision"],
+      };
+    }
+  }
   if (probe.prompt && MUTE_PROMPT.test(ownWords(probe.prompt))) {
     if (!state.lastPrompt.length) return { output: {}, fired: [] };
     const ids = state.lastPrompt;
@@ -369,7 +494,7 @@ async function main() {
       event: input.hook_event_name,
       tool: input.tool_name,
       session: input.session_id,
-      repo: repoRoot(input.cwd),
+      repo: repoRoot(input.tool_name === "Bash" ? commandDir(input.tool_input?.command, input.cwd) : input.cwd),
       fired: result.fired,
       ms: Math.round(performance.now() - started),
       ...(error ? { error } : {}),

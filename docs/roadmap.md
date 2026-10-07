@@ -8,7 +8,10 @@ Agreed with the user on 2026-10-07. Each item names the evidence that put it her
    same checkout. Evidence: on 2026-10-07 another session's push deployed a local commit to prod
    (memory `another-session-pushes-this-checkout`), `git add -A` swept another session's files, and an `index.lock`
    was held by a parallel process. Status: **done 2026-10-07** — hook log carries `repo`; a shared-checkout git command
-   warns when another session touched the same root within 15 minutes.
+   warns when another session touched the same root within 15 minutes. **Hardened the same day:** a warning alone
+   let the command run and could not see an IDLE session's dirty files, so each session now records the files it
+   writes, sweeping git commands are denied while another session's file is dirty, and `git push` is denied while
+   another session is live — each with an acknowledged way through.
 2. **Rule tiering from measured frequency** — rules reaching >30% of sessions belong always-on; always-on items that
    almost never fire move to inject-only. Evidence: `just rule-audit` shows C1/C4/B24 at 32–41% of sessions; the
    always-on corpus is the measured context cost. Status: **done 2026-10-07** — `just rule-audit` reports tiering; 11

@@ -108,8 +108,11 @@ session) and cmd/path/code ids that never fired — a broken regex and a rare si
 **Whether an injection works is measured, not assumed:** `just effect-audit [days] [min]` compares, per rule, how often its
 trigger matched AGAIN later in a session, before batas went live versus after. Mistake-shaped rules should drop and
 situational ones (`git push`) stay flat as the control. A mistake-shaped rule that does not drop is being ignored,
-so fix its wording or delivery. A shared-checkout git command also warns when another session is live in the same
-repo root (roadmap item 1, `docs/roadmap.md`).
+so fix its wording or delivery. **The collision guard BLOCKS two shapes** (roadmap item 1): a sweeping git command (`add -A`, `commit -a`, bare `stash`,
+`checkout .`, `reset --hard`, `clean -f`) while the repo holds a dirty file another session wrote — idle sessions
+included — and a `git push` while another session is live in the same root. Read the denial: it names the files.
+Stage by explicit path; only after checking, re-run prefixed with `BATAS_ACK_FOREIGN=1 ` / `BATAS_ACK_LIVE=1 `. Other
+shared-checkout git commands only warn.
 
 Repo: `~/Documents/PROJECT_MISPAQUL_ATTORIQ/batas` — `just install | check | recall "<q>" | fire "<cmd>" | log | rule-audit | trigger-audit | effect-audit`.
 `just check` includes a latency budget (60 ms tool call, 150 ms prompt, in-process, at ~600-memory scale).

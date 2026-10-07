@@ -23,6 +23,9 @@ git, and readable by a human. batas indexes them and puts them in front of the a
 | `UserPromptSubmit` hook | a prompt phrase matches | injects one-line hints naming the rule ids |
 | `UserPromptSubmit` hook | the prompt shares two content words with a memory of the session's project (one in its title or description) | injects up to 2 memory bodies in full, once per session — so `MEMORY.md` only needs a short pointer line (`just memory-index` keeps it short) |
 | `UserPromptSubmit` hook | the user says "batas nyasar" / salah / ngaco | mutes what the last prompt injected (memories, rule hints — never a rule fired by a tool call) for the session and logs it to `~/.batas/feedback.jsonl`; `mute` makes it permanent (`~/.batas/muted.json`) |
+| `PreToolUse` hook, sweeping git command | `git add -A/./-u`, `commit -a`, `stash` without paths, `checkout .`, `restore .`, `reset --hard`, `clean -f` while the repo has a dirty file another session wrote (tracked per session from Edit/Write, idle sessions included) | **denies**, naming the files; way through: stage by path, or prefix `BATAS_ACK_FOREIGN=1 ` |
+| `PreToolUse` hook, `git push` | another session logged in the same repo root within 15 minutes | **denies**; way through: check `git log @{u}..HEAD`, then prefix `BATAS_ACK_LIVE=1 ` |
+| `PreToolUse` hook, other shared-checkout git command | another session live in the same root | warns once per set of sessions |
 | `PreToolUse` hook, always-on family rule | a `gotcha:`/`lessons:` trigger fires | injects the item's verbatim full text from `~/.claude/references/{gotcha,lessons}-full.md`, not the condensed line already in context |
 | `Stop` hook | the final reply matches a known mistake pattern | blocks once with the rule, and honours `stop_hook_active` |
 | MCP `batas` | when the agent calls it | `check`, `recall`, `get`, `record`, `log_progress`, `log_changelog`, `status` |

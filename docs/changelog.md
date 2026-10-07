@@ -1,5 +1,12 @@
 # batas Changelog
 
+## v0.6.0 — Penjaga sesi bentrok sekarang memblokir, bukan cuma memperingatkan
+
+- `git add -A`, `git add .`, `commit -a`, `stash` tanpa path, `checkout .`, `restore .`, `reset --hard`, dan `clean -f` sekarang DIBLOKIR kalau repo masih punya file belum di-commit yang ditulis sesi Claude lain. Sesi yang sedang diam juga terdeteksi. Pesan bloknya menyebut file-file tersebut.
+- `git push` DIBLOKIR selama ada sesi lain yang aktif di repo yang sama dalam 15 menit terakhir.
+- Selalu ada jalan keluar: stage per path, atau setelah dicek tambahkan `BATAS_ACK_FOREIGN=1` (untuk sapu bersih) atau `BATAS_ACK_LIVE=1` (untuk push) di depan perintahnya.
+- Perintah yang cuma menyebut `git add -A` di dalam tanda kutip atau script tidak ikut diblokir.
+
 ## v0.5.0 — Penjaga sesi bentrok, aturan dipilah pakai data, dan bukti batas bekerja
 
 - Kalau ada sesi Claude lain yang aktif di repo yang sama dalam 15 menit terakhir, agent diberi peringatan sebelum menjalankan perintah git yang mengubah isi repo (commit, push, add, stash, reset, dan lain-lain).
