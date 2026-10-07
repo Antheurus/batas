@@ -78,8 +78,9 @@ ToolSearch({query: "select:mcp__batas__check,mcp__batas__recall,mcp__batas__get,
 ## When a hook fires
 
 An injected block starting `batas:` is a rule that matched what is about to happen. Read it before running the
-command. **If the user says "batas nyasar" (or salah/ngaco/keliru), the hook mutes the last injection for the rest of
-the session and logs the report** — nothing to do unless they want it gone for good, which is `mute`. A fired `gotcha:`/`lessons:` item arrives as its verbatim FULL text (from `~/.claude/references/{gotcha,
+command. **If the user says "batas nyasar" (or salah/ngaco/keliru), the hook mutes what its LAST PROMPT injection brought
+(memories, rule hints — never the rules fired by your own tool calls) for the rest of the session and logs the report;
+the phrase counts only in the user's own words, not inside a quoted note** — nothing to do unless they want it gone for good, which is `mute`. A fired `gotcha:`/`lessons:` item arrives as its verbatim FULL text (from `~/.claude/references/{gotcha,
 lessons}-full.md`), not the condensed line already in context — that is where the recipe and the incident live. On a
 prompt, `batas: project memories that may bear on this request` carries up to two memories whose triggers the prompt
 said; use one only if it actually applies, and open a listed id with `get` when it bears on the work. When the Stop hook blocks with `batas: your last reply matches a known mistake pattern`, either correct
