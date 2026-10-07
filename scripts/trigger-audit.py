@@ -45,7 +45,8 @@ memories: dict[str, list[tuple[str, list[str]]]] = collections.defaultdict(list)
 for path in glob.glob(os.path.join(CLAUDE, "projects", "*", "memory", "*.md")):
     if path.endswith("MEMORY.md"):
         continue
-    found = re.search(r'(?m)^triggers: "([^"]+)"', open(path, errors="ignore").read())
+    # Same as the hook's parser: top-level or nested under metadata:, quoted or bare.
+    found = re.search(r'(?m)^\s*triggers:\s*"?([^"\n]+)"?\s*$', open(path, errors="ignore").read())
     project = path.split("/projects/")[1].split("/")[0]
     terms = [t.strip().lower() for t in found.group(1).split(",") if t.strip()] if found else []
     memories[project].append((os.path.basename(path), terms))
