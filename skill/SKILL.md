@@ -88,6 +88,10 @@ the reply or the work, or state in one line why the reply complies — it blocks
 
 ## Adding a trigger
 
+**The hook enforces Step 5b at the write:** a memory file written without a `triggers:` line gets a warning with
+the format, and the first edit of a gotcha/lessons rule file in a session gets the triggers.toml + `*-full.md`
+checklist; `status` lists always-on items that have no full-text section.
+
 **Memory triggers live in the memory's own frontmatter (`triggers:`), never in `triggers.toml`.** Matching uses the
 user's own words only (quoted `>` lines and side-agent notes are cut), a whole-word hit, and multi-word triggers in any
 order. `just trigger-audit [threshold]` replays every memory trigger against `~/.claude/history.jsonl` and reports the

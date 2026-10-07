@@ -305,6 +305,18 @@ server.registerTool(
       const covered = new Set(triggers.ids());
       const missing = ruleIds.filter((id) => !covered.has(id));
       const orphan = [...covered].filter((id) => !ruleIds.includes(id) && !/^(memory|hint):/.test(id));
+      // Step 5b's other half: an always-on mother item whose verbatim text has no section in its *-full.md is injected
+      // as the condensed line only, which is already in context.
+      const motherRows = s.db.query("SELECT id, source FROM entries WHERE kind = 'rule'").all() as { id: string; source: string }[];
+      const noFullText = motherRows
+        .filter((r) => /\/(lessons\.md|gotcha-coding\.md)$/.test(r.source))
+        .map((r) => r.id)
+        .filter((id) => {
+          const [family, addr] = id.split(":");
+          const file = family ? config.familyFullText[family] : undefined;
+          const exact = s.db.query("SELECT 1 FROM entries WHERE id = ?").get(`ref:references/${file}#${addr?.toLowerCase()}`);
+          return !!file && !!addr && !exact;
+        });
       const rows = readHookLog(Date.now() - 24 * 3600 * 1000);
       let activity = "no hook activity recorded in 24h";
       if (rows.length) {
@@ -326,6 +338,7 @@ server.registerTool(
           `entries: ${s.stats().map((r) => `${r.kind} ${r.n}`).join(", ")}`,
           `triggers: ${covered.size} ids in ${config.triggersFile}; ${missing.length} rules without triggers${missing.length ? `: ${missing.slice(0, 40).join(" ")}${missing.length > 40 ? " …" : ""}` : ""}`,
           orphan.length ? `orphan trigger ids (no such rule): ${orphan.join(" ")}` : "orphan trigger ids: none",
+          `always-on items without a full-text section: ${noFullText.length ? noFullText.join(" ") : "none"}`,
           `hooks: ${activity}`,
           `reported wrong ("batas nyasar"): ${reported.size ? [...reported].sort((x, y) => y[1] - x[1]).map(([id, n]) => `${id} ×${n}`).join(", ") : "none"}`,
           `muted everywhere: ${muted.length ? muted.map(([id, why]) => `${id} (${why})`).join(", ") : "none"}`,

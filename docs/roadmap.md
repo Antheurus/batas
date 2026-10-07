@@ -32,6 +32,8 @@ Agreed with the user on 2026-10-07. Each item names the evidence that put it her
    Evidence: `just trigger-audit` found the same memory copied into 11 Brighty projects.
 6. **Enforce rules-writer Step 5b at edit time** — a rules edit without its `triggers.toml` / `*-full.md` update warns
    immediately. Evidence: memory triggers needed a 586-file backfill because nothing enforced them from the start.
+   Status: **done 2026-10-07** — a memory written without `triggers:` warns at the write; a family rule edit shows the
+   checklist once per session; `status` lists always-on items without a full-text section (0 of 91 today).
 
 ## Priority 3
 

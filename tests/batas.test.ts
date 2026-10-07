@@ -518,6 +518,32 @@ describe("collision guard blocks", () => {
   });
 });
 
+describe("Step 5b at edit time", () => {
+  const t = new Triggers({});
+  const memDirP = join(config.claudeHome, "projects", "-tmp-step", "memory");
+  mkdirSync(memDirP, { recursive: true });
+  const ctx = (session_id: string, tool_name: string, tool_input: Record<string, unknown>) =>
+    (evaluate({ session_id, hook_event_name: "PreToolUse", tool_name, tool_input }, store, t).output as {
+      hookSpecificOutput?: { additionalContext: string };
+    }).hookSpecificOutput?.additionalContext ?? "";
+
+  test("writing a memory without triggers warns; with triggers, or editing one that has them, does not", () => {
+    const f = join(memDirP, "new-fact.md");
+    expect(ctx("s5", "Write", { file_path: f, content: "---\nname: new-fact\ndescription: d\n---\n\nbody\n" })).toContain("has no `triggers:` line");
+    expect(ctx("s6", "Write", { file_path: f, content: '---\nname: new-fact\ntriggers: "a, b"\n---\n\nbody\n' })).toBe("");
+    const had = join(memDirP, "has-triggers.md");
+    writeFileSync(had, '---\nname: x\nmetadata:\n  triggers: "a, b"\n---\n\nold\n');
+    expect(ctx("s7", "Edit", { file_path: had, old_string: "old", new_string: "new" })).toBe("");
+    expect(ctx("s8", "Write", { file_path: join(memDirP, "MEMORY.md"), content: "# index\n" })).toBe("");
+  });
+
+  test("editing a family rule file shows the Step 5b checklist once per session", () => {
+    const f = join(config.claudeHome, "rules", "lessons.md");
+    expect(ctx("s9", "Edit", { file_path: f, old_string: "a", new_string: "b" })).toContain("triggers.toml");
+    expect(ctx("s9", "Edit", { file_path: f, old_string: "c", new_string: "d" })).not.toContain("Step 5b");
+  });
+});
+
 describe("latency budget", () => {
   // The hook runs on every tool call of every session; a regression here is paid thousands of times a day, and
   // nothing else would notice it. Measures the in-process path main() runs: refresh, then evaluate.

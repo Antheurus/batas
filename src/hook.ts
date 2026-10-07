@@ -243,6 +243,54 @@ function liveNote(input: HookInput, state: SessionState): { id: string; text: st
   };
 }
 
+const isMemoryFile = (p: string) =>
+  p.startsWith(`${config.projectsDir}/`) && /\/memory\/(?!MEMORY\.md$)[^/]+\.md$/.test(p);
+const isFamilyFile = (p: string) =>
+  p.startsWith(`${config.rulesDir}/`) && /\/(lessons\.md|gotcha-coding\.md|p-(lessons|gotcha)-[^/]+\.md)$/.test(p);
+const HAS_TRIGGERS = /^\s*triggers:\s*\S/m;
+
+// rules-writer Step 5b at the moment of the write, not after a backfill: a memory without triggers is never injected,
+// and a family rule without its triggers.toml entry and full-text section is never delivered when it matters.
+function step5bNote(input: HookInput, state: SessionState): { id: string; text: string } | undefined {
+  const ti = input.tool_input ?? {};
+  const p = ti.file_path ?? ti.notebook_path;
+  if (!p || !input.tool_name || !WRITE_TOOLS.has(input.tool_name)) return undefined;
+  if (isMemoryFile(p)) {
+    const id = `step5b:${p}`;
+    if (state.injected.includes(id)) return undefined;
+    const written = [ti.content, ti.new_string, ...(ti.edits ?? []).map((e) => e.new_string)].filter(Boolean).join("\n");
+    let existing = "";
+    try {
+      existing = input.tool_name === "Write" ? "" : readFileSync(p, "utf8");
+    } catch {}
+    if (HAS_TRIGGERS.test(written) || HAS_TRIGGERS.test(existing)) return undefined;
+    return {
+      id,
+      text: [
+        `### This memory has no \`triggers:\` line — the hook can never inject it (${basename(p)})`,
+        'Add one frontmatter line before the closing `---`: `triggers: "word, short phrase, ..."` — 4-10 words the user',
+        "actually TYPES when it applies, Indonesian AND English, no bare generic word (fix, deploy, landing). Or write it",
+        "through mcp__batas__record with `triggers`. Then `just trigger-audit` in the batas repo.",
+      ].join("\n"),
+    };
+  }
+  if (isFamilyFile(p)) {
+    const id = "step5b:rules";
+    if (state.injected.includes(id)) return undefined;
+    return {
+      id,
+      text: [
+        "### Editing a gotcha/lessons rule file — rules-writer Step 5b applies before this is done",
+        "A new or moved item needs (1) an entry in ~/.claude/batas/triggers.toml with cmd/path/code regexes, prompt phrases",
+        "in Indonesian AND English, and a t_* fixture each; (2) its verbatim full wording in",
+        "~/.claude/references/{lessons,gotcha}-full.md under `## <ID>` — a rewritten item updates that section too. Then",
+        "`just check` in the batas repo (the recall test) and `just sync` in cc-toriq.",
+      ].join("\n"),
+    };
+  }
+  return undefined;
+}
+
 const MUTE_PROMPT = /\bbatas\s+(nyasar|salah|ngaco|keliru|wrong|irrelevant)\b/i;
 const FILE_TOOLS = new Set(["Read", "Edit", "Write", "MultiEdit", "NotebookEdit"]);
 const WRITE_TOOLS = new Set(["Edit", "Write", "MultiEdit", "NotebookEdit"]);
@@ -471,7 +519,7 @@ export function evaluate(input: HookInput, store: Store, triggers: Triggers): { 
     probe.prompt && project
       ? relevantMemories(store, probe.prompt, project, [...state.injected, ...state.hinted, ...silenced])
       : { full: [], more: [] };
-  const live = probe.cmd ? liveNote(input, state) : undefined;
+  const live = probe.cmd ? liveNote(input, state) : probe.path ? step5bNote(input, state) : undefined;
   if (!matches.length && !memories.full.length && !memories.more.length && !live) return { output: {}, fired: [] };
 
   const sections: string[] = [];
