@@ -14,25 +14,30 @@ research.md, each item is built directly, measured, falsified, committed and pus
 
 ## Remaining, in recommended order
 
-- [ ] **Roadmap 9 — audit rule `prompt` triggers against prompt history.** `scripts/trigger-audit.py` does this for
+- [x] **Roadmap 9 — audit rule `prompt` triggers against prompt history.** `scripts/trigger-audit.py` does this for
       memory triggers only. Replay every `prompt` phrase in `~/.claude/batas/triggers.toml` against
       `~/.claude/history.jsonl` (own words only, like the hook), report over-general phrases and never-firing ones.
       Cheapest item; same shape as an existing script.
-- [ ] **Roadmap 4 — stale-memory audit.** `just memory-audit`: for each memory, extract file paths / symbols / ports it
+- [x] **Roadmap 4 — stale-memory audit.** `just memory-audit`: for each memory, extract file paths / symbols / ports it
       names; flag paths that no longer exist (absolute, or relative to the project root the memory slug maps to) and
       symbols GitNexus no longer resolves. Report only — the owner decides.
-- [ ] **Roadmap 8 — context budget per session.** First MEASURE bytes injected per session from the hook log and
+- [x] **Roadmap 8 — context budget per session.** First MEASURE bytes injected per session from the hook log and
       transcripts (`hook_success` attachments carry the injected text), then cap: past the cap, list ids instead of
       full text. Do not pick the cap before the measurement.
 - [ ] **Roadmap 5 — one shared memory instead of copies.** `just trigger-audit` shows the same memory copied into up to
       11 Brighty projects. Design decision needed (where the shared copy lives, how MEMORY.md points at it); bring the
       design to the user before building — it touches every project's memory directory.
-- [ ] **Roadmap 7 — mine lessons from transcripts.** The same error signature fixed 3+ times across sessions becomes a
+- [x] **Roadmap 7 — mine lessons from transcripts.** The same error signature fixed 3+ times across sessions becomes a
       DRAFTED lesson + trigger for review. batas never writes rules (`record(type: "lesson")` drafts only).
+
+## Landed 2026-10-07/08
+
+Roadmap 9 `11dae40` (v0.8.0), 4 `410ad4a` (v0.9.0, paths only), 8 `07ea9b9` (v0.10.0), 7 `4453ebb` (v0.11.0); fresh-session
+rule check passed (B1, C18, B14 inject their full text). Remaining: roadmap 5 (design with the user) and the user decisions.
 
 ## Also open
 
-- [ ] Verify the shortened global rules in a fresh session (rules load only at session start): a task that used to
+- [x] Verify the shortened global rules in a fresh session (rules load only at session start): a task that used to
       trigger a dropped detail (pg restore, git stash) — does the agent behave, does batas inject the full text?
 - [ ] User decisions: (a) batas `CLAUDE.md` has never been committed (machine-wide gitignore) — `git add -f` it or keep
       local; (b) scrape-mono `p-platform-adapters.md` / `p-scraping-patterns.md` point at `backend/src/**`, which no
