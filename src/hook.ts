@@ -87,12 +87,17 @@ function render(store: Store, e: Entry, m: Match, origin?: string): string {
 }
 
 const STOPWORDS = new Set(
-  "this that with from have what when where which there their they them then than into about would could should yang dengan untuk dari juga udah sudah bisa harus kalau atau tapi biar nggak gimana kita lagi buat jadi aja mana sama ini itu banget masih perlu secara mungkin terus padahal kenapa ngapain dong deh sih tuh nih kayak gitu gini pake pakai mau minta tolong coba please make sure".split(" "),
+  "this that with from have what when where which there their they them then than into about would could should bikin baru yang dengan untuk dari juga udah sudah bisa harus kalau atau tapi biar nggak gimana kita lagi buat jadi aja mana sama ini itu banget masih perlu secara mungkin terus padahal kenapa ngapain dong deh sih tuh nih kayak gitu gini pake pakai mau minta tolong coba please make sure".split(" "),
 );
 
-function saysTrigger(promptLower: string, trigger: string): boolean {
-  const escaped = trigger.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function saysWord(promptLower: string, word: string): boolean {
+  const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return new RegExp(`(^|[^\\p{L}\\p{N}])${escaped}($|[^\\p{L}\\p{N}])`, "u").test(promptLower);
+}
+
+// A multi-word trigger matches when every one of its words is said, in any order: "mac gua panas" says "mac panas".
+function saysTrigger(promptLower: string, trigger: string): boolean {
+  return saysWord(promptLower, trigger) || trigger.split(/\s+/).length > 1 && trigger.split(/\s+/).every((w) => saysWord(promptLower, w));
 }
 
 // Only the user's own words count: a quoted line or a side agent's note pasted into the prompt is someone else's
@@ -106,8 +111,8 @@ function ownWords(prompt: string): string {
 }
 
 // Every prompt shares some word with some memory, so a bare FTS hit is noise. A memory matches when the prompt says
-// one of its trigger words, or — without a trigger — shares three distinct content words with it, two of them in its
-// title or description. Only trigger hits are listed beyond the injected two, and other projects' memories need one.
+// one of its trigger words; only those are injected in full. Without a trigger, sharing three distinct content words
+// (two in its title or description) only LISTS it, and other projects' memories need a trigger to be listed at all.
 function relevantMemories(
   store: Store,
   prompt: string,
@@ -132,13 +137,13 @@ function relevantMemories(
   const matched = [...strong, ...weak];
   const elsewhere = store
     .search(tokens.join(" "), { kinds: ["memory"], limit: 40 })
-    .filter((h) => h.scope !== project && !skip.includes(h.id) && triggered(h));
+    .filter((h) => h.scope !== project && !skip.includes(h.id) && triggered(h))
+    // The same memory is often copied into several sibling projects; list each name once.
+    .filter((h, i, all) => all.findIndex((o) => o.id.split("/").pop() === h.id.split("/").pop()) === i);
+  const full = strong.slice(0, config.inject.maxMemories);
   return {
-    full: matched.slice(0, config.inject.maxMemories),
-    more: [...strong.filter((h) => !matched.slice(0, config.inject.maxMemories).includes(h)), ...elsewhere].slice(
-      0,
-      config.inject.maxMoreMemories,
-    ),
+    full,
+    more: [...matched.filter((h) => !full.includes(h)), ...elsewhere].slice(0, config.inject.maxMoreMemories),
   };
 }
 
