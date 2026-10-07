@@ -667,6 +667,7 @@ async function main() {
       fired: result.fired,
       ms: Math.round(performance.now() - started),
       bytes: injectedBytes(result.output),
+      ...(process.env.CLAUDE_CODE_ENTRYPOINT === "sdk-cli" ? { headless: true } : {}),
       ...(error ? { error } : {}),
     });
   } catch {}

@@ -12,6 +12,8 @@ export type HookLogRow = {
   ms: number;
   // characters of context the call handed to the model
   bytes?: number;
+  // a `claude -p` / SDK session (CLAUDE_CODE_ENTRYPOINT=sdk-cli): a probe the agent started, not a person's session
+  headless?: boolean;
   error?: string;
 };
 
@@ -72,7 +74,7 @@ export function liveSessions(repo: string, except: string, sinceMs: number, tail
     try {
       const row = JSON.parse(line) as HookLogRow;
       const ts = Date.parse(row.ts);
-      if (row.repo === repo && row.session && row.session !== except && ts >= sinceMs) {
+      if (row.repo === repo && row.session && row.session !== except && !row.headless && ts >= sinceMs) {
         seen.set(row.session, Math.max(seen.get(row.session) ?? 0, ts));
       }
     } catch {}

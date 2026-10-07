@@ -29,7 +29,7 @@ describe("corpus", () => {
     const gotcha = rows.filter((r) => r.id.startsWith("gotcha:")).length;
     const lessons = rows.filter((r) => r.id.startsWith("lessons:")).length;
     expect(gotcha).toBe(155);
-    expect(lessons).toBe(134);
+    expect(lessons).toBe(136);
   });
 
   test("a rule moved into a slice keeps its permanent address", () => {
@@ -579,6 +579,9 @@ describe("collision guard blocks", () => {
   });
 
   test("push is denied only while another session is live, and the ack prefix lets it through", () => {
+    expect(denied("git push origin main", "me-p")).toBe(false);
+    // a `claude -p` probe the agent itself started is not a person's live session
+    appendHookLog({ ts: new Date().toISOString(), session: "probe-p", repo, fired: [], ms: 1, headless: true });
     expect(denied("git push origin main", "me-p")).toBe(false);
     appendHookLog({ ts: new Date().toISOString(), session: "live-other", repo, fired: [], ms: 1 });
     const out = run("git push origin main", "me-p");
