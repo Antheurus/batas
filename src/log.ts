@@ -1,4 +1,4 @@
-import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, statSync, unlinkSync } from "node:fs";
+import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, renameSync, statSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { config } from "./config.ts";
 
@@ -7,6 +7,7 @@ export type HookLogRow = {
   event?: string;
   tool?: string;
   session?: string;
+  repo?: string;
   fired: string[];
   ms: number;
   error?: string;
@@ -48,4 +49,31 @@ export function readHookLog(sinceMs: number): HookLogRow[] {
     }
   }
   return rows;
+}
+
+// Only the tail is read: this runs before git commands, and a 15-minute window is a few hundred rows at most.
+export function liveSessions(repo: string, except: string, sinceMs: number, tailBytes = 256 * 1024): Map<string, number> {
+  const file = logFile();
+  const seen = new Map<string, number>();
+  if (!existsSync(file)) return seen;
+  const size = statSync(file).size;
+  const start = Math.max(0, size - tailBytes);
+  const buf = Buffer.alloc(size - start);
+  const fd = openSync(file, "r");
+  try {
+    readSync(fd, buf, 0, buf.length, start);
+  } finally {
+    closeSync(fd);
+  }
+  for (const line of buf.toString("utf8").split("\n")) {
+    if (!line.includes(repo)) continue;
+    try {
+      const row = JSON.parse(line) as HookLogRow;
+      const ts = Date.parse(row.ts);
+      if (row.repo === repo && row.session && row.session !== except && ts >= sinceMs) {
+        seen.set(row.session, Math.max(seen.get(row.session) ?? 0, ts));
+      }
+    } catch {}
+  }
+  return seen;
 }

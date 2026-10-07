@@ -1,11 +1,11 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { config } from "./config.ts";
 import { memorySources, memoryTriggers, parseMemory, projectSlug, type Entry } from "./corpus.ts";
 import { mutedIds, reportWrong } from "./feedback.ts";
-import { appendHookLog } from "./log.ts";
+import { appendHookLog, liveSessions } from "./log.ts";
 import { Store } from "./store.ts";
-import { type Match, Triggers } from "./triggers.ts";
+import { dataSpans, type Match, matchOutside, Triggers } from "./triggers.ts";
 
 type HookInput = {
   session_id?: string;
@@ -33,6 +33,41 @@ type SessionState = { injected: string[]; hinted: string[]; lastPrompt: string[]
 // text is an agent's report, not the user's request, so matching phrases in it only produces noise.
 const SYSTEM_PROMPT = /<task-notification>|\[SYSTEM NOTIFICATION/;
 // The user's way of saying the last injection did not belong; it mutes those ids for the session and is recorded.
+// Commands that read or write the shared index and working tree — exactly what a second session in the same checkout
+// can corrupt or carry along (another session's push deployed a local commit on 2026-10-07).
+const SHARED_GIT = /\bgit\s+(commit|push|add|stash|reset|checkout|switch|merge|rebase|pull|restore|clean|cherry-pick|revert)\b/;
+
+export function repoRoot(cwd: string | undefined): string | undefined {
+  let dir = cwd;
+  while (dir && dir !== "/") {
+    if (existsSync(join(dir, ".git"))) return dir;
+    dir = dirname(dir);
+  }
+  return undefined;
+}
+
+function liveNote(input: HookInput, state: SessionState): { id: string; text: string } | undefined {
+  const cmd = input.tool_input?.command;
+  if (!cmd || !matchOutside(SHARED_GIT, cmd, dataSpans(cmd))) return undefined;
+  const repo = repoRoot(input.cwd);
+  if (!repo) return undefined;
+  const others = liveSessions(repo, input.session_id ?? "", Date.now() - config.liveWindowMs);
+  if (!others.size) return undefined;
+  const id = `live:${repo}:${[...others.keys()].sort().join(",")}`;
+  if (state.injected.includes(id)) return undefined;
+  const ago = Math.round((Date.now() - Math.max(...others.values())) / 1000);
+  return {
+    id,
+    text: [
+      `### ${others.size} other Claude session(s) active in this checkout (${repo}) — last seen ${ago}s ago`,
+      "They share this index and working tree. Stage by path, never `git add -A` / `git add .`; re-read `git status` and",
+      "`git log -1` immediately before committing; a push from here also carries any commit they made, and theirs carries",
+      "yours. If what you are about to do would take or discard their work, stop and isolate in a detached worktree",
+      "(lessons D2, D10, C14).",
+    ].join("\n"),
+  };
+}
+
 const MUTE_PROMPT = /\bbatas\s+(nyasar|salah|ngaco|keliru|wrong|irrelevant)\b/i;
 const FILE_TOOLS = new Set(["Read", "Edit", "Write", "MultiEdit", "NotebookEdit"]);
 const SESSION_TTL_MS = 7 * 24 * 3600 * 1000;
@@ -224,11 +259,17 @@ export function evaluate(input: HookInput, store: Store, triggers: Triggers): { 
     probe.prompt && project
       ? relevantMemories(store, probe.prompt, project, [...state.injected, ...state.hinted, ...silenced])
       : { full: [], more: [] };
-  if (!matches.length && !memories.full.length && !memories.more.length) return { output: {}, fired: [] };
+  const live = probe.cmd ? liveNote(input, state) : undefined;
+  if (!matches.length && !memories.full.length && !memories.more.length && !live) return { output: {}, fired: [] };
 
   const sections: string[] = [];
   const fired: string[] = [];
   let chars = 0;
+  if (live) {
+    sections.push(live.text);
+    fired.push(live.id);
+    state.injected.push(live.id);
+  }
 
   if (probe.prompt) {
     const unseen = matches.filter((m) => !state.hinted.includes(m.id));
@@ -299,7 +340,7 @@ export function evaluate(input: HookInput, store: Store, triggers: Triggers): { 
   }
   if (!sections.length) return { output: {}, fired: [] };
   saveSession(session, state);
-  const head = `batas: ${fired.length} rule(s) apply to this ${probe.cmd ? "command" : "edit"} — read before proceeding.`;
+  const head = `batas: ${fired.length} ${live ? "warning(s)" : "rule(s)"} apply to this ${probe.cmd ? "command" : "edit"} — read before proceeding.`;
   const tail = deferred.length ? `\n\nAlso matched (fetch with mcp__batas__get): ${deferred.join(", ")}` : "";
   const text = `${head}\n\n${sections.join("\n\n")}${tail}`;
   return { output: { hookSpecificOutput: { hookEventName: event, additionalContext: text } }, fired };
@@ -328,6 +369,7 @@ async function main() {
       event: input.hook_event_name,
       tool: input.tool_name,
       session: input.session_id,
+      repo: repoRoot(input.cwd),
       fired: result.fired,
       ms: Math.round(performance.now() - started),
       ...(error ? { error } : {}),

@@ -82,7 +82,7 @@ export function dataSpans(cmd: string): [number, number][] {
   return spans;
 }
 
-function matchOutside(re: RegExp, text: string, spans: [number, number][]): boolean {
+export function matchOutside(re: RegExp, text: string, spans: [number, number][]): boolean {
   if (!spans.length) return re.test(text);
   const g = new RegExp(re.source, re.flags.includes("g") ? re.flags : `${re.flags}g`);
   for (let m = g.exec(text); m; m = g.exec(text)) {

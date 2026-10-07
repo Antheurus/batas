@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
@@ -347,6 +348,39 @@ describe("feedback and log", () => {
     const rows = readHookLog(Date.now() - 60_000);
     expect(rows.some((r) => r.error === "boom")).toBe(true);
     expect(rows.length).toBeGreaterThan(3);
+  });
+});
+
+describe("live-session collision guard", () => {
+  const repo = mkdtempSync(join(tmpdir(), "batas-live-"));
+  mkdirSync(join(repo, ".git"));
+  const sub = join(repo, "apps", "web");
+  mkdirSync(sub, { recursive: true });
+  const t = new Triggers({});
+  const git = (command: string, session_id: string, cwd = sub) =>
+    evaluate({ session_id, cwd, hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command } }, store, t).output as {
+      hookSpecificOutput?: { additionalContext: string };
+    };
+  const seen = (session: string, agoMs: number) =>
+    appendHookLog({ ts: new Date(Date.now() - agoMs).toISOString(), session, repo, fired: [], ms: 1 });
+
+  test("warns once when another session touched the same checkout in the window, from any subdirectory", () => {
+    seen("other-a", 60_000);
+    const first = git("git add -A && git commit -m x", "me-1");
+    expect(first.hookSpecificOutput?.additionalContext).toContain("1 other Claude session(s) active in this checkout");
+    expect(first.hookSpecificOutput?.additionalContext).toContain("never `git add -A`");
+    expect(git("git push origin main", "me-1")).toEqual({});
+  });
+
+  test("stays silent for a quoted mention, a read-only git command, a stale session, or only your own session", () => {
+    seen("other-b", 60_000);
+    expect(git('echo "git commit later"', "me-2")).toEqual({});
+    expect(git("git log -3", "me-2")).toEqual({});
+    const lonely = mkdtempSync(join(tmpdir(), "batas-lonely-"));
+    mkdirSync(join(lonely, ".git"));
+    appendHookLog({ ts: new Date(Date.now() - 3_600_000).toISOString(), session: "old", repo: lonely, fired: [], ms: 1 });
+    appendHookLog({ ts: new Date().toISOString(), session: "me-3", repo: lonely, fired: [], ms: 1 });
+    expect(git("git commit -m y", "me-3", lonely)).toEqual({});
   });
 });
 
