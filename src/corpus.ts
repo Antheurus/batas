@@ -255,10 +255,19 @@ export function projectSources(): Source[] {
           parse: () => parseSections(changelog, `project:${repo}:changelog`, "changelog", repo),
         });
       }
-      for (const file of listMd(join(dir, "docs", "context"))) {
+      for (const sub of ["context", "lessons"]) {
+        for (const file of listMd(join(dir, "docs", sub))) {
+          sources.push({
+            file,
+            parse: () => parseSections(file, `project:${repo}:${sub}/${basename(file)}`, "context", repo),
+          });
+        }
+      }
+      const qaContext = join(dir, "docs", "qa", "context.md");
+      if (existsSync(qaContext)) {
         sources.push({
-          file,
-          parse: () => parseSections(file, `project:${repo}:context/${basename(file)}`, "context", repo),
+          file: qaContext,
+          parse: () => parseSections(qaContext, `project:${repo}:qa/context.md`, "context", repo),
         });
       }
     }

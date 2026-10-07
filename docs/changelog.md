@@ -1,5 +1,10 @@
 # batas Changelog
 
+## v0.13.0 — Recall ikut membaca arsip insiden dan invarian QA tiap repo
+
+- `recall` dan `check` sekarang juga menemukan isi `docs/lessons/*.md` dan `docs/qa/context.md` di setiap repo, jadi cerita yang dipindah keluar dari komentar kode tetap bisa ditemukan agen.
+- Pemicu aturan 'cerita insiden tidak masuk kode' (lessons:G1) kini juga mengenali komentar berbahasa Indonesia seperti 'sejak 2026-09-21' dan 'terukur: 1000'.
+
 ## v0.12.0 — Satu memory untuk banyak project
 
 - Perintah baru `just memory-share`: memory yang sama di beberapa project sekarang disimpan sekali di `~/.claude/memory/shared/`, dan tiap project menunjuk ke file itu. Koreksi di satu project langsung berlaku di semua.

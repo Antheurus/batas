@@ -94,7 +94,7 @@ server.registerTool(
   {
     description:
       "Search everything the user and past sessions have recorded: global rules and incident references, per-project memory " +
-      "(user preferences, feedback, decisions), project rules, docs/progress.md and docs/changelog.md entries of every repo. " +
+      "(user preferences, feedback, decisions), project rules, docs/progress.md, docs/changelog.md, docs/context/, docs/lessons/ and docs/qa/context.md of every repo. " +
       "Use it for 'have we hit this before?', 'what does the user prefer about X?', 'how did another repo solve Y?'.",
     inputSchema: {
       query: z.string().describe("Keywords, error text, tool or concept names"),
