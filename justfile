@@ -40,5 +40,5 @@ trigger-audit threshold="0.03":
     python3 scripts/trigger-audit.py {{threshold}}
 
 # replay real tool calls from recent transcripts through the rule triggers: noisy and never-firing ids (days, noisy share)
-rule-audit days="14" share="0.02":
-    bun scripts/rule-audit.ts {{days}} {{share}}
+rule-audit days="14" share="0.02" promote="0.3" demote="0.02":
+    bun scripts/rule-audit.ts {{days}} {{share}} {{promote}} {{demote}}

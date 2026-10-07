@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { config } from "../src/config.ts";
 import { readFeedback } from "../src/feedback.ts";
 import { readHookLog } from "../src/log.ts";
+import { Store } from "../src/store.ts";
 import { Triggers } from "../src/triggers.ts";
 
 const days = Number(process.argv[2] ?? 14);
@@ -86,3 +87,29 @@ if (reported.size) {
   console.log("\nREPORTED WRONG by the user:");
   for (const [id, n] of [...reported].sort((a, b) => b[1] - a[1])) console.log(`  ${id.padEnd(30)} ×${n}`);
 }
+
+// Tiering: the always-on mothers are paid every turn of every session, an injected item only when it fires. An item
+// reaching most sessions is cheaper always-on; one that almost never fires but can still be triggered is cheaper
+// injected. Destructiveness is not measurable here, so the report proposes and the rules-writer rubric (Q4) decides.
+const store = new Store();
+store.refresh("rules");
+const ALWAYS_ON = new Set(["lessons.md", "gotcha-coding.md"]);
+const promoteShare = Number(process.argv[4] ?? 0.3);
+const demoteShare = Number(process.argv[5] ?? 0.02);
+const rows = (store.db.query("SELECT id, source, body FROM entries WHERE kind = 'rule'").all() as { id: string; source: string; body: string }[]).map(
+  (r) => ({ ...r, file: r.source.split("/").pop() ?? "", share: (sessionsHit.get(r.id)?.size ?? 0) / Math.max(sessionCount, 1) }),
+);
+const triggerable = (id: string) => {
+  const sp = triggers.specs[id];
+  return !!sp && !!(sp.cmd?.length || sp.path?.length || sp.code?.length);
+};
+const demote = rows.filter((r) => ALWAYS_ON.has(r.file) && r.share < demoteShare && triggerable(r.id)).sort((a, b) => b.body.length - a.body.length);
+const promote = rows.filter((r) => !ALWAYS_ON.has(r.file) && r.share >= promoteShare).sort((a, b) => b.share - a.share);
+const untriggerable = rows.filter((r) => ALWAYS_ON.has(r.file) && !triggerable(r.id));
+console.log(`\nTIERING — always-on items reaching < ${(demoteShare * 100).toFixed(0)}% of sessions that a cmd/path/code trigger can still deliver (move to inject-only; destructive ones stay, rules-writer Q4):`);
+for (const r of demote) console.log(`  ${r.id.padEnd(14)} ${(r.share * 100).toFixed(1).padStart(5)}% of sessions  ${String(r.body.length).padStart(5)} bytes always-on`);
+console.log(`  total: ${demote.length} items, ${demote.reduce((a, r) => a + r.body.length, 0)} bytes`);
+console.log(`\nTIERING — inject-only items reaching >= ${(promoteShare * 100).toFixed(0)}% of sessions (consider always-on):`);
+for (const r of promote) console.log(`  ${r.id.padEnd(14)} ${(r.share * 100).toFixed(1).padStart(5)}% of sessions  in ${r.file}`);
+console.log(`\nalways-on items with no cmd/path/code trigger (can only stay always-on, or gain a trigger first): ${untriggerable.map((r) => r.id).join(" ") || "none"}`);
+
