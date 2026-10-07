@@ -13,6 +13,8 @@ const mcpEntry = join(repo, "src", "mcp.ts");
 
 const WANT: { event: string; matcher?: string }[] = [
   { event: "PreToolUse", matcher: "Bash|Read|Edit|Write|MultiEdit|NotebookEdit" },
+  // Attributes files a Bash command changed (scripts, redirects, sed) to the session, for the collision guard.
+  { event: "PostToolUse", matcher: "Bash" },
   { event: "UserPromptSubmit" },
   { event: "Stop" },
 ];

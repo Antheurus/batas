@@ -1,5 +1,12 @@
 # batas Changelog
 
+## v0.6.1 — Penjaga sesi bentrok juga melihat edit lewat script
+
+- File yang diubah lewat perintah Bash atau script (python, sed, redirect) sekarang tercatat sebagai milik sesi yang menjalankannya, jadi `git add -A` di sesi lain tetap diblokir kalau akan menyapu file itu.
+- File yang sudah kotor sebelum sesi dimulai dianggap bukan kerjaan sesi itu, sehingga kerjaan lama yang belum di-commit juga terlindungi.
+- Pesan blok sekarang menyebut alasan tiap file: "written by another session" atau "dirty before this session started".
+- Ada tambahan hook kecil setelah setiap perintah Bash, sekitar 35 ms.
+
 ## v0.6.0 — Penjaga sesi bentrok sekarang memblokir, bukan cuma memperingatkan
 
 - `git add -A`, `git add .`, `commit -a`, `stash` tanpa path, `checkout .`, `restore .`, `reset --hard`, dan `clean -f` sekarang DIBLOKIR kalau repo masih punya file belum di-commit yang ditulis sesi Claude lain. Sesi yang sedang diam juga terdeteksi. Pesan bloknya menyebut file-file tersebut.

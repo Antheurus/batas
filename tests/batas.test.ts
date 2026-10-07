@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -385,6 +385,10 @@ describe("live-session collision guard", () => {
 });
 
 describe("collision guard blocks", () => {
+  const run2 = (cwd: string, session_id: string, command: string) =>
+    evaluate({ session_id, cwd, hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command } }, store, new Triggers({})).output as {
+      hookSpecificOutput?: { permissionDecision?: string; permissionDecisionReason?: string };
+    };
   const repo = mkdtempSync(join(tmpdir(), "batas-deny-"));
   Bun.spawnSync(["git", "init", "-q", repo]);
   writeFileSync(join(repo, "mine.ts"), "export const a = 1;\n");
@@ -432,6 +436,32 @@ describe("collision guard blocks", () => {
     expect(denied("BATAS_ACK_LIVE=1 git push origin main", "me-p")).toBe(false);
   });
 
+  test("files a Bash command or script changed are attributed to the session that ran it", () => {
+    const r = mkdtempSync(join(tmpdir(), "batas-script-"));
+    Bun.spawnSync(["git", "init", "-q", r]);
+    const bash = (session_id: string, command: string, write?: string) => {
+      evaluate({ session_id, cwd: r, hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command } }, store, t);
+      if (write) writeFileSync(join(r, write), `${session_id}\n`);
+      evaluate({ session_id, cwd: r, hook_event_name: "PostToolUse", tool_name: "Bash", tool_input: { command } }, store, t);
+    };
+    bash("me-s", "ls");
+    bash("script-other", "python3 codemod.py", "theirs-by-script.ts");
+    bash("me-s", "python3 mine.py", "mine-by-script.ts");
+    const out = run2(r, "me-s", "git add -A");
+    expect(out.hookSpecificOutput?.permissionDecision).toBe("deny");
+    expect(out.hookSpecificOutput?.permissionDecisionReason).toContain("theirs-by-script.ts  (written by another session)");
+    expect(out.hookSpecificOutput?.permissionDecisionReason).not.toContain("mine-by-script.ts");
+  });
+
+  test("a file already dirty before this session started counts as not its work", () => {
+    const r = mkdtempSync(join(tmpdir(), "batas-pre-"));
+    Bun.spawnSync(["git", "init", "-q", r]);
+    writeFileSync(join(r, "leftover.ts"), "old\n");
+    utimesSync(join(r, "leftover.ts"), new Date(Date.now() - 3_600_000), new Date(Date.now() - 3_600_000));
+    const out = run2(r, "fresh-session", "git add -A");
+    expect(out.hookSpecificOutput?.permissionDecisionReason).toContain("leftover.ts  (dirty before this session started)");
+  });
+
   test("the repo is the one the command cds into, not the session's cwd", () => {
     const busy = mkdtempSync(join(tmpdir(), "batas-busy-"));
     Bun.spawnSync(["git", "init", "-q", busy]);
@@ -451,6 +481,7 @@ describe("collision guard blocks", () => {
   test("with no other session's dirty file, sweeping is allowed", () => {
     const clean = mkdtempSync(join(tmpdir(), "batas-clean-"));
     Bun.spawnSync(["git", "init", "-q", clean]);
+    evaluate({ session_id: "solo", cwd: clean, hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command: "ls" } }, store, t);
     writeFileSync(join(clean, "a.ts"), "x\n");
     const out = evaluate({ session_id: "solo", cwd: clean, hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command: "git add -A" } }, store, t)
       .output as { hookSpecificOutput?: { permissionDecision?: string } };

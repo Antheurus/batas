@@ -109,8 +109,9 @@ session) and cmd/path/code ids that never fired — a broken regex and a rare si
 trigger matched AGAIN later in a session, before batas went live versus after. Mistake-shaped rules should drop and
 situational ones (`git push`) stay flat as the control. A mistake-shaped rule that does not drop is being ignored,
 so fix its wording or delivery. **The collision guard BLOCKS two shapes** (roadmap item 1): a sweeping git command (`add -A`, `commit -a`, bare `stash`,
-`checkout .`, `reset --hard`, `clean -f`) while the repo holds a dirty file another session wrote — idle sessions
-included — and a `git push` while another session is live in the same root. Read the denial: it names the files.
+`checkout .`, `reset --hard`, `clean -f`) while the repo holds a dirty file that is not this session's work — written by
+another session (Edit/Write, and any file a Bash command or script changed, via the PostToolUse hook), idle sessions
+included, or already dirty before this session started — and a `git push` while another session is live in the same root. Read the denial: it names the files.
 Stage by explicit path; only after checking, re-run prefixed with `BATAS_ACK_FOREIGN=1 ` / `BATAS_ACK_LIVE=1 `. Other
 shared-checkout git commands only warn.
 

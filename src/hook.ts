@@ -28,7 +28,16 @@ type HookInput = {
 // lastPrompt is what the PROMPT hook injected most recently — the only thing "batas nyasar" can be about, since the
 // user never sees the rules fired by the agent's own tool calls.
 // touched is every file this session wrote through a file tool — what tells its dirty files from another session's.
-type SessionState = { injected: string[]; hinted: string[]; lastPrompt: string[]; muted: string[]; touched: string[] };
+// started and bashStart are epoch ms: when this session was first seen, and when its latest Bash call began.
+type SessionState = {
+  injected: string[];
+  hinted: string[];
+  lastPrompt: string[];
+  muted: string[];
+  touched: string[];
+  started: number;
+  bashStart: number;
+};
 
 // Harness-generated turns (a background agent finishing, a system reminder) arrive as UserPromptSubmit too; their
 // text is an agent's report, not the user's request, so matching phrases in it only produces noise.
@@ -80,21 +89,54 @@ const ACK_FOREIGN = /(^|[\s;&|])BATAS_ACK_FOREIGN=1\s/;
 const ACK_LIVE = /(^|[\s;&|])BATAS_ACK_LIVE=1\s/;
 const OTHERS_TOUCHED_WINDOW_MS = 24 * 3600 * 1000;
 
-// Dirty files in the repo that another session wrote and this one did not — visible even when that session has
-// gone idle, which the 15-minute live window cannot see.
-function foreignDirty(repo: string, session: string, mine: string[]): string[] {
-  const out = Bun.spawnSync(["git", "-C", repo, "status", "--porcelain"], { stdout: "pipe", stderr: "ignore" });
+function dirtyFiles(repo: string): string[] {
+  const out = Bun.spawnSync(["git", "-C", repo, "status", "--porcelain", "--untracked-files=all"], { stdout: "pipe", stderr: "ignore" });
   if (out.exitCode !== 0) return [];
-  const dirty = out.stdout
+  return out.stdout
     .toString()
     .split("\n")
     .filter((l) => l.length > 3)
     .map((l) => join(repo, (l.slice(3).split(" -> ").pop() ?? "").replace(/^"|"$/g, "")));
-  if (!dirty.length || !existsSync(config.sessionsDir)) return [];
+}
+
+function mtime(path: string): number | undefined {
+  try {
+    return statSync(path).mtimeMs;
+  } catch {
+    return undefined;
+  }
+}
+
+// After a Bash call, every dirty file whose mtime moved during it is this session's work: the only attribution that
+// sees edits made by scripts, redirects and sed, which is how most edits on this machine are made.
+function attributeBash(input: HookInput, state: SessionState): boolean {
+  if (!state.bashStart) return false;
+  const repos = new Set(
+    [repoRoot(commandDir(input.tool_input?.command, input.cwd)), repoRoot(input.cwd)].filter((r): r is string => !!r),
+  );
+  let added = false;
+  for (const repo of repos) {
+    for (const f of dirtyFiles(repo)) {
+      const m = mtime(f);
+      if (m !== undefined && m >= state.bashStart - 5 && !state.touched.includes(f)) {
+        state.touched.push(f);
+        added = true;
+      }
+    }
+  }
+  return added;
+}
+
+// Dirty files that are not this session's work: written by another session (even an idle one, which the 15-minute
+// live window cannot see), or already dirty before this session started and never touched by it since.
+function foreignDirty(repo: string, session: string, state: SessionState): { file: string; why: string }[] {
+  const dirty = dirtyFiles(repo);
+  const mine = state.touched;
+  if (!dirty.length) return [];
   const theirs = new Set<string>();
   const since = Date.now() - OTHERS_TOUCHED_WINDOW_MS;
   const own = sessionFile(session);
-  for (const f of readdirSync(config.sessionsDir)) {
+  for (const f of existsSync(config.sessionsDir) ? readdirSync(config.sessionsDir) : []) {
     const p = join(config.sessionsDir, f);
     if (p === own || statSync(p).mtimeMs < since) continue;
     try {
@@ -104,7 +146,13 @@ function foreignDirty(repo: string, session: string, mine: string[]): string[] {
     } catch {}
   }
   const mineSet = new Set(mine);
-  return dirty.filter((d) => theirs.has(d) && !mineSet.has(d));
+  const out: { file: string; why: string }[] = [];
+  for (const d of dirty) {
+    if (mineSet.has(d)) continue;
+    if (theirs.has(d)) out.push({ file: d, why: "written by another session" });
+    else if ((mtime(d) ?? Number.POSITIVE_INFINITY) < state.started) out.push({ file: d, why: "dirty before this session started" });
+  }
+  return out;
 }
 
 // A block must never fire on text that only MENTIONS a command, so deny decisions read the bare shell surface: every
@@ -129,12 +177,11 @@ function collisionDeny(input: HookInput, state: SessionState): string | undefine
   const repo = repoRoot(commandDir(raw, input.cwd));
   if (!repo) return undefined;
   if (SWEEPING.some((re) => re.test(cmd)) && !ACK_FOREIGN.test(cmd)) {
-    const foreign = foreignDirty(repo, input.session_id ?? "", state.touched);
+    const foreign = foreignDirty(repo, input.session_id ?? "", state);
     if (foreign.length) {
       return [
-        `batas BLOCKED: this command takes every dirty file in ${repo}, and ${foreign.length} of them were written by another`,
-        "Claude session, not this one:",
-        ...foreign.slice(0, 12).map((f) => `  ${f.slice(repo.length + 1)}`),
+        `batas BLOCKED: this command takes every dirty file in ${repo}, and ${foreign.length} of them are not this session's work:`,
+        ...foreign.slice(0, 12).map((f) => `  ${f.file.slice(repo.length + 1)}  (${f.why})`),
         ...(foreign.length > 12 ? [`  … and ${foreign.length - 12} more`] : []),
         "Stage or discard by explicit path instead (`git add <your files>`). If you have checked that sweeping these is",
         "intended, re-run the same command prefixed with `BATAS_ACK_FOREIGN=1 `.",
@@ -188,9 +235,17 @@ function sessionFile(id: string): string {
 function loadSession(id: string): SessionState {
   try {
     const s = JSON.parse(readFileSync(sessionFile(id), "utf8")) as Partial<SessionState>;
-    return { injected: s.injected ?? [], hinted: s.hinted ?? [], lastPrompt: s.lastPrompt ?? [], muted: s.muted ?? [], touched: s.touched ?? [] };
+    return {
+      injected: s.injected ?? [],
+      hinted: s.hinted ?? [],
+      lastPrompt: s.lastPrompt ?? [],
+      muted: s.muted ?? [],
+      touched: s.touched ?? [],
+      started: s.started ?? Date.now(),
+      bashStart: s.bashStart ?? 0,
+    };
   } catch {
-    return { injected: [], hinted: [], lastPrompt: [], muted: [], touched: [] };
+    return { injected: [], hinted: [], lastPrompt: [], muted: [], touched: [], started: Date.now(), bashStart: 0 };
   }
 }
 
@@ -330,6 +385,13 @@ export function evaluate(input: HookInput, store: Store, triggers: Triggers): { 
     return { output: { decision: "block", reason }, fired: matches.map((m) => m.id) };
   }
 
+  if (event === "PostToolUse") {
+    if (input.tool_name !== "Bash") return { output: {}, fired: [] };
+    const st = loadSession(session);
+    if (attributeBash(input, st)) saveSession(session, st);
+    return { output: {}, fired: [] };
+  }
+
   let probe: { cmd?: string; path?: string; code?: string; prompt?: string } = {};
   if (event === "PreToolUse") {
     if (input.tool_name === "Bash" && input.tool_input?.command) probe = { cmd: input.tool_input.command };
@@ -348,6 +410,10 @@ export function evaluate(input: HookInput, store: Store, triggers: Triggers): { 
   if (!probe.cmd && !probe.path && !probe.code && !probe.prompt) return { output: {}, fired: [] };
 
   const state = loadSession(session);
+  if (event === "PreToolUse" && input.tool_name === "Bash") {
+    state.bashStart = Date.now();
+    saveSession(session, state);
+  }
   if (event === "PreToolUse" && input.tool_name && WRITE_TOOLS.has(input.tool_name)) {
     const p = input.tool_input?.file_path ?? input.tool_input?.notebook_path;
     if (p?.startsWith("/") && !state.touched.includes(p)) {

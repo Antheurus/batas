@@ -11,7 +11,9 @@ Agreed with the user on 2026-10-07. Each item names the evidence that put it her
    warns when another session touched the same root within 15 minutes. **Hardened the same day:** a warning alone
    let the command run and could not see an IDLE session's dirty files, so each session now records the files it
    writes, sweeping git commands are denied while another session's file is dirty, and `git push` is denied while
-   another session is live — each with an acknowledged way through.
+   another session is live — each with an acknowledged way through. Then: files changed by Bash commands and scripts
+   are attributed through a PostToolUse hook (most edits here are scripted), and a file dirty since before the session
+   started counts as not its work.
 2. **Rule tiering from measured frequency** — rules reaching >30% of sessions belong always-on; always-on items that
    almost never fire move to inject-only. Evidence: `just rule-audit` shows C1/C4/B24 at 32–41% of sessions; the
    always-on corpus is the measured context cost. Status: **done 2026-10-07** — `just rule-audit` reports tiering; 11
