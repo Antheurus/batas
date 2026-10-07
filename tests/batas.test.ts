@@ -7,6 +7,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { config } from "../src/config.ts";
 import { evaluate } from "../src/hook.ts";
 import { auditPrompts } from "../scripts/prompt-audit.ts";
+import { gitIndex, judgePath, namedPaths, resolveRoot } from "../scripts/memory-audit.ts";
 import { memorySources } from "../src/corpus.ts";
 import { mutedIds, readAcks, readFeedback, setMuted } from "../src/feedback.ts";
 import { appendHookLog, readHookLog } from "../src/log.ts";
@@ -156,6 +157,38 @@ describe("hook", () => {
     expect(a.pulling).toBe(3);
     expect(a.perPrompt).toEqual({ 0: 1, 1: 3 });
     expect(a.silentIds).toEqual(["lessons:X1"]);
+  });
+
+  test("memory-audit calls a path stale only when git once tracked it, and names where a rename went", () => {
+    const repo = mkdtempSync(join(tmpdir(), "batas-memaudit-"));
+    const run = (...args: string[]) => Bun.spawnSync(["git", "-C", repo, ...args], { stderr: "ignore" });
+    run("init", "-q");
+    run("config", "user.email", "t@example.com");
+    run("config", "user.name", "t");
+    mkdirSync(join(repo, "docs/rules"), { recursive: true });
+    writeFileSync(join(repo, "docs/rules/lessons.md"), "lessons body that is long enough to keep its identity\n");
+    mkdirSync(join(repo, "src"));
+    writeFileSync(join(repo, "src/gone.ts"), "export const x = 1;\n");
+    run("add", "-A");
+    run("commit", "-qm", "a");
+    run("mv", "docs/rules/lessons.md", "docs/rules/all-lessons.md");
+    run("rm", "-q", "src/gone.ts");
+    run("commit", "-qm", "b");
+    const idx = gitIndex(repo);
+    const home = join(repo, "home");
+    mkdirSync(join(home, ".claude/skills"), { recursive: true });
+    const text = "See `docs/rules/lessons.md`, src/gone.ts, `docs/rules/all-lessons.md`, backups/x.dump, ~/.claude/skills/old/SKILL.md, ~/apps-dev/deploy/a.yml, ~/.claude/skills/plannotator-";
+    const paths = namedPaths(text);
+    expect(paths).not.toContain("~/.claude/skills/plannotator-");
+    const v = Object.fromEntries(paths.map((p) => [p, judgePath(p, repo, idx, home)]));
+    expect(v["docs/rules/lessons.md"]).toEqual({ path: "docs/rules/lessons.md", verdict: "stale", movedTo: "docs/rules/all-lessons.md" });
+    expect(v["src/gone.ts"]?.verdict).toBe("stale");
+    expect(v["src/gone.ts"]?.movedTo).toBeUndefined();
+    expect(v["docs/rules/all-lessons.md"]?.verdict).toBe("ok");
+    expect(v["backups/x.dump"]?.verdict).toBe("unjudged");
+    expect(v["~/.claude/skills/old/SKILL.md"]?.verdict).toBe("stale");
+    expect(v["~/apps-dev/deploy/a.yml"]?.verdict).toBe("unjudged");
+    expect(resolveRoot(repo.replace(/[^A-Za-z0-9]/g, "-"))).toBe(repo);
   });
 
   test("a trigger word alone recalls its memory here, and is listed from another project's cwd", () => {

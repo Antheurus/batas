@@ -1,5 +1,11 @@
 # batas Changelog
 
+## v0.9.0 — Memory yang menyebut file yang sudah pindah atau hilang ketahuan
+
+- Perintah baru `just memory-audit`: memeriksa setiap memory yang menyebut path file. Hasil hari ini: 60 dari 593 memory menyebut 84 file yang dulu ada di git tapi sekarang sudah tidak ada. Untuk 41 di antaranya sekaligus ditunjukkan lokasi barunya (misalnya `.claude/rules/lessons.md` sekarang `all-lessons.md`).
+- Hanya melaporkan. Memory tidak diubah otomatis; kamu yang memutuskan mau diperbarui atau dihapus.
+- Path di server lain, file yang memang tidak di-commit, dan path di luar repo tidak dinilai, supaya laporannya tidak penuh alarm palsu.
+
 ## v0.8.0 — Audit kata pemicu aturan terhadap prompt asli
 
 - Perintah baru `just prompt-audit`: memutar ulang semua prompt yang pernah kamu ketik (15.379) ke setiap kata pemicu aturan, dengan pencocokan yang persis sama dengan hook. Hasilnya: kata yang terlalu umum, dan aturan yang tidak pernah tersentuh oleh prompt apa pun.

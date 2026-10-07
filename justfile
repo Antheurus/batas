@@ -39,6 +39,10 @@ memory-index mode="dry":
 trigger-audit threshold="0.03":
     python3 scripts/trigger-audit.py {{threshold}}
 
+# memories naming a file that no longer exists: stale only when git once tracked it, with the rename target (report only)
+memory-audit:
+    bun scripts/memory-audit.ts
+
 # replay the real prompt history through every rule `prompt` phrase, own words only like the hook: over-general phrases and rules no prompt reached (share threshold, default 1%)
 prompt-audit share="0.01":
     bun scripts/prompt-audit.ts {{share}}

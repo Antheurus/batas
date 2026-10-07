@@ -27,7 +27,12 @@ Agreed with the user on 2026-10-07. Each item names the evidence that put it her
 ## Priority 2 — memory health
 
 4. **Stale-memory audit** — flag memories naming files, symbols or ports that no longer exist (path checks plus
-   GitNexus). Evidence: the shortening guide records a stale fact ("PIN must be unique") re-entering the always-on tier.
+   GitNexus). Evidence: the shortening guide records a stale fact ("PIN must be unique") re-entering the always-on tier. Status:
+   **done 2026-10-07 (paths)** — `just memory-audit`: 60 of 593 memories name 84 paths that git once tracked and no
+   longer does, 41 of them with the file's new location from git's rename record. A plain exists() check called 540
+   paths missing and was almost all false (server paths, skill-relative paths, gitignored dumps), so unprovable paths
+   stay unjudged. Symbols and ports are not checked yet: a symbol needs each repo's GitNexus index and a port has no
+   source of truth beyond `~/.claude/references/infra.md`.
 5. **One shared memory instead of copies** — a memory used by several projects is stored once with a project list.
    Evidence: `just trigger-audit` found the same memory copied into 11 Brighty projects.
 6. **Enforce rules-writer Step 5b at edit time** — a rules edit without its `triggers.toml` / `*-full.md` update warns
