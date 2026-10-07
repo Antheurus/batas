@@ -39,6 +39,10 @@ memory-index mode="dry":
 trigger-audit threshold="0.03":
     python3 scripts/trigger-audit.py {{threshold}}
 
+# error signatures that failed tool calls in several sessions: uncovered ones are lesson drafts, covered ones are rules not working (days, min sessions)
+lesson-mine days="30" min="3":
+    bun scripts/lesson-mine.ts {{days}} {{min}}
+
 # memories naming a file that no longer exists: stale only when git once tracked it, with the rename target (report only)
 memory-audit:
     bun scripts/memory-audit.ts

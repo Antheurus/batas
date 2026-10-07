@@ -1,5 +1,12 @@
 # batas Changelog
 
+## v0.11.0 — Kesalahan yang berulang di banyak sesi ketahuan sendiri
+
+- Perintah baru `just lesson-mine`: membaca semua tool call yang gagal di transcript 30 hari terakhir, mengelompokkan error yang sama, dan melaporkan yang muncul di 3 sesi atau lebih. Hasilnya dibagi dua: kesalahan yang belum punya aturan (calon lesson), dan kesalahan yang tetap berulang walaupun aturannya sudah muncul.
+- Hanya draft. batas tidak pernah menulis aturan sendiri; calon lesson tetap lewat rules-writer.
+- Langsung ketemu satu aturan yang buta: lessons:B29 (backslash di f-string Python) tidak pernah muncul untuk script `python3 -c` multi-baris, padahal kesalahan itu terjadi di 16 sesi. Sudah diperbaiki.
+- Calon lesson teratas: `echo =====` gagal di zsh (46 sesi), `grep` yang ternyata rg menolak `\|` (10 sesi), `--include=*.go` tanpa kutip di zsh, dan `cd backend` dari folder yang salah.
+
 ## v0.10.0 — Batas injeksi konteks per sesi
 
 - Satu sesi sekarang punya batas 64 KB untuk teks yang disuntikkan batas. Setelah batas itu tercapai, aturan dan memory berikutnya cukup disebut ID-nya (bisa dibuka dengan `mcp__batas__get`), tidak lagi ditempel utuh.

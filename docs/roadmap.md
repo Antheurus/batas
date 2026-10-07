@@ -43,7 +43,13 @@ Agreed with the user on 2026-10-07. Each item names the evidence that put it her
 ## Priority 3
 
 7. **Mine lessons from transcripts** — the same error fixed 3+ times across sessions becomes a drafted lesson with a
-   trigger. Evidence: the learning loop in `~/.claude/CLAUDE.md` currently depends on an agent remembering to write it.
+   trigger. Evidence: the learning loop in `~/.claude/CLAUDE.md` currently depends on an agent remembering to write it. Status:
+   **done 2026-10-07** — `just lesson-mine [days] [min]`: failed tool calls paired with their commands, grouped by a
+   normalized error line, checked against the triggers with lift (a rule firing on every git command explains no git
+   error). 723 sessions / 30 days: 57 signatures in 3+ sessions, 39 with no rule (drafts), 18 repeating despite one.
+   It found lessons:B29 blind to every multi-line `python3 -c` (16 sessions; `.*` stops at a newline), fixed in
+   triggers.toml. Top drafts awaiting rules-writer: zsh `echo =====` (46 sessions), `grep` aliased to rg rejecting
+   `\|` (10), unquoted `--include=*.go` globbing in zsh (18 across extensions), `cd backend` from the wrong cwd (15).
 8. **Context budget per session** — a ceiling on bytes batas may inject into one session. Status: **done 2026-10-07** —
    measured first from transcript attachments over 7 days: 236 sessions, p50 2.5 KB, p90 19.6 KB, max 36 KB injected
    (PreToolUse 1.45 MB of the 1.52 MB total). A tight cap would cut real rules to save little, so the budget is a 64 KB

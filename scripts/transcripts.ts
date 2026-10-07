@@ -40,3 +40,36 @@ export function callsIn(file: string): Call[] {
   }
   return calls;
 }
+
+export type ToolError = { cmd?: string; tool: string; error: string; session: string; ts: number };
+
+// Failed tool calls, each paired with the call that produced it (a tool_result names its tool_use by id).
+export function errorsIn(file: string): ToolError[] {
+  const uses = new Map<string, { tool: string; cmd?: string }>();
+  const out: ToolError[] = [];
+  for (const line of readFileSync(file, "utf8").split("\n")) {
+    const isUse = line.includes('"tool_use"');
+    const isErr = line.includes('"is_error":true');
+    if (!isUse && !isErr) continue;
+    let row: { timestamp?: string; message?: { content?: unknown } };
+    try {
+      row = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    const content = row.message?.content;
+    if (!Array.isArray(content)) continue;
+    for (const b of content as Record<string, unknown>[]) {
+      if (b.type === "tool_use" && typeof b.id === "string") {
+        const input = (b.input ?? {}) as Record<string, unknown>;
+        uses.set(b.id, { tool: String(b.name ?? ""), cmd: typeof input.command === "string" ? input.command : undefined });
+      } else if (b.type === "tool_result" && b.is_error === true) {
+        const c = b.content;
+        const error = typeof c === "string" ? c : Array.isArray(c) ? c.map((x: { text?: string }) => x.text ?? "").join("\n") : "";
+        const use = uses.get(String(b.tool_use_id ?? ""));
+        out.push({ cmd: use?.cmd, tool: use?.tool ?? "?", error, session: file, ts: Date.parse(row.timestamp ?? "") || 0 });
+      }
+    }
+  }
+  return out;
+}

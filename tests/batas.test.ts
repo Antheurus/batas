@@ -8,6 +8,8 @@ import { config } from "../src/config.ts";
 import { evaluate } from "../src/hook.ts";
 import { auditPrompts } from "../scripts/prompt-audit.ts";
 import { gitIndex, judgePath, namedPaths, resolveRoot } from "../scripts/memory-audit.ts";
+import { mine, signature } from "../scripts/lesson-mine.ts";
+import { errorsIn } from "../scripts/transcripts.ts";
 import { memorySources } from "../src/corpus.ts";
 import { mutedIds, readAcks, readFeedback, setMuted } from "../src/feedback.ts";
 import { appendHookLog, readHookLog } from "../src/log.ts";
@@ -214,6 +216,44 @@ describe("hook", () => {
     const listed = ask("bud3");
     expect(listed).toContain("- memory:-tmp-demo/land-without-asking");
     expect(listed).not.toContain("### memory:");
+  });
+
+  test("lesson-mine groups one mistake across sessions and separates uncovered traps from rules that fire", () => {
+    const dir = mkdtempSync(join(tmpdir(), "batas-mine-"));
+    const session = (name: string, cmd: string, error: string) => {
+      const use = { type: "tool_use", id: `tu-${name}`, name: "Bash", input: { command: cmd } };
+      const res = { type: "tool_result", tool_use_id: `tu-${name}`, is_error: true, content: error };
+      const file = join(dir, `${name}.jsonl`);
+      writeFileSync(
+        file,
+        [
+          JSON.stringify({ timestamp: "2026-10-01T00:00:00Z", message: { content: [use] } }),
+          JSON.stringify({ timestamp: "2026-10-01T00:00:01Z", message: { content: [res] } }),
+        ].join("\n"),
+      );
+      return file;
+    };
+    const files = [
+      session("a", "cat a.txt; echo =====; cat b.txt", "Exit code 1\n(eval):1: ===== not found"),
+      session("b", "ls; echo ===; ls src", "Exit code 1\n(eval):3: === not found"),
+      session("c", "echo ====== && pwd", "(eval):12: ====== not found"),
+      session("d", "pg_restore -d app /tmp/x.dump", "pg_restore: error: connection to server at /tmp/.s.PGSQL.5432 failed"),
+      session("e", "pg_restore -d shop /var/y.dump", "pg_restore: error: connection to server at /tmp/.s.PGSQL.5433 failed"),
+      session("f", "pg_restore -d crm z.dump", "pg_restore: error: connection to server at /tmp/.s.PGSQL.5401 failed"),
+      session("g", "python3 -c 'x()'", "Traceback\nKeyError: 'name'"),
+      session("h", "python3 -c 'y()'", "KeyError: 'id'"),
+      session("i", "python3 -c 'z()'", "KeyError: 'k'"),
+      session("j", "rm x", "<tool_use_error>The user doesn't want to proceed</tool_use_error>"),
+    ];
+    const errors = files.flatMap(errorsIn);
+    expect(errors).toHaveLength(10);
+    expect(errors[0]?.cmd).toBe("cat a.txt; echo =====; cat b.txt");
+    expect(signature("KeyError: 'x'")).toBeUndefined();
+    const found = mine(errors, new Triggers({ "gotcha:B1": { cmd: ["\\bpg_restore\\b"] }, "lessons:C1": { cmd: ["\\becho\\b|\\bls\\b|\\bcat\\b|\\bpython3\\b|\\bpg_restore\\b|\\brm\\b"] } }));
+    expect(found.map((c) => [c.signature, c.sessions, c.coveredBy])).toEqual([
+      ["(eval):<n>: == not found", 3, []],
+      ["pg_restore: error: connection to server at <path> failed", 3, ["gotcha:B1"]],
+    ]);
   });
 
   test("a trigger word alone recalls its memory here, and is listed from another project's cwd", () => {
