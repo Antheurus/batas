@@ -38,11 +38,17 @@ type SessionState = {
   touched: string[];
   started: number;
   bashStart: number;
+  // bytes of context this session has received from batas, held against config.inject.sessionBytes
+  spent: number;
 };
 
 // Harness-generated turns (a background agent finishing, a system reminder) arrive as UserPromptSubmit too; their
 // text is an agent's report, not the user's request, so matching phrases in it only produces noise.
 const SYSTEM_PROMPT = /<task-notification>|\[SYSTEM NOTIFICATION/;
+
+// Measured 2026-10-07 over 236 sessions: p50 2.5 KB, p90 19.6 KB, max 36 KB injected per session. The budget sits
+// above every observed session, so it only stops a runaway, never an ordinary day's rules.
+const BUDGET_NOTE = `batas: this session's injection budget (${Math.round(config.inject.sessionBytes / 1000)} KB) is spent — further matches are named, not injected; read them with mcp__batas__get.`;
 // The user's way of saying the last injection did not belong; it mutes those ids for the session and is recorded.
 // Commands that read or write the shared index and working tree — exactly what a second session in the same checkout
 // can corrupt or carry along (another session's push deployed a local commit on 2026-10-07).
@@ -311,9 +317,10 @@ function loadSession(id: string): SessionState {
       touched: s.touched ?? [],
       started: s.started ?? Date.now(),
       bashStart: s.bashStart ?? 0,
+      spent: s.spent ?? 0,
     };
   } catch {
-    return { injected: [], hinted: [], lastPrompt: [], muted: [], touched: [], started: Date.now(), bashStart: 0 };
+    return { injected: [], hinted: [], lastPrompt: [], muted: [], touched: [], started: Date.now(), bashStart: 0, spent: 0 };
   }
 }
 
@@ -552,21 +559,28 @@ export function evaluate(input: HookInput, store: Store, triggers: Triggers): { 
       fired.push(m.id);
     }
     const recalled: string[] = [];
+    const overBudget: Pick<Entry, "id" | "title">[] = [];
+    let recalledBytes = 0;
     for (const mem of memories.full) {
       const body = mem.body.length > config.inject.memoryChars ? `${mem.body.slice(0, config.inject.memoryChars)}…` : mem.body;
-      recalled.push(`### ${mem.id} — ${mem.title}\n${body}`);
+      const block = `### ${mem.id} — ${mem.title}\n${body}`;
+      if (state.spent + recalledBytes + block.length > config.inject.sessionBytes) {
+        overBudget.push(mem);
+        continue;
+      }
+      recalled.push(block);
+      recalledBytes += block.length;
       state.injected.push(mem.id);
       fired.push(mem.id);
     }
     const listed: string[] = [];
-    for (const mem of memories.more) {
+    for (const mem of [...overBudget, ...memories.more]) {
       listed.push(`- ${mem.id} — ${mem.title}`);
       state.hinted.push(mem.id);
       fired.push(mem.id);
     }
     if (!sections.length && !tools.length && !recalled.length && !listed.length) return { output: {}, fired: [] };
     state.lastPrompt = fired.filter((id) => !id.startsWith("hint:"));
-    saveSession(session, state);
     const text = [
       ...(recalled.length
         ? ["batas: project memories that may bear on this request — use one only if it actually applies to what was asked:", ...recalled, ""]
@@ -582,15 +596,27 @@ export function evaluate(input: HookInput, store: Store, triggers: Triggers): { 
             ...sections,
           ]
         : []),
+      ...(overBudget.length ? [BUDGET_NOTE] : []),
     ].join("\n");
+    state.spent += text.length;
+    saveSession(session, state);
     return { output: { hookSpecificOutput: { hookEventName: event, additionalContext: text } }, fired };
   }
 
   const deferred: string[] = [];
+  let budgetHit = false;
   for (const m of matches) {
     const e = resolve(store, m.id);
     if (!e) continue;
     const block = render(store, e, m, triggers.specs[m.id]?.origin);
+    // Past the session budget a rule is named once instead of injected; it stays one mcp__batas__get away.
+    if (state.spent + chars + block.length > config.inject.sessionBytes) {
+      budgetHit = true;
+      deferred.push(e.id);
+      fired.push(e.id);
+      state.injected.push(e.id);
+      continue;
+    }
     if (fired.length >= config.inject.maxItems || chars + block.length > config.inject.maxChars) {
       deferred.push(e.id);
       continue;
@@ -600,12 +626,18 @@ export function evaluate(input: HookInput, store: Store, triggers: Triggers): { 
     fired.push(e.id);
     state.injected.push(e.id);
   }
-  if (!sections.length) return { output: {}, fired: [] };
-  saveSession(session, state);
+  if (!sections.length && !budgetHit) return { output: {}, fired: [] };
   const head = `batas: ${fired.length} ${live ? "warning(s)" : "rule(s)"} apply to this ${probe.cmd ? "command" : "edit"} — read before proceeding.`;
   const tail = deferred.length ? `\n\nAlso matched (fetch with mcp__batas__get): ${deferred.join(", ")}` : "";
-  const text = `${head}\n\n${sections.join("\n\n")}${tail}`;
+  const text = `${head}\n\n${sections.join("\n\n")}${tail}${budgetHit ? `\n${BUDGET_NOTE}` : ""}`;
+  state.spent += text.length;
+  saveSession(session, state);
   return { output: { hookSpecificOutput: { hookEventName: event, additionalContext: text } }, fired };
+}
+
+function injectedBytes(output: object): number {
+  const o = output as { reason?: string; hookSpecificOutput?: { additionalContext?: string; permissionDecisionReason?: string } };
+  return (o.hookSpecificOutput?.additionalContext ?? o.hookSpecificOutput?.permissionDecisionReason ?? o.reason ?? "").length;
 }
 
 async function main() {
@@ -634,6 +666,7 @@ async function main() {
       repo: repoRoot(input.tool_name === "Bash" ? commandDir(input.tool_input?.command, input.cwd) : input.cwd),
       fired: result.fired,
       ms: Math.round(performance.now() - started),
+      bytes: injectedBytes(result.output),
       ...(error ? { error } : {}),
     });
   } catch {}

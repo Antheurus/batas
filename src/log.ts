@@ -10,6 +10,8 @@ export type HookLogRow = {
   repo?: string;
   fired: string[];
   ms: number;
+  // characters of context the call handed to the model
+  bytes?: number;
   error?: string;
 };
 

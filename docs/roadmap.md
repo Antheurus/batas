@@ -44,7 +44,11 @@ Agreed with the user on 2026-10-07. Each item names the evidence that put it her
 
 7. **Mine lessons from transcripts** — the same error fixed 3+ times across sessions becomes a drafted lesson with a
    trigger. Evidence: the learning loop in `~/.claude/CLAUDE.md` currently depends on an agent remembering to write it.
-8. **Context budget per session** — a ceiling on bytes batas may inject into one session.
+8. **Context budget per session** — a ceiling on bytes batas may inject into one session. Status: **done 2026-10-07** —
+   measured first from transcript attachments over 7 days: 236 sessions, p50 2.5 KB, p90 19.6 KB, max 36 KB injected
+   (PreToolUse 1.45 MB of the 1.52 MB total). A tight cap would cut real rules to save little, so the budget is a 64 KB
+   ceiling above every observed session: past it a rule or memory is named once instead of injected. Every hook call
+   now logs `bytes`, and `status` reports per-session p50/max against the budget.
 9. **Audit rule `prompt` triggers against prompt history** — `trigger-audit` covers memories only. Status: **done
    2026-10-07** — `just prompt-audit` replays 15,379 real prompts through each phrase via the hook's own matcher. Two
    fixes came out of it: gotcha:D2 listed on 372 prompts (2.4%) through the bare words `tiktok`/`tokopedia`/`affiliate`,

@@ -327,6 +327,12 @@ server.registerTool(
           `${rows.length} hook calls in 24h, ${fires.length} injected/blocked, p50 ${ms[Math.floor(ms.length / 2)] ?? 0}ms, ` +
           `p95 ${ms[Math.floor(ms.length * 0.95)] ?? 0}ms, ${errors.length} errors` +
           (errors.length ? ` (last: ${errors[errors.length - 1]?.error})` : "");
+        const perSession = new Map<string, number>();
+        for (const r of rows) if (r.session && r.bytes) perSession.set(r.session, (perSession.get(r.session) ?? 0) + r.bytes);
+        const kb = [...perSession.values()].sort((a, b) => a - b).map((n) => Math.round(n / 1000));
+        if (kb.length) {
+          activity += `; injected per session: p50 ${kb[Math.floor(kb.length / 2)]} KB, max ${kb[kb.length - 1]} KB of a ${Math.round(config.inject.sessionBytes / 1000)} KB budget`;
+        }
       }
       const reports = readFeedback();
       const reported = new Map<string, number>();

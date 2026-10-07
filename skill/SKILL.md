@@ -111,6 +111,9 @@ session) and cmd/path/code ids that never fired — a broken regex and a rare si
 `just prompt-audit [share]` does the same for `prompt` phrases against every prompt in `~/.claude/history.jsonl`, own
 words only like the hook: a phrase listing its rule on more than ~1% of all prompts is a business word, not a signal.
 
+**Injection has a per-session budget** (`config.inject.sessionBytes`, 64 KB, above every measured session): past it a
+rule or memory is named instead of injected, with a note saying so. `status` shows per-session KB against it.
+
 **Whether an injection works is measured, not assumed:** `just effect-audit [days] [min]` compares, per rule, how often its
 trigger matched AGAIN later in a session, before batas went live versus after. Mistake-shaped rules should drop and
 situational ones (`git push`) stay flat as the control. A mistake-shaped rule that does not drop is being ignored,

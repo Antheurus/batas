@@ -191,6 +191,31 @@ describe("hook", () => {
     expect(resolveRoot(repo.replace(/[^A-Za-z0-9]/g, "-"))).toBe(repo);
   });
 
+  test("past the session budget a rule or memory is named once instead of injected", () => {
+    const spend = (session_id: string, spent: number) => {
+      mkdirSync(config.sessionsDir, { recursive: true });
+      writeFileSync(join(config.sessionsDir, `${session_id}.json`), JSON.stringify({ spent }));
+    };
+    const real = Triggers.load();
+    const stash = (session_id: string) =>
+      JSON.stringify(evaluate({ session_id, hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command: "git stash push -- a.ts" } }, store, real).output);
+    expect(stash("bud0")).toContain("ATOMICALLY");
+    spend("bud1", config.inject.sessionBytes - 200);
+    const capped = stash("bud1");
+    expect(capped).toContain("lessons:C18");
+    expect(capped).not.toContain("ATOMICALLY");
+    expect(capped).toContain("injection budget");
+    expect(stash("bud1")).toBe("{}");
+    const none = new Triggers({});
+    const ask = (session_id: string) =>
+      JSON.stringify(evaluate({ session_id, cwd: "/tmp/demo", hook_event_name: "UserPromptSubmit", prompt: "commit terus push ya" }, store, none).output);
+    expect(ask("bud2")).toContain("### memory:-tmp-demo/land-without-asking");
+    spend("bud3", config.inject.sessionBytes - 200);
+    const listed = ask("bud3");
+    expect(listed).toContain("- memory:-tmp-demo/land-without-asking");
+    expect(listed).not.toContain("### memory:");
+  });
+
   test("a trigger word alone recalls its memory here, and is listed from another project's cwd", () => {
     const none = new Triggers({});
     const here = evaluate({ session_id: "g1", cwd: "/tmp/demo", hook_event_name: "UserPromptSubmit", prompt: "commit terus push ya" }, store, none)

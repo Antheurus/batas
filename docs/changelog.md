@@ -1,5 +1,11 @@
 # batas Changelog
 
+## v0.10.0 — Batas injeksi konteks per sesi
+
+- Satu sesi sekarang punya batas 64 KB untuk teks yang disuntikkan batas. Setelah batas itu tercapai, aturan dan memory berikutnya cukup disebut ID-nya (bisa dibuka dengan `mcp__batas__get`), tidak lagi ditempel utuh.
+- Angkanya dari pengukuran nyata 7 hari terakhir (236 sesi): biasanya 2,5 KB, 90% sesi di bawah 20 KB, paling besar 36 KB. Jadi batas ini tidak memotong apa pun di hari biasa; hanya mencegah sesi yang lepas kendali.
+- `status` sekarang menampilkan berapa KB yang disuntikkan per sesi dalam 24 jam terakhir.
+
 ## v0.9.0 — Memory yang menyebut file yang sudah pindah atau hilang ketahuan
 
 - Perintah baru `just memory-audit`: memeriksa setiap memory yang menyebut path file. Hasil hari ini: 60 dari 593 memory menyebut 84 file yang dulu ada di git tapi sekarang sudah tidak ada. Untuk 41 di antaranya sekaligus ditunjukkan lokasi barunya (misalnya `.claude/rules/lessons.md` sekarang `all-lessons.md`).

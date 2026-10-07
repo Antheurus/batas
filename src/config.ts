@@ -24,7 +24,7 @@ export const config = {
   log: { maxBytes: 5 * 1024 * 1024, keep: 3 },
   liveWindowMs: 15 * 60 * 1000,
   latencyBudgetMs: { tool: 60, prompt: 150 },
-  inject: { maxItems: 3, maxChars: 9000, maxPromptHints: 5, maxMemories: 2, memoryChars: 1500, maxMoreMemories: 8 },
+  inject: { maxItems: 3, maxChars: 9000, maxPromptHints: 5, maxMemories: 2, memoryChars: 1500, maxMoreMemories: 8, sessionBytes: 64000 },
 };
 
 export type Config = typeof config;
