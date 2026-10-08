@@ -49,5 +49,15 @@ rule check passed (B1, C18, B14 inject their full text). Remaining: roadmap 5 (d
 - [x] **Task 13 — semantic search replaces lexical** (`docs/plan/2026-10-08-semantic-recall/plan.md`): batasd
       (EmbeddingGemma 2 + multilingual-e5-small, LanceDB vectors), SQLite removed, MCP recall/check semantic, prompt
       hook gated by a standout gap with late delivery, always-on launchd agent. v0.16.0 (c86deb0, 0418be0, 5c7a901).
-- [ ] **Task 15 — discriminating behaviour eval**: `evals/behavior-new-eval.py`, 8 traps in NEW code taken from
+- [x] **Task 15 — discriminating behaviour eval**: `evals/behavior-new-eval.py`, 8 traps in NEW code taken from
       lessons that route to no file, both arms without `docs/lessons`; A = batas on, B = batas off and no MCP.
+      Result (`evals/results/2026-10-08-behavior-new.json`): A repeated 0/8, B 1/8 (English error copy) — still not
+      discriminating. B avoided 7/8 from what the repo already shows (an owner like useHoverTip, a typed cookie
+      composable, the charges store). And A got no semantic delivery: every prompt ran cold, and offline none of the 8
+      requests clears the 0.07 gate although 7/8 target lessons rank 0-6 in the top 12 — a task prompt names what to
+      build, not the trap.
+- [ ] **Open design question for the user**: semantic search finds the trap lesson for a task (7/8 in the top 12),
+      but the prompt gate (needed against noise) does not let it through. Candidate: run the semantic match at the
+      moment the agent WRITES a new file (path + content say far more than the prompt), and inject a standout lesson
+      there. Needs the user's go before building; measure with this eval in a repo whose code does not already guard
+      the traps.
