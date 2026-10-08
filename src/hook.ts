@@ -51,7 +51,11 @@ const BUDGET_NOTE = `batas: this session's injection budget (${Math.round(config
 // The user's way of saying the last injection did not belong; it mutes those ids for the session and is recorded.
 // Commands that read or write the shared index and working tree — exactly what a second session in the same checkout
 // can corrupt or carry along.
-const SHARED_GIT = /\bgit\s+(commit|push|add|stash|reset|checkout|switch|merge|rebase|pull|restore|clean|cherry-pick|revert)\b/;
+// `git`, then any global options (-C dir, -c key=value, --no-pager), then the subcommand: written as `git\s+push`, a
+// plain `git -C ../repo push` walked straight past every pattern below.
+const GIT = String.raw`\bgit(?:\s+(?:-[cC]\s+\S+|--[\w-]+(?:=\S+)?|-[a-zA-Z]+))*\s+`;
+const git = (rest: string) => new RegExp(GIT + rest);
+const SHARED_GIT = git(String.raw`(commit|push|add|stash|reset|checkout|switch|merge|rebase|pull|restore|clean|cherry-pick|revert)\b`);
 
 // The directory a Bash command actually runs git in: a `cd X &&` or `git -C X` in the command beats the session's cwd.
 // Using the session cwd blocked a `cd batas && git push` over activity in a different repo.
@@ -83,14 +87,14 @@ export function repoRoot(cwd: string | undefined): string | undefined {
 
 // Commands that take EVERY dirty file in the tree, so they cannot tell this session's work from another's.
 const SWEEPING = [
-  /\bgit\s+add\s+(?:[^|;&]*\s)?(-A|--all|-u|--update|\.)(?=\s|$|[;&|])/,
-  /\bgit\s+commit\s+(?:[^|;&]*\s)?(-[a-zA-Z]*a[a-zA-Z]*|--all)(?=\s|$|[;&|])/,
-  /\bgit\s+stash(?!\s+(list|show|pop|apply|drop|branch)\b)(?![^|;&]*\s--\s)/,
-  /\bgit\s+(checkout|restore)\s+(?:[^|;&]*\s)?(--\s+)?\.(?=\s|$|[;&|])/,
-  /\bgit\s+reset\s+(?:[^|;&]*\s)?--hard\b/,
-  /\bgit\s+clean\s+(?:[^|;&]*\s)?-[a-zA-Z]*f/,
+  git(String.raw`add\s+(?:[^|;&]*\s)?(-A|--all|-u|--update|\.)(?=\s|$|[;&|])`),
+  git(String.raw`commit\s+(?:[^|;&]*\s)?(-[a-zA-Z]*a[a-zA-Z]*|--all)(?=\s|$|[;&|])`),
+  git(String.raw`stash(?!\s+(list|show|pop|apply|drop|branch)\b)(?![^|;&]*\s--\s)`),
+  git(String.raw`(checkout|restore)\s+(?:[^|;&]*\s)?(--\s+)?\.(?=\s|$|[;&|])`),
+  git(String.raw`reset\s+(?:[^|;&]*\s)?--hard\b`),
+  git(String.raw`clean\s+(?:[^|;&]*\s)?-[a-zA-Z]*f`),
 ];
-const PUSH = /\bgit\s+push\b/;
+const PUSH = git(String.raw`push\b`);
 const ACK_FOREIGN = /(^|[\s;&|])BATAS_ACK_FOREIGN=1\s/;
 const ACK_LIVE = /(^|[\s;&|])BATAS_ACK_LIVE=1\s/;
 const OTHERS_TOUCHED_WINDOW_MS = 24 * 3600 * 1000;
@@ -634,6 +638,15 @@ export function evaluate(input: HookInput, store: Store, triggers: Triggers): { 
   return { output: { hookSpecificOutput: { hookEventName: event, additionalContext: text } }, fired };
 }
 
+// A `claude -p` session is the agent's own probe until it commits; from then on its commits ride on the next push.
+export function logFlags(input: HookInput, entrypoint?: string): { headless?: true; committed?: true } {
+  const command = input.tool_name === "Bash" ? (input.tool_input?.command ?? "") : "";
+  return {
+    ...(entrypoint === "sdk-cli" ? { headless: true as const } : {}),
+    ...(git(String.raw`commit\b`).test(shellSurface(command)) ? { committed: true as const } : {}),
+  };
+}
+
 function injectedBytes(output: object): number {
   const o = output as { reason?: string; hookSpecificOutput?: { additionalContext?: string; permissionDecisionReason?: string } };
   return (o.hookSpecificOutput?.additionalContext ?? o.hookSpecificOutput?.permissionDecisionReason ?? o.reason ?? "").length;
@@ -666,7 +679,7 @@ async function main() {
       fired: result.fired,
       ms: Math.round(performance.now() - started),
       bytes: injectedBytes(result.output),
-      ...(process.env.CLAUDE_CODE_ENTRYPOINT === "sdk-cli" ? { headless: true } : {}),
+      ...logFlags(input, process.env.CLAUDE_CODE_ENTRYPOINT),
       ...(error ? { error } : {}),
     });
   } catch {}

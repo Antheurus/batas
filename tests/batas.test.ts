@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, utimesSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { config } from "../src/config.ts";
-import { evaluate } from "../src/hook.ts";
+import { evaluate, logFlags } from "../src/hook.ts";
 import { auditPrompts } from "../scripts/prompt-audit.ts";
 import { gitIndex, judgePath, namedPaths, resolveRoot } from "../scripts/memory-audit.ts";
 import { mine, signature } from "../scripts/lesson-mine.ts";
@@ -13,7 +13,7 @@ import { copiesOf, shareMemory } from "../scripts/memory-share.ts";
 import { errorsIn } from "../scripts/transcripts.ts";
 import { memorySources } from "../src/corpus.ts";
 import { mutedIds, readAcks, readFeedback, setMuted } from "../src/feedback.ts";
-import { appendHookLog, readHookLog } from "../src/log.ts";
+import { appendHookLog, liveSessions, readHookLog } from "../src/log.ts";
 import { Store } from "../src/store.ts";
 import { Triggers } from "../src/triggers.ts";
 import { indexHook, INDEX_HOOK_MAX, logChangelog, logProgress, recordMemory } from "../src/write.ts";
@@ -589,14 +589,44 @@ describe("collision guard blocks", () => {
 
   test("push is denied only while another session is live, and the ack prefix lets it through", () => {
     expect(denied("git push origin main", "me-p")).toBe(false);
-    // a `claude -p` probe the agent itself started is not a person's live session
-    appendHookLog({ ts: new Date().toISOString(), session: "probe-p", repo, fired: [], ms: 1, headless: true });
-    expect(denied("git push origin main", "me-p")).toBe(false);
     appendHookLog({ ts: new Date().toISOString(), session: "live-other", repo, fired: [], ms: 1 });
     const out = run("git push origin main", "me-p");
     expect(out.hookSpecificOutput?.permissionDecision).toBe("deny");
     expect(out.hookSpecificOutput?.permissionDecisionReason).toContain("git log @{u}..HEAD");
     expect(denied("BATAS_ACK_LIVE=1 git push origin main", "me-p")).toBe(false);
+  });
+
+  test("git global options before the subcommand do not hide it from the guard", () => {
+    appendHookLog({ ts: new Date().toISOString(), session: "live-other", repo, fired: [], ms: 1 });
+    for (const c of ["git -C . push origin main", "git -c user.email=a@b.c push", "git --no-pager -c x=y add -A"]) {
+      expect(denied(c, "me-g")).toBe(true);
+    }
+    expect(logFlags({ tool_name: "Bash", tool_input: { command: "git -c user.name=t commit -qm x" } })).toEqual({ committed: true });
+  });
+
+  test("one checkout reached through a symlinked path is one repo", () => {
+    const real = mkdtempSync(join(tmpdir(), "batas-real-"));
+    Bun.spawnSync(["git", "init", "-q", real]);
+    const link = `${real}-link`;
+    symlinkSync(real, link);
+    appendHookLog({ ts: new Date().toISOString(), session: "via-link", repo: realpathSync(link), fired: [], ms: 1 });
+    expect([...liveSessions(link, "me-s", Date.now() - 60_000).keys()]).toEqual(["via-link"]);
+    expect([...liveSessions(real, "me-s", Date.now() - 60_000).keys()]).toEqual(["via-link"]);
+  });
+
+  test("a claude -p session blocks a push only once it has committed in that repo", () => {
+    const own = mkdtempSync(join(tmpdir(), "batas-headless-"));
+    Bun.spawnSync(["git", "init", "-q", own]);
+    const push = () => run2(own, "me-h", "git push origin main").hookSpecificOutput?.permissionDecision;
+    appendHookLog({ ts: new Date().toISOString(), session: "probe-p", repo: own, fired: [], ms: 1, headless: true });
+    expect(push()).toBeUndefined();
+    appendHookLog({ ts: new Date().toISOString(), session: "job-p", repo: own, fired: [], ms: 1, headless: true });
+    appendHookLog({ ts: new Date().toISOString(), session: "job-p", repo: own, fired: [], ms: 1, headless: true, committed: true });
+    expect(push()).toBe("deny");
+    const flags = (command: string) => logFlags({ tool_name: "Bash", tool_input: { command } }, "sdk-cli");
+    expect(flags("git add a.ts && git commit -F - <<'EOF'\nx\nEOF")).toEqual({ headless: true, committed: true });
+    expect(flags("echo 'never git commit here'")).toEqual({ headless: true });
+    expect(logFlags({ tool_name: "Bash", tool_input: { command: "git commit -m x" } }, "cli")).toEqual({ committed: true });
   });
 
   test("files a Bash command or script changed are attributed to the session that ran it", () => {

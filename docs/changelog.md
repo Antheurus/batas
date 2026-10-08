@@ -1,5 +1,11 @@
 # batas Changelog
 
+## v0.14.2 — Penjaga push tidak bisa lagi dilewati, dan job `claude -p` yang commit tetap dihitung
+
+- Job `claude -p` yang sudah commit di sebuah repo sekarang dihitung sebagai sesi aktif lagi, jadi push dari sesimu diblokir sampai kamu cek `git log`. Probe agent yang tidak commit tetap tidak memblokir.
+- Lubang lama ditutup: perintah git yang diberi opsi di depan (`git -C ../repo push`, `git -c user.email=… push`, `git --no-pager add -A`) dulu tidak dikenali penjaga sama sekali. Sekarang dikenali.
+- Satu repo yang dibuka lewat dua path (`/tmp/x` dan `/private/tmp/x`) sekarang dianggap repo yang sama.
+
 ## v0.14.1 — Sumber baru recall dijaga test, dua memory hari ini bisa muncul lagi
 
 - Ada test yang membuktikan `docs/lessons/` dan `docs/qa/context.md` benar-benar terbaca recall. Kalau salah satunya berhenti terbaca, `just check` jadi merah.

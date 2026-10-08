@@ -1,5 +1,5 @@
-import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, renameSync, statSync, unlinkSync } from "node:fs";
-import { join } from "node:path";
+import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, realpathSync, renameSync, statSync, unlinkSync } from "node:fs";
+import { basename, join } from "node:path";
 import { config } from "./config.ts";
 
 export type HookLogRow = {
@@ -14,6 +14,8 @@ export type HookLogRow = {
   bytes?: number;
   // a `claude -p` / SDK session (CLAUDE_CODE_ENTRYPOINT=sdk-cli): a probe the agent started, not a person's session
   headless?: boolean;
+  // the call ran `git commit`: a headless session that commits is carried by the next push, so it counts as live
+  committed?: boolean;
   error?: string;
 };
 
@@ -56,9 +58,25 @@ export function readHookLog(sinceMs: number): HookLogRow[] {
 }
 
 // Only the tail is read: this runs before git commands, and a 15-minute window is a few hundred rows at most.
+const realPaths = new Map<string, string>();
+function realPath(p: string): string {
+  let r = realPaths.get(p);
+  if (r === undefined) {
+    try {
+      r = realpathSync(p);
+    } catch {
+      r = p;
+    }
+    realPaths.set(p, r);
+  }
+  return r;
+}
+
 export function liveSessions(repo: string, except: string, sinceMs: number, tailBytes = 256 * 1024): Map<string, number> {
   const file = logFile();
   const seen = new Map<string, number>();
+  const headless = new Map<string, number>();
+  const committers = new Set<string>();
   if (!existsSync(file)) return seen;
   const size = statSync(file).size;
   const start = Math.max(0, size - tailBytes);
@@ -69,15 +87,21 @@ export function liveSessions(repo: string, except: string, sinceMs: number, tail
   } finally {
     closeSync(fd);
   }
+  // One checkout can be logged under two spellings (/tmp/x from a `cd`, /private/tmp/x from a session cwd), so rows
+  // are compared by real path; the cheap prefilter only needs the repo's directory name.
+  const want = realPath(repo);
+  const names = [basename(repo), basename(want)];
   for (const line of buf.toString("utf8").split("\n")) {
-    if (!line.includes(repo)) continue;
+    if (!names.some((n) => line.includes(n))) continue;
     try {
       const row = JSON.parse(line) as HookLogRow;
       const ts = Date.parse(row.ts);
-      if (row.repo === repo && row.session && row.session !== except && !row.headless && ts >= sinceMs) {
-        seen.set(row.session, Math.max(seen.get(row.session) ?? 0, ts));
-      }
+      if (!row.repo || realPath(row.repo) !== want || !row.session || row.session === except || ts < sinceMs) continue;
+      if (row.committed) committers.add(row.session);
+      const into = row.headless ? headless : seen;
+      into.set(row.session, Math.max(into.get(row.session) ?? 0, ts));
     } catch {}
   }
+  for (const [session, ts] of headless) if (committers.has(session)) seen.set(session, Math.max(seen.get(session) ?? 0, ts));
   return seen;
 }
