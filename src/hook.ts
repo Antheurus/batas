@@ -44,9 +44,11 @@ type SessionState = {
   bashStart: number;
   // bytes of context this session has received from batas, held against config.inject.sessionBytes
   spent: number;
-  // when the last prompt's semantic search was left with batasd for the next hook call to pick up (0 = none)
-  pendingSemantic: number;
+  // semantic searches left with batasd for a later hook call to pick up: the prompt's, and each new file's
+  pending: Pending[];
 };
+
+type Pending = { key: string; kind: "prompt" | "write"; at: number; file?: string };
 
 // Harness-generated turns (a background agent finishing, a system reminder) arrive as UserPromptSubmit too; their
 // text is an agent's report, not the user's request, so matching phrases in it only produces noise.
@@ -374,10 +376,10 @@ function loadSession(id: string): SessionState {
       started: s.started ?? Date.now(),
       bashStart: s.bashStart ?? 0,
       spent: s.spent ?? 0,
-      pendingSemantic: s.pendingSemantic ?? 0,
+      pending: s.pending ?? [],
     };
   } catch {
-    return { injected: [], hinted: [], lastPrompt: [], muted: [], touched: [], started: Date.now(), bashStart: 0, spent: 0, pendingSemantic: 0 };
+    return { injected: [], hinted: [], lastPrompt: [], muted: [], touched: [], started: Date.now(), bashStart: 0, spent: 0, pending: [] };
   }
 }
 
@@ -501,12 +503,12 @@ function relevantMemories(
 // config.semantic.minGap above the 10th-best over this repo's entries (`ref`, from batasd). Calibrated 2026-10-08 with
 // `just semantic-calibrate` on 80 probes and 300 real prompts: at 0.07 it passes 16/300 prompts (~18 of 22 read by hand
 // at 0.065 were relevant) and keeps 20/43 probe positives. Only that single best hit passes.
-export function passing(semantic: SemanticHit[]): SemanticHit[] {
+export function passing(semantic: SemanticHit[], minGap = config.semantic.minGap): SemanticHit[] {
   if (!semantic.length) return [];
   const g = semantic.map((h) => h.cos.g ?? 0).sort((a, b) => b - a);
   const best = semantic.reduce((a, b) => ((b.cos.g ?? 0) > (a.cos.g ?? 0) ? b : a));
   const ref = semantic[0]?.ref ?? g[Math.min(9, g.length - 1)] ?? 1;
-  return (best.cos.g ?? 0) - ref >= config.semantic.minGap ? [best] : [];
+  return (best.cos.g ?? 0) - ref >= minGap ? [best] : [];
 }
 
 function semanticMemories(
@@ -514,8 +516,9 @@ function semanticMemories(
   project: string,
   skip: string[],
   semantic: SemanticHit[],
+  minGap = config.semantic.minGap,
 ): { full: Entry[]; more: Pick<Entry, "id" | "title">[] } {
-  const hits = passing(semantic).filter((h) => h.kind === "memory" && !skip.includes(h.id));
+  const hits = passing(semantic, minGap).filter((h) => h.kind === "memory" && !skip.includes(h.id));
   const seen = new Set<string>();
   const unique = hits.filter((h) => {
     const name = h.id.split("/").pop() ?? h.id;
@@ -530,9 +533,9 @@ function semanticMemories(
 
 // Rules, project rules and lessons whose meaning is close to the prompt: listed by id like a prompt-phrase match, so the
 // agent opens the ones that apply. Another repo's project rules and lessons are not this session's business.
-function semanticRules(semantic: SemanticHit[] | undefined, repo: string | undefined, skip: Set<string>): SemanticHit[] {
+function semanticRules(semantic: SemanticHit[] | undefined, repo: string | undefined, skip: Set<string>, minGap = config.semantic.minGap): SemanticHit[] {
   if (!semantic) return [];
-  return passing(semantic)
+  return passing(semantic, minGap)
     .filter((h) => h.kind !== "memory" && !skip.has(h.id))
     .filter((h) => h.scope === "global" || h.scope === repo)
     .slice(0, config.inject.maxPromptHints);
@@ -573,20 +576,33 @@ function lessonsUpkeep(input: HookInput, probe: { cmd?: string; path?: string })
   };
 }
 
-// The prompt's semantic match, delivered on the session's next hook call when batasd could not answer inside the prompt
-// budget (an idle Apple GPU takes 0.5-0.7 s to answer its first query). That call is normally the turn's first tool
-// use, so the match still lands before the agent acts. Same gate and rendering limits as the prompt path.
-export function lateSemantic(input: HookInput, store: Store, hits: SemanticHit[], state: SessionState): { text: string; fired: string[] } | undefined {
+// A semantic match delivered on a later hook call than the one that asked for it. For a prompt: batasd could not
+// answer inside the prompt budget (an idle Apple GPU takes 0.5-0.7 s to answer its first query), and the next call is
+// normally the turn's first tool use, so the match still lands before the agent acts. For a new file: the write was
+// never held up for the search, so the match lands after the file exists, and it says so — full text, because the
+// agent has to compare the file against it, not go look it up.
+export function lateSemantic(
+  input: HookInput,
+  store: Store,
+  hits: SemanticHit[],
+  state: SessionState,
+  kind: "prompt" | "write" = "prompt",
+  file?: string,
+): { text: string; fired: string[] } | undefined {
+  const minGap = kind === "write" ? config.semantic.writeGap : config.semantic.minGap;
   const silenced = new Set([...state.muted, ...Object.keys(mutedIds())]);
   const skip = [...state.injected, ...state.hinted, ...silenced];
   const project = input.cwd ? projectSlug(input.cwd) : "";
-  const mem = semanticMemories(store, project, skip, hits);
-  const rules = semanticRules(hits, repoName(input.cwd), new Set(skip));
+  const mem = semanticMemories(store, project, skip, hits, minGap);
+  const rules = semanticRules(hits, repoName(input.cwd), new Set(skip), minGap);
   const lines: string[] = [];
   const fired: string[] = [];
+  const full = (e: Entry) => {
+    const body = e.body.length > config.inject.memoryChars ? `${e.body.slice(0, config.inject.memoryChars)}…` : e.body;
+    return `### ${e.id} — ${e.title}\n${body}`;
+  };
   for (const m of mem.full) {
-    const body = m.body.length > config.inject.memoryChars ? `${m.body.slice(0, config.inject.memoryChars)}…` : m.body;
-    const block = `### ${m.id} — ${m.title}\n${body}`;
+    const block = full(m);
     if (state.spent + block.length > config.inject.sessionBytes) continue;
     lines.push(block);
     state.injected.push(m.id);
@@ -598,12 +614,22 @@ export function lateSemantic(input: HookInput, store: Store, hits: SemanticHit[]
     fired.push(m.id);
   }
   for (const h of rules) {
-    lines.push(`- ${h.id}: ${resolve(store, h.id)?.title ?? h.title}`);
-    state.hinted.push(h.id);
+    const e = resolve(store, h.id);
+    if (kind === "write" && e) {
+      lines.push(full(e));
+      state.injected.push(h.id);
+    } else {
+      lines.push(`- ${h.id}: ${e?.title ?? h.title}`);
+      state.hinted.push(h.id);
+    }
     fired.push(h.id);
   }
   if (!lines.length) return undefined;
-  const text = ["batas: closest recorded match for the user's last request (arrived after the prompt) — use it only if it applies:", ...lines].join("\n");
+  const head =
+    kind === "write"
+      ? `batas: a recorded lesson matches the file just written (${file ?? "?"}). Check that file against it now and fix it if it applies:`
+      : "batas: closest recorded match for the user's last request (arrived after the prompt) — use it only if it applies:";
+  const text = [head, ...lines].join("\n");
   state.spent += text.length;
   return { text, fired };
 }
@@ -840,8 +866,12 @@ export function evaluate(input: HookInput, store: Store, triggers: Triggers, sem
   return { output: { hookSpecificOutput: { hookEventName: event, additionalContext: text } }, fired };
 }
 
-// After a cold prompt the search keeps running in batasd under the session id; mark it, and on the next hook call take
-// whatever it found. A deny leaves it pending, so the match is not spent on a call the agent never sees through.
+const SEMANTIC_WRITE = /\.(go|ts|tsx|js|mjs|vue|svelte|py|sql|html)$/;
+
+// Searches left with batasd are picked up here on every later hook call of the session: a cold prompt's, and the one
+// each newly written source file starts (the write itself never waits for it). At Stop, anything still pending is
+// waited for briefly and, if it matches, blocks the stop once — otherwise a turn that ends right after the write would
+// never see the lesson about it. A deny keeps them pending, so the match is not spent on a call that did not happen.
 async function settleSemantic(
   input: HookInput,
   store: Store,
@@ -849,33 +879,63 @@ async function settleSemantic(
   semanticState: "warm" | "cold" | undefined,
 ): Promise<{ output: object; fired: string[] }> {
   const session = input.session_id as string;
-  if (input.hook_event_name === "UserPromptSubmit") {
-    if (semanticState === "cold") {
-      const state = loadSession(session);
-      state.pendingSemantic = Date.now();
-      saveSession(session, state);
-    }
-    return result;
-  }
+  const event = input.hook_event_name;
   const state = loadSession(session);
-  if (!state.pendingSemantic) return result;
-  if (Date.now() - state.pendingSemantic > 300_000) {
-    state.pendingSemantic = 0;
-    saveSession(session, state);
+  let dirty = false;
+  if (event === "UserPromptSubmit" && semanticState === "cold") {
+    state.pending.push({ key: session, kind: "prompt", at: Date.now() });
+    dirty = true;
+  }
+  const file = input.tool_input?.file_path;
+  const content = input.tool_input?.content;
+  if (
+    event === "PreToolUse" && input.tool_name === "Write" && config.semantic.writeHook &&
+    file && typeof content === "string" && SEMANTIC_WRITE.test(file) && process.env.BATAS_NO_WRITE_SEMANTIC !== "1"
+  ) {
+    const rel = input.cwd && file.startsWith(input.cwd) ? file.slice(input.cwd.length + 1) : file;
+    const key = `${session}:w:${Date.now()}`;
+    void semanticSearch(`${rel}\n${content.slice(0, 1500)}`, { kinds: SEMANTIC_KINDS, scope: repoName(input.cwd), limit: 12, stash: key, timeoutMs: 30 });
+    state.pending.push({ key, kind: "write", at: Date.now(), file: rel });
+    dirty = true;
+  }
+  const now = Date.now();
+  const live = state.pending.filter((p) => now - p.at < 300_000);
+  if (live.length !== state.pending.length) dirty = true;
+  state.pending = live;
+  const o = result.output as { decision?: string; reason?: string; hookSpecificOutput?: { hookEventName?: string; additionalContext?: string; permissionDecision?: string } };
+  const stopping = event === "Stop" || event === "SubagentStop";
+  const ready = live.filter((p) => !(event === "UserPromptSubmit" && p.kind === "prompt") && !(event === "PreToolUse" && p.kind === "write" && now - p.at < 5));
+  if (!ready.length || o.hookSpecificOutput?.permissionDecision === "deny" || (stopping && input.stop_hook_active)) {
+    if (dirty) saveSession(session, state);
     return result;
   }
-  const o = result.output as { hookSpecificOutput?: { hookEventName?: string; additionalContext?: string; permissionDecision?: string } };
-  if (o.hookSpecificOutput?.permissionDecision === "deny") return result;
-  const hits = await takeStashed(session, 40);
-  if (hits === undefined || hits === null) return result;
-  state.pendingSemantic = 0;
-  const late = lateSemantic(input, store, hits, state);
+  const texts: string[] = [];
+  const fired: string[] = [];
+  for (const p of ready) {
+    const hits = await takeStashed(p.key, 40, stopping ? 1500 : 0);
+    if (hits === undefined) continue;
+    if (hits === null) {
+      if (stopping) state.pending = state.pending.filter((x) => x !== p);
+      continue;
+    }
+    state.pending = state.pending.filter((x) => x !== p);
+    const late = lateSemantic(input, store, hits, state, p.kind, p.file);
+    if (late) {
+      texts.push(late.text);
+      fired.push(...late.fired);
+    }
+  }
   saveSession(session, state);
-  if (!late) return result;
+  if (!texts.length) return result;
+  const text = texts.join("\n\n");
+  if (stopping) {
+    const reason = o.decision === "block" && o.reason ? `${o.reason}\n\n${text}` : text;
+    return { output: { decision: "block", reason }, fired: [...result.fired, ...fired] };
+  }
   const prior = o.hookSpecificOutput?.additionalContext;
   return {
-    output: { ...o, hookSpecificOutput: { ...o.hookSpecificOutput, hookEventName: input.hook_event_name, additionalContext: prior ? `${prior}\n\n${late.text}` : late.text } },
-    fired: [...result.fired, ...late.fired],
+    output: { ...o, hookSpecificOutput: { ...o.hookSpecificOutput, hookEventName: event, additionalContext: prior ? `${prior}\n\n${text}` : text } },
+    fired: [...result.fired, ...fired],
   };
 }
 
@@ -922,7 +982,7 @@ async function main() {
       semanticState = semantic ? "warm" : "cold";
     }
     result = evaluate(input, store, Triggers.load(), semantic);
-    if (input.session_id && input.hook_event_name !== "Stop" && input.hook_event_name !== "SubagentStop") result = await settleSemantic(input, store, result, semanticState);
+    if (input.session_id) result = await settleSemantic(input, store, result, semanticState);
     pruneSessions();
   } catch (err) {
     error = err instanceof Error ? `${err.message} @ ${err.stack?.split("\n")[1]?.trim() ?? "?"}` : String(err);

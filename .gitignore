@@ -35,3 +35,4 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .delivery-eval-*.json
 .semantic-calibrate.json
 __pycache__/
+.write-calibrate.json

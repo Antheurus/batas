@@ -74,7 +74,7 @@ export function requestSync(): void {
 
 // The result of a search this session left with batasd because the prompt hook could not wait for it; null = nothing
 // (yet), undefined = batasd did not answer.
-export async function takeStashed(key: string, timeoutMs: number): Promise<SemanticHit[] | null | undefined> {
-  const r = await ask<{ ok: boolean; hits: SemanticHit[] | null }>({ op: "take", key }, timeoutMs);
+export async function takeStashed(key: string, timeoutMs: number, waitMs = 0): Promise<SemanticHit[] | null | undefined> {
+  const r = await ask<{ ok: boolean; hits: SemanticHit[] | null }>({ op: "take", key, wait_ms: waitMs }, timeoutMs + waitMs);
   return r?.ok ? r.hits : undefined;
 }

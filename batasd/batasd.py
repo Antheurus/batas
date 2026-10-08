@@ -184,8 +184,10 @@ class Daemon:
         # A repo's memories are scoped by the Claude project slug of its path ("-Users-...-mendadak-pos").
         own = lambda m: m["scope"] == scope or (m["kind"] == "memory" and m["scope"].endswith("-" + scope))
         if scope:
-            mine = (cols["scope"] == scope) | ((cols["kind"] == "memory") & np.char.endswith(cols["scope"], "-" + scope))
-            mask &= (cols["scope"] == "global") | mine
+            # Memories cross repo lines: Funnel's decisions are recorded under its backend project and govern its
+            # frontend repos too, so a scoped search keeps every project's memories (ranked as "other" unless the
+            # session's own) and drops only other repos' rules, lessons and history.
+            mask &= (cols["scope"] == "global") | (cols["scope"] == scope) | (cols["kind"] == "memory")
         if prefix:
             mask &= np.array([m["id"].startswith(prefix) for m in meta])
         idx = np.nonzero(mask)[0]
@@ -250,6 +252,10 @@ class Daemon:
                 self.stash[req["stash"]] = (now, hits)
             return {"ok": True, "hits": hits, "ms": round((time.time() - t) * 1000, 1), "partial": self.index.syncing or not self.index.synced_at}
         if op == "take":
+            # wait_ms: a search for this key may still be running (an idle GPU needs 0.5-0.7 s); Stop waits for it.
+            deadline = time.time() + float(req.get("wait_ms", 0)) / 1000
+            while req.get("key") not in self.stash and time.time() < deadline:
+                time.sleep(0.02)
             got = self.stash.pop(req.get("key"), None)
             fresh = got and time.time() - got[0] < STASH_S
             return {"ok": True, "hits": got[1] if fresh else None}

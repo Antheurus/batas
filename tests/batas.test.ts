@@ -159,7 +159,7 @@ describe("hook", () => {
 
   test("a late semantic match renders through the same gate, once", () => {
     const gap = config.semantic.minGap;
-    const state = { injected: [], hinted: [], lastPrompt: [], muted: [], touched: [], started: Date.now(), bashStart: 0, spent: 0, pendingSemantic: Date.now() };
+    const state = { injected: [], hinted: [], lastPrompt: [], muted: [], touched: [], started: Date.now(), bashStart: 0, spent: 0, pending: [] };
     const hit = (g: number, ref: number) =>
       ({ id: "memory:-tmp-demo/hooks-warn-not-ask", kind: "memory", scope: "-tmp-demo", title: "x", source: "x", score: 0.03, cos: { g, e: 0.85 }, ref }) as never;
     const input = { session_id: "late1", cwd: "/tmp/demo", hook_event_name: "PreToolUse" };
@@ -167,6 +167,15 @@ describe("hook", () => {
     const late = lateSemantic(input, store, [hit(0.8, 0.8 - gap - 0.01)], state);
     expect(late?.text).toContain("### memory:-tmp-demo/hooks-warn-not-ask");
     expect(lateSemantic(input, store, [hit(0.8, 0.8 - gap - 0.01)], state)).toBeUndefined();
+    // a new file's match carries the rule's full text and names the file, under its own gate
+    const wgap = config.semantic.writeGap;
+    const rule = (g: number, ref: number) =>
+      ({ id: "gotcha:B13", kind: "rule", scope: "global", title: "x", source: "x", score: 0.03, cos: { g, e: 0.85 }, ref }) as never;
+    expect(lateSemantic(input, store, [rule(0.8, 0.8 - wgap + 0.01)], state, "write", "backend/x.go")).toBeUndefined();
+    const w = lateSemantic(input, store, [rule(0.8, 0.8 - wgap - 0.01)], state, "write", "backend/x.go");
+    expect(w?.text).toContain("matches the file just written (backend/x.go)");
+    expect(w?.text).toContain("### gotcha:B13");
+    expect(w?.text).toContain("uuid5");
   });
 
   test("a rule prompt phrase fires on the user's own words, never on a quoted line or a side agent's note", () => {
