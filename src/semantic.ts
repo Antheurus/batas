@@ -7,7 +7,8 @@ import { join } from "node:path";
 import { config } from "./config.ts";
 import type { Kind } from "./corpus.ts";
 
-export type SemanticHit = { id: string; kind: Kind; scope: string; title: string; source: string; score: number; cos: { g: number; e: number } };
+// ref: the 10th-best Gemma cosine over the filtered set (the same on every hit of one search).
+export type SemanticHit = { id: string; kind: Kind; scope: string; title: string; source: string; score: number; cos: { g: number; e: number }; ref?: number };
 
 const SOCK = join(config.stateDir, "batasd.sock");
 const SPAWNED = join(config.stateDir, "batasd.spawned");
@@ -58,10 +59,10 @@ export function start(): void {
 
 export async function semanticSearch(
   query: string,
-  opts: { kinds?: Kind[]; scope?: string; limit?: number; timeoutMs?: number; prefix?: string } = {},
+  opts: { kinds?: Kind[]; scope?: string; limit?: number; timeoutMs?: number; prefix?: string; stash?: string } = {},
 ): Promise<SemanticHit[] | undefined> {
   const r = await ask<{ ok: boolean; hits?: SemanticHit[] }>(
-    { op: "search", query, kinds: opts.kinds, scope: opts.scope, limit: opts.limit ?? 8, prefix: opts.prefix },
+    { op: "search", query, kinds: opts.kinds, scope: opts.scope, limit: opts.limit ?? 8, prefix: opts.prefix, stash: opts.stash },
     opts.timeoutMs ?? 5000,
   );
   return r?.ok ? (r.hits ?? []) : undefined;
@@ -69,4 +70,11 @@ export async function semanticSearch(
 
 export function requestSync(): void {
   void ask({ op: "sync" }, 500);
+}
+
+// The result of a search this session left with batasd because the prompt hook could not wait for it; null = nothing
+// (yet), undefined = batasd did not answer.
+export async function takeStashed(key: string, timeoutMs: number): Promise<SemanticHit[] | null | undefined> {
+  const r = await ask<{ ok: boolean; hits: SemanticHit[] | null }>({ op: "take", key }, timeoutMs);
+  return r?.ok ? r.hits : undefined;
 }

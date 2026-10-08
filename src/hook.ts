@@ -5,7 +5,7 @@ import { memorySources, memoryTriggers, parseMemory, projectSlug, type Entry, ty
 import { mutedIds, recordAck, reportWrong } from "./feedback.ts";
 import { filesInCommand, lessonsDir, regenAll, regenIfLessonsChanged, routedLessons } from "./lessons.ts";
 import { appendHookLog, liveSessions } from "./log.ts";
-import { semanticSearch, type SemanticHit } from "./semantic.ts";
+import { semanticSearch, takeStashed, type SemanticHit } from "./semantic.ts";
 import { Store } from "./store.ts";
 
 const SEMANTIC_KINDS: Kind[] = ["memory", "rule", "rule-section", "project-rule", "context"];
@@ -44,6 +44,8 @@ type SessionState = {
   bashStart: number;
   // bytes of context this session has received from batas, held against config.inject.sessionBytes
   spent: number;
+  // when the last prompt's semantic search was left with batasd for the next hook call to pick up (0 = none)
+  pendingSemantic: number;
 };
 
 // Harness-generated turns (a background agent finishing, a system reminder) arrive as UserPromptSubmit too; their
@@ -372,9 +374,10 @@ function loadSession(id: string): SessionState {
       started: s.started ?? Date.now(),
       bashStart: s.bashStart ?? 0,
       spent: s.spent ?? 0,
+      pendingSemantic: s.pendingSemantic ?? 0,
     };
   } catch {
-    return { injected: [], hinted: [], lastPrompt: [], muted: [], touched: [], started: Date.now(), bashStart: 0, spent: 0 };
+    return { injected: [], hinted: [], lastPrompt: [], muted: [], touched: [], started: Date.now(), bashStart: 0, spent: 0, pendingSemantic: 0 };
   }
 }
 
@@ -495,13 +498,14 @@ function relevantMemories(
 
 // A nearest neighbour always exists and absolute cosines overlap (the right lesson for a probe: Gemma 0.77 median; the
 // top hit of an unrelated real prompt: 0.72), so only a hit that STANDS OUT counts: the best Gemma cosine at least
-// config.semantic.minGap above the 10th. Calibrated 2026-10-08 on 80 probes and 200 real prompts: at 0.065 it fires on
-// ~5% of prompts, the ones that name a recorded thing. Only that single best hit passes.
+// config.semantic.minGap above the 10th-best over this repo's entries (`ref`, from batasd). Calibrated 2026-10-08 with
+// `just semantic-calibrate` on 80 probes and 300 real prompts: at 0.07 it passes 16/300 prompts (~18 of 22 read by hand
+// at 0.065 were relevant) and keeps 20/43 probe positives. Only that single best hit passes.
 export function passing(semantic: SemanticHit[]): SemanticHit[] {
   if (!semantic.length) return [];
   const g = semantic.map((h) => h.cos.g ?? 0).sort((a, b) => b - a);
   const best = semantic.reduce((a, b) => ((b.cos.g ?? 0) > (a.cos.g ?? 0) ? b : a));
-  const ref = g[Math.min(9, g.length - 1)] ?? 0;
+  const ref = semantic[0]?.ref ?? g[Math.min(9, g.length - 1)] ?? 1;
   return (best.cos.g ?? 0) - ref >= config.semantic.minGap ? [best] : [];
 }
 
@@ -567,6 +571,41 @@ function lessonsUpkeep(input: HookInput, probe: { cmd?: string; path?: string })
     id: "lessons:regen",
     text: `batas: docs/lessons changed, so .claude/rules/lessons/ was regenerated (${changed.length} file(s)). Commit them with the lesson change.`,
   };
+}
+
+// The prompt's semantic match, delivered on the session's next hook call when batasd could not answer inside the prompt
+// budget (an idle Apple GPU takes 0.5-0.7 s to answer its first query). That call is normally the turn's first tool
+// use, so the match still lands before the agent acts. Same gate and rendering limits as the prompt path.
+export function lateSemantic(input: HookInput, store: Store, hits: SemanticHit[], state: SessionState): { text: string; fired: string[] } | undefined {
+  const silenced = new Set([...state.muted, ...Object.keys(mutedIds())]);
+  const skip = [...state.injected, ...state.hinted, ...silenced];
+  const project = input.cwd ? projectSlug(input.cwd) : "";
+  const mem = semanticMemories(store, project, skip, hits);
+  const rules = semanticRules(hits, repoName(input.cwd), new Set(skip));
+  const lines: string[] = [];
+  const fired: string[] = [];
+  for (const m of mem.full) {
+    const body = m.body.length > config.inject.memoryChars ? `${m.body.slice(0, config.inject.memoryChars)}…` : m.body;
+    const block = `### ${m.id} — ${m.title}\n${body}`;
+    if (state.spent + block.length > config.inject.sessionBytes) continue;
+    lines.push(block);
+    state.injected.push(m.id);
+    fired.push(m.id);
+  }
+  for (const m of mem.more) {
+    lines.push(`- ${m.id} — ${m.title}`);
+    state.hinted.push(m.id);
+    fired.push(m.id);
+  }
+  for (const h of rules) {
+    lines.push(`- ${h.id}: ${resolve(store, h.id)?.title ?? h.title}`);
+    state.hinted.push(h.id);
+    fired.push(h.id);
+  }
+  if (!lines.length) return undefined;
+  const text = ["batas: closest recorded match for the user's last request (arrived after the prompt) — use it only if it applies:", ...lines].join("\n");
+  state.spent += text.length;
+  return { text, fired };
 }
 
 export function evaluate(input: HookInput, store: Store, triggers: Triggers, semantic?: SemanticHit[]): { output: object; fired: string[] } {
@@ -801,6 +840,45 @@ export function evaluate(input: HookInput, store: Store, triggers: Triggers, sem
   return { output: { hookSpecificOutput: { hookEventName: event, additionalContext: text } }, fired };
 }
 
+// After a cold prompt the search keeps running in batasd under the session id; mark it, and on the next hook call take
+// whatever it found. A deny leaves it pending, so the match is not spent on a call the agent never sees through.
+async function settleSemantic(
+  input: HookInput,
+  store: Store,
+  result: { output: object; fired: string[] },
+  semanticState: "warm" | "cold" | undefined,
+): Promise<{ output: object; fired: string[] }> {
+  const session = input.session_id as string;
+  if (input.hook_event_name === "UserPromptSubmit") {
+    if (semanticState === "cold") {
+      const state = loadSession(session);
+      state.pendingSemantic = Date.now();
+      saveSession(session, state);
+    }
+    return result;
+  }
+  const state = loadSession(session);
+  if (!state.pendingSemantic) return result;
+  if (Date.now() - state.pendingSemantic > 300_000) {
+    state.pendingSemantic = 0;
+    saveSession(session, state);
+    return result;
+  }
+  const o = result.output as { hookSpecificOutput?: { hookEventName?: string; additionalContext?: string; permissionDecision?: string } };
+  if (o.hookSpecificOutput?.permissionDecision === "deny") return result;
+  const hits = await takeStashed(session, 40);
+  if (hits === undefined || hits === null) return result;
+  state.pendingSemantic = 0;
+  const late = lateSemantic(input, store, hits, state);
+  saveSession(session, state);
+  if (!late) return result;
+  const prior = o.hookSpecificOutput?.additionalContext;
+  return {
+    output: { ...o, hookSpecificOutput: { ...o.hookSpecificOutput, hookEventName: input.hook_event_name, additionalContext: prior ? `${prior}\n\n${late.text}` : late.text } },
+    fired: [...result.fired, ...late.fired],
+  };
+}
+
 // A `claude -p` session is the agent's own probe until it commits; from then on its commits ride on the next push.
 export function logFlags(input: HookInput, entrypoint?: string): { headless?: true; committed?: true } {
   const command = input.tool_name === "Bash" ? (input.tool_input?.command ?? "") : "";
@@ -834,7 +912,9 @@ async function main() {
     // budget is the wait. A cold or busy daemon costs this prompt its semantic match (the trigger words still run),
     // never the user's time.
     const own = prompting && config.semantic.promptHook ? ownWords(input.prompt ?? "").trim() : "";
-    const pending = own ? semanticSearch(own, { kinds: SEMANTIC_KINDS, limit: 12, timeoutMs: Math.max(20, config.latencyBudgetMs.prompt - (performance.now() - started) - 30) }) : undefined;
+    // Scoped to the session's repo: the standout gate compares the best hit with this repo's 10th neighbour, which is
+    // what actually competes here (an unscoped reference drowned the right lesson in every other repo's entries).
+    const pending = own ? semanticSearch(own, { kinds: SEMANTIC_KINDS, scope: repoName(input.cwd), limit: 12, stash: input.session_id, timeoutMs: Math.max(20, config.latencyBudgetMs.prompt - (performance.now() - started) - 30) }) : undefined;
     const store = new Store();
     store.refresh("rules", prompting && input.cwd ? memorySources(projectSlug(input.cwd)) : []);
     if (pending) {
@@ -842,6 +922,7 @@ async function main() {
       semanticState = semantic ? "warm" : "cold";
     }
     result = evaluate(input, store, Triggers.load(), semantic);
+    if (input.session_id && input.hook_event_name !== "Stop" && input.hook_event_name !== "SubagentStop") result = await settleSemantic(input, store, result, semanticState);
     pruneSessions();
   } catch (err) {
     error = err instanceof Error ? `${err.message} @ ${err.stack?.split("\n")[1]?.trim() ?? "?"}` : String(err);

@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { config } from "../src/config.ts";
-import { evaluate, logFlags } from "../src/hook.ts";
+import { evaluate, lateSemantic, logFlags } from "../src/hook.ts";
 import { auditPrompts } from "../scripts/prompt-audit.ts";
 import { gitIndex, judgePath, namedPaths, resolveRoot } from "../scripts/memory-audit.ts";
 import { mine, signature } from "../scripts/lesson-mine.ts";
@@ -151,6 +151,22 @@ describe("hook", () => {
     expect(ask("s3", [hit("gotcha:B13", "rule", "global", 0.8 + gap), ...crowd(0.8)])).toContain("- gotcha:B13");
     // another repo's project rule belongs to that repo's sessions
     expect(ask("s4", [hit("project:other-repo:all-x.md", "project-rule", "other-repo", 0.8 + gap), ...crowd(0.8)])).toBe("{}");
+    // batasd's ref (the repo-wide 10th neighbour) decides, not how many hits came back
+    const withRef = (g: number, ref: number) => ({ ...(hit("gotcha:B13", "rule", "global", g) as object), ref }) as never;
+    expect(ask("s5", [withRef(0.8, 0.8 - gap - 0.005)])).toContain("- gotcha:B13");
+    expect(ask("s6", [withRef(0.8, 0.8 - gap + 0.005)])).toBe("{}");
+  });
+
+  test("a late semantic match renders through the same gate, once", () => {
+    const gap = config.semantic.minGap;
+    const state = { injected: [], hinted: [], lastPrompt: [], muted: [], touched: [], started: Date.now(), bashStart: 0, spent: 0, pendingSemantic: Date.now() };
+    const hit = (g: number, ref: number) =>
+      ({ id: "memory:-tmp-demo/hooks-warn-not-ask", kind: "memory", scope: "-tmp-demo", title: "x", source: "x", score: 0.03, cos: { g, e: 0.85 }, ref }) as never;
+    const input = { session_id: "late1", cwd: "/tmp/demo", hook_event_name: "PreToolUse" };
+    expect(lateSemantic(input, store, [hit(0.8, 0.8 - gap + 0.01)], state)).toBeUndefined();
+    const late = lateSemantic(input, store, [hit(0.8, 0.8 - gap - 0.01)], state);
+    expect(late?.text).toContain("### memory:-tmp-demo/hooks-warn-not-ask");
+    expect(lateSemantic(input, store, [hit(0.8, 0.8 - gap - 0.01)], state)).toBeUndefined();
   });
 
   test("a rule prompt phrase fires on the user's own words, never on a quoted line or a side agent's note", () => {

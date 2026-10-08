@@ -23,6 +23,7 @@ REPO = Path(__file__).resolve().parent.parent
 IDLE_S = float(os.environ.get("BATASD_IDLE_MIN", "30")) * 60
 RESYNC_S = 120
 RRF_K = 60
+STASH_S = 300
 POOL = 50
 # The model cache is shared by every state dir (tests use their own), and once both models are in it nothing goes online.
 HF = Path(os.environ.get("BATAS_HF_HOME", Path.home() / ".batas" / "hf"))
@@ -77,6 +78,7 @@ class Daemon:
         self.load()
         self.last_seen = time.time()
         self.wake = threading.Event()
+        self.stash = {}
 
     def encode(self, key, texts, query):
         _, qp, pp = MODELS[key]
@@ -188,15 +190,16 @@ class Daemon:
         idx = np.nonzero(mask)[0]
         if not len(idx):
             return []
-        fused, cos = {}, {}
+        fused, qv = {}, {}
         for k in MODELS:
-            q = self.encode(k, [query], query=True)[0].astype("float32")
+            q = qv[k] = self.encode(k, [query], query=True)[0].astype("float32")
             sims = vec[k][idx] @ q
             order = np.argsort(-sims)[:POOL]
+            if k == "g":
+                ref = float(sims[order[min(9, len(order) - 1)]])
             for rank, j in enumerate(order):
                 d = int(idx[j])
                 fused[d] = fused.get(d, 0.0) + 1.0 / (RRF_K + rank + 1)
-                cos.setdefault(d, {})[k] = float(sims[j])
         ranked = sorted(fused, key=lambda d: -fused[d])
         if scope:
             # Inside a repo, its own entries and the global corpus are ranked apart and interleaved, repo first. Fused
@@ -206,7 +209,11 @@ class Daemon:
             other = [d for d in ranked if not own(meta[d])]
             ranked = [d for pair in zip(local, other) for d in pair] + local[len(other):] + other[len(local):]
         best = ranked[:limit]
-        return [{**meta[d], "score": round(fused[d], 5), "cos": cos[d]} for d in best]
+        # Both cosines for every hit, including one that reached the fused list through a single model: the hook's
+        # standout gate reads the Gemma cosine of the 10th hit, and a missing one read as 0 opened it on most prompts.
+        # ref: the 10th-best Gemma cosine over the whole filtered set, so a caller can tell a hit that stands out from the
+        # usual nearest neighbour without it depending on how many hits it asked for.
+        return [{**meta[d], "score": round(fused[d], 5), "cos": {k: float(vec[k][d] @ qv[k]) for k in MODELS}, "ref": ref} for d in best]
 
     def columns(self, meta):
         # Kind and scope as arrays, rebuilt only when the row list itself is replaced by a sync.
@@ -234,7 +241,17 @@ class Daemon:
         if op == "search":
             t = time.time()
             hits = self.search(req["query"], req.get("kinds"), req.get("scope"), int(req.get("limit", 8)), req.get("prefix"))
+            # A caller that could not wait (the prompt hook on a GPU that had powered down) leaves a key; the result is
+            # kept for its next call to take, so a slow first query costs nobody a wait.
+            if req.get("stash"):
+                now = time.time()
+                self.stash = {k: v for k, v in self.stash.items() if now - v[0] < STASH_S}
+                self.stash[req["stash"]] = (now, hits)
             return {"ok": True, "hits": hits, "ms": round((time.time() - t) * 1000, 1), "partial": self.index.syncing or not self.index.synced_at}
+        if op == "take":
+            got = self.stash.pop(req.get("key"), None)
+            fresh = got and time.time() - got[0] < STASH_S
+            return {"ok": True, "hits": got[1] if fresh else None}
         return {"ok": False, "error": f"unknown op {op!r}"}
 
     def background(self):
@@ -273,8 +290,11 @@ def main():
                     resp = daemon.handle(json.loads(line))
                 except Exception as err:
                     resp = {"ok": False, "error": str(err)}
-                self.wfile.write((json.dumps(resp, ensure_ascii=False) + "\n").encode())
-                self.wfile.flush()
+                try:
+                    self.wfile.write((json.dumps(resp, ensure_ascii=False) + "\n").encode())
+                    self.wfile.flush()
+                except (BrokenPipeError, ConnectionResetError):
+                    return  # the caller stopped waiting; a stashed result is still kept
 
     class Server(socketserver.ThreadingUnixStreamServer):
         daemon_threads = True

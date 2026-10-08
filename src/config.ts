@@ -28,7 +28,7 @@ export const config = {
   // in full rather than listed. Calibrated by scripts/semantic-calibrate.ts; see docs/plan/2026-10-08-semantic-recall.
   // A prompt match counts only when the best hit's Gemma cosine stands minGap above the 10th (scripts/semantic-calibrate.ts,
   // docs/plan/2026-10-08-semantic-recall/plan.md); fullCos lets another project's memory in full instead of listed.
-  semantic: { promptHook: true, minGap: 0.065, fullCos: 0.6 },
+  semantic: { promptHook: true, minGap: 0.07, fullCos: 0.6 },
   inject: { maxItems: 3, maxChars: 9000, maxPromptHints: 5, maxMemories: 2, memoryChars: 1500, maxMoreMemories: 8, sessionBytes: 64000 },
 };
 
