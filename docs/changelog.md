@@ -1,5 +1,12 @@
 # batas Changelog
 
+## v0.15.1 — Lesson tidak lagi dobel untuk `sed`, dan satu lesson yang salah alamat dibetulkan
+
+- Diukur ulang: Claude Code sendiri ternyata memuat lesson saat agen membaca file dengan `sed -n` (3 dari 3), tapi tidak untuk `cat`, `head`, `grep`, atau script `python3` (semuanya tidak ada). batas sekarang hanya menyuntikkan lesson untuk jalur yang tidak dimuat Claude Code, jadi lesson tidak muncul dua kali.
+- Angka "Bash 15 dari 15" di versi sebelumnya tidak membuktikan apa-apa: eval-nya memakai `sed`, satu-satunya jalur yang sudah ditangani Claude Code. Eval sekarang memakai `cat`.
+- Satu lesson tagihan platform sempat ikut muncul di file printer karena nama `Targets` dibaca tanpa pemiliknya. Sekarang "`PnLMonthlyService` (`Targets`)" dibaca sebagai `PnLMonthlyService.Targets`.
+- Eval kontrol sekarang hanya gagal kalau mengutip judul lesson, bukan saat menyebut aturan proyek yang memang berlaku untuk file itu.
+
 ## v0.15.0 — Lesson sekarang muncul sendiri saat agen membuka kodenya
 
 - Sebelumnya batas hanya mencocokkan kata di prompt dan perintah, jadi lesson di `docs/lessons/` tidak pernah sampai ke agen kecuali ada yang memanggil `recall`. Diukur di mendadak-pos: **0 dari 15** lesson sampai saat agen membuka file yang dibahas lesson itu.

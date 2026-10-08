@@ -12,7 +12,8 @@ import { routeLessons } from "./lessons-route.ts";
 // with cat/sed and python as often, so each way is its own measurement.
 const OPEN = {
   read: (f: string) => `Read ${f} with the Read tool.`,
-  bash: (f: string) => `Show ${f} by running exactly this Bash command: sed -n '1,400p' ${f}`,
+  // cat, not sed -n: Claude Code loads path rules itself after `sed -n`, so sed could not show whether batas helps.
+  bash: (f: string) => `Show ${f} by running exactly this Bash command: cat ${f}`,
   python: (f: string) => `Show ${f} by running exactly this Bash command: python3 -c "print(open('${f}').read())"`,
 } as const;
 type Mode = keyof typeof OPEN;
@@ -24,6 +25,7 @@ const PROMPT = (file: string, mode: Mode) =>
   "is none, reply exactly NONE.";
 
 type Case = { file: string; title?: string };
+let allTitles: string[] = [];
 
 function rng(seed: number): () => number {
   let s = seed >>> 0;
@@ -46,7 +48,8 @@ async function runCase(repo: string, c: Case, mode: Mode): Promise<{ c: Case; ok
   const p = Bun.spawn(["claude", "-p", PROMPT(c.file, mode), "--allowedTools", tools], { cwd: repo, stdout: "pipe", stderr: "pipe", env: process.env });
   const answer = (await new Response(p.stdout).text()).trim();
   await p.exited;
-  const ok = c.title ? delivered(answer, c.title) : /^NONE\b/i.test(answer);
+  // A control fails only by quoting a lesson heading: naming a real path-scoped project rule for that file is correct.
+  const ok = c.title ? delivered(answer, c.title) : !allTitles.some((t) => delivered(answer, t));
   return { c, ok, answer };
 }
 
@@ -60,7 +63,8 @@ if (import.meta.main) {
   const mode = (process.argv[6] ?? "read") as Mode;
   if (!(mode in OPEN)) throw new Error(`mode must be one of ${Object.keys(OPEN).join(", ")}`);
   const files = Bun.spawnSync(["git", "-C", repo, "ls-files"]).stdout.toString().split("\n").filter(Boolean);
-  const { routes } = routeLessons(repo, files);
+  const { routes, unresolved } = routeLessons(repo, files);
+  allTitles = [...new Set([...routes.flatMap((r) => r.lessons.map((l) => l.title)), ...unresolved.map((l) => l.title)])];
   const rand = rng(seed);
   const pick = <T>(xs: T[], k: number) => [...xs].sort(() => rand() - 0.5).slice(0, k);
   const routed = new Set(routes.map((r) => r.file));

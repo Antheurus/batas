@@ -22,10 +22,16 @@ const SOURCE_PATH = /(?:^|[\s'"`(=,])((?:\.{0,2}\/)?[\w@.-]+(?:\/[\w@.-]+)*\.(?:
 
 // Every existing source file a command names, quotes included: `python3 -c "open('a.go')"` opens a.go as surely as
 // `sed -n 1,80p a.go` does. Only paths that exist count, so prose in a commit message names nothing.
+// Claude Code 2.1.293 itself loads a file's path-scoped rules after `sed -n '<range>' <file>` (probed 3/3 and 15/15 with
+// batas switched off) but not after cat, head, grep or a python script (NONE each), so a `sed -n` read is left to it.
+const SED_READ = /\bsed\s+-n\s+(?:'[^']*'|"[^"]*"|\S+)\s+((?:\.{0,2}\/)?[\w@.-]+(?:\/[\w@.-]+)*)/g;
+
 export function filesInCommand(raw: string, dir: string): string[] {
   const out = new Set<string>();
+  const nativelyLoaded = new Set([...raw.matchAll(SED_READ)].map((m) => m[1] as string));
   for (const m of raw.matchAll(SOURCE_PATH)) {
     const p = m[1] as string;
+    if (nativelyLoaded.has(p)) continue;
     const abs = isAbsolute(p) ? p : resolve(dir, p);
     if (existsSync(abs)) out.add(abs);
   }
@@ -51,7 +57,12 @@ export function parseLessons(repo: string): Lesson[] {
     for (const sec of body.split(/^## /m).slice(1)) {
       const title = (sec.split("\n")[0] ?? "").trim();
       const line = sec.match(/^\**Simbol\**:\s*(.+)$/m)?.[1] ?? "";
-      const symbols = [...line.matchAll(/`([^`]+)`/g)].map((m) => (m[1] ?? "").replace(/\(\)$/, "")).filter(Boolean);
+      // "`Owner` (`a`, `b`)" names Owner.a and Owner.b: read bare, `a` routed a billing lesson onto an unrelated
+      // printer handler that happened to define a method of the same name.
+      const qualified = line.replace(/`([\w.]+)`\s*\(([^)]*)\)/g, (_m, owner: string, inner: string) =>
+        inner.replace(/`([\w.]+)`/g, (_x, member: string) => `\`${owner}.${member}\``),
+      );
+      const symbols = [...qualified.matchAll(/`([^`]+)`/g)].map((m) => (m[1] ?? "").replace(/\(\)$/, "")).filter(Boolean);
       out.push({ source: `docs/lessons/${name}`, title, text: `## ${sec.trimEnd()}`, symbols });
     }
   }

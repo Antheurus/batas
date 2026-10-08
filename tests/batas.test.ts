@@ -305,6 +305,8 @@ describe("hook", () => {
     put("backend/order_service.go", "package svc\n\ntype OrderService struct{}\n\nfunc (s *OrderService) SettleOrder() {}\n");
     put("backend/settlement.go", "package svc\n\ntype Settlement struct {\n\tNetRevenue int\n}\n");
     put("backend/caller.go", "package svc\n\nfunc run(s *OrderService) { s.SettleOrder() }\n");
+    // a printer handler that defines its own Targets method must not receive the PnLService lesson
+    put("backend/printers.go", "package svc\n\nfunc (h *PrinterHandler) Targets() {}\n");
     for (const f of ["a.ts", "b.ts", "c.ts"]) put(`frontend/${f}`, "export const loaded = true\n");
     // NetRevenue is a field of three other structs too, so only its owner type can point at the right file.
     for (const n of ["x", "y", "z"]) put(`backend/report_${n}.go`, `package svc\n\ntype Report${n} struct {\n\tNetRevenue int\n}\n`);
@@ -321,18 +323,21 @@ describe("hook", () => {
         "## Generic flag",
         "Simbol: `loaded`",
         "Defined everywhere.",
+        "## Billing targets",
+        "Simbol: `PnLService` (`Targets`)",
+        "Belongs to PnLService only.",
         "## No symbol at all",
         "Cross-cutting.",
         "",
       ].join("\n"),
     );
-    const files = ["backend/order_service.go", "backend/settlement.go", "backend/caller.go", "frontend/a.ts", "frontend/b.ts", "frontend/c.ts", "backend/report_x.go", "backend/report_y.go", "backend/report_z.go"];
+    const files = ["backend/order_service.go", "backend/settlement.go", "backend/caller.go", "frontend/a.ts", "frontend/b.ts", "frontend/c.ts", "backend/report_x.go", "backend/report_y.go", "backend/report_z.go", "backend/printers.go"];
     const { routes, unresolved } = routeLessons(repo, files);
     expect(routes.map((r) => [r.file, r.lessons.map((l) => l.title)])).toEqual([
       ["backend/order_service.go", ["Tender settled twice"]],
       ["backend/settlement.go", ["Net revenue excludes the fee"]],
     ]);
-    expect(unresolved.map((l) => l.title)).toEqual(["Generic flag", "No symbol at all"]);
+    expect(unresolved.map((l) => l.title)).toEqual(["Generic flag", "Billing targets", "No symbol at all"]);
     const rule = ruleFile(routes[0] as never);
     expect(rule.name).toBe("p-lessons-backend-order-service.md");
     expect(rule.content).toContain('paths:\n  - "backend/order_service.go"');
@@ -346,7 +351,7 @@ describe("hook", () => {
     expect(staleFiles(out, routes).sort()).toEqual(["p-lessons-backend-order-service.md", "p-lessons-gone.md"]);
   });
 
-  test("a file opened or changed through Bash gets the lessons Claude Code only loads for Read/Edit/Write", () => {
+  test("a file opened or changed through Bash gets the lessons Claude Code does not load for that path", () => {
     const repo = mkdtempSync(join(tmpdir(), "batas-bashlessons-"));
     Bun.spawnSync(["git", "init", "-q", repo]);
     mkdirSync(join(repo, "backend"), { recursive: true });
@@ -360,8 +365,10 @@ describe("hook", () => {
     const t = new Triggers({});
     const bash = (session_id: string, command: string) =>
       JSON.stringify(evaluate({ session_id, cwd: repo, hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command } }, store, t).output);
-    expect(bash("bl1", "sed -n '1,80p' backend/order_service.go")).toContain("Tender settled twice");
-    expect(bash("bl1", "cat backend/order_service.go")).toBe("{}");
+    expect(bash("bl1", "cat backend/order_service.go")).toContain("Tender settled twice");
+    expect(bash("bl1", "head -40 backend/order_service.go")).toBe("{}");
+    // Claude Code loads the path rule itself after `sed -n`; injecting it too would only duplicate it
+    expect(bash("bl6", "sed -n '1,80p' backend/order_service.go")).toBe("{}");
     expect(bash("bl2", `python3 -c "print(open('backend/order_service.go').read())"`)).toContain("Tender settled twice");
     expect(bash("bl3", "cat backend/plain.go")).toBe("{}");
     expect(bash("bl4", "git commit -m 'touch backend/missing.go'")).not.toContain("Tender");
