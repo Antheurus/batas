@@ -10,6 +10,8 @@ import { auditPrompts } from "../scripts/prompt-audit.ts";
 import { gitIndex, judgePath, namedPaths, resolveRoot } from "../scripts/memory-audit.ts";
 import { mine, signature } from "../scripts/lesson-mine.ts";
 import { copiesOf, shareMemory } from "../scripts/memory-share.ts";
+import { routeLessons, ruleFile, staleFiles } from "../scripts/lessons-route.ts";
+import { routeRepo, writeRoutes } from "../src/lessons.ts";
 import { errorsIn } from "../scripts/transcripts.ts";
 import { memorySources } from "../src/corpus.ts";
 import { mutedIds, readAcks, readFeedback, setMuted } from "../src/feedback.ts";
@@ -292,6 +294,119 @@ describe("hook", () => {
     expect(ids("tender bon EDC dobel settle")[0]).toStartWith("project:demo-app:lessons/backend.md#tender-lebih-dari-bon-edc");
     expect(ids("garbled receipt codepage invariant").some((id) => id.startsWith("project:demo-app:qa/context.md#"))).toBe(true);
     s.close();
+  });
+
+  test("lessons-route puts each lesson on the file that defines its symbol, and only there", () => {
+    const repo = mkdtempSync(join(tmpdir(), "batas-route-"));
+    const put = (f: string, text: string) => {
+      mkdirSync(join(repo, f, ".."), { recursive: true });
+      writeFileSync(join(repo, f), text);
+    };
+    put("backend/order_service.go", "package svc\n\ntype OrderService struct{}\n\nfunc (s *OrderService) SettleOrder() {}\n");
+    put("backend/settlement.go", "package svc\n\ntype Settlement struct {\n\tNetRevenue int\n}\n");
+    put("backend/caller.go", "package svc\n\nfunc run(s *OrderService) { s.SettleOrder() }\n");
+    for (const f of ["a.ts", "b.ts", "c.ts"]) put(`frontend/${f}`, "export const loaded = true\n");
+    // NetRevenue is a field of three other structs too, so only its owner type can point at the right file.
+    for (const n of ["x", "y", "z"]) put(`backend/report_${n}.go`, `package svc\n\ntype Report${n} struct {\n\tNetRevenue int\n}\n`);
+    put(
+      "docs/lessons/backend.md",
+      [
+        "# Backend",
+        "## Tender settled twice",
+        "Simbol: `OrderService.SettleOrder`",
+        "The overflow was settled twice.",
+        "## Net revenue excludes the fee",
+        "Simbol: `Settlement.NetRevenue`",
+        "Fee is not revenue.",
+        "## Generic flag",
+        "Simbol: `loaded`",
+        "Defined everywhere.",
+        "## No symbol at all",
+        "Cross-cutting.",
+        "",
+      ].join("\n"),
+    );
+    const files = ["backend/order_service.go", "backend/settlement.go", "backend/caller.go", "frontend/a.ts", "frontend/b.ts", "frontend/c.ts", "backend/report_x.go", "backend/report_y.go", "backend/report_z.go"];
+    const { routes, unresolved } = routeLessons(repo, files);
+    expect(routes.map((r) => [r.file, r.lessons.map((l) => l.title)])).toEqual([
+      ["backend/order_service.go", ["Tender settled twice"]],
+      ["backend/settlement.go", ["Net revenue excludes the fee"]],
+    ]);
+    expect(unresolved.map((l) => l.title)).toEqual(["Generic flag", "No symbol at all"]);
+    const rule = ruleFile(routes[0] as never);
+    expect(rule.name).toBe("p-lessons-backend-order-service.md");
+    expect(rule.content).toContain('paths:\n  - "backend/order_service.go"');
+    expect(rule.content).toContain("The overflow was settled twice.");
+    const out = join(repo, ".claude", "rules", "lessons");
+    mkdirSync(out, { recursive: true });
+    for (const r of routes) writeFileSync(join(out, ruleFile(r).name), ruleFile(r).content);
+    expect(staleFiles(out, routes)).toEqual([]);
+    writeFileSync(join(out, "p-lessons-gone.md"), "x");
+    writeFileSync(join(out, rule.name), "edited by hand");
+    expect(staleFiles(out, routes).sort()).toEqual(["p-lessons-backend-order-service.md", "p-lessons-gone.md"]);
+  });
+
+  test("a file opened or changed through Bash gets the lessons Claude Code only loads for Read/Edit/Write", () => {
+    const repo = mkdtempSync(join(tmpdir(), "batas-bashlessons-"));
+    Bun.spawnSync(["git", "init", "-q", repo]);
+    mkdirSync(join(repo, "backend"), { recursive: true });
+    writeFileSync(join(repo, "backend", "order_service.go"), "package svc\n");
+    writeFileSync(join(repo, "backend", "plain.go"), "package svc\n");
+    mkdirSync(join(repo, ".claude", "rules", "lessons"), { recursive: true });
+    writeFileSync(
+      join(repo, ".claude", "rules", "lessons", "p-lessons-backend-order-service.md"),
+      '---\nname: x\npaths:\n  - "backend/order_service.go"\n---\n\n## Tender settled twice\nThe overflow was settled twice.\n',
+    );
+    const t = new Triggers({});
+    const bash = (session_id: string, command: string) =>
+      JSON.stringify(evaluate({ session_id, cwd: repo, hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command } }, store, t).output);
+    expect(bash("bl1", "sed -n '1,80p' backend/order_service.go")).toContain("Tender settled twice");
+    expect(bash("bl1", "cat backend/order_service.go")).toBe("{}");
+    expect(bash("bl2", `python3 -c "print(open('backend/order_service.go').read())"`)).toContain("Tender settled twice");
+    expect(bash("bl3", "cat backend/plain.go")).toBe("{}");
+    expect(bash("bl4", "git commit -m 'touch backend/missing.go'")).not.toContain("Tender");
+    // a script that rewrites the file without naming it in a way the command shows
+    evaluate({ session_id: "bl5", cwd: repo, hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command: "python3 fix.py" } }, store, t);
+    writeFileSync(join(repo, "backend", "order_service.go"), "package svc\n// changed\n");
+    const after = JSON.stringify(
+      evaluate({ session_id: "bl5", cwd: repo, hook_event_name: "PostToolUse", tool_name: "Bash", tool_input: { command: "python3 fix.py" } }, store, t).output,
+    );
+    expect(after).toContain("Tender settled twice");
+  });
+
+  test("routed lessons regenerate when a lesson changes, and a commit with stale ones is refused once", () => {
+    const repo = mkdtempSync(join(tmpdir(), "batas-upkeep-"));
+    const sh = (...a: string[]) => Bun.spawnSync(["git", "-C", repo, ...a], { stderr: "ignore" });
+    sh("init", "-q");
+    mkdirSync(join(repo, "backend"), { recursive: true });
+    mkdirSync(join(repo, "docs", "lessons"), { recursive: true });
+    writeFileSync(join(repo, "backend", "svc.go"), "package svc\n\nfunc SettleOrder() {}\n");
+    const lesson = join(repo, "docs", "lessons", "backend.md");
+    writeFileSync(lesson, "# B\n## Tender settled twice\nSimbol: `SettleOrder`\nOld wording.\n");
+    sh("add", "-A");
+    writeRoutes(repo, routeRepo(repo).routes);
+    const rule = join(repo, ".claude", "rules", "lessons", "p-lessons-backend-svc.md");
+    expect(readFileSync(rule, "utf8")).toContain("Old wording.");
+    const t = new Triggers({});
+    const call = (session_id: string, tool_name: string, tool_input: Record<string, string>) =>
+      evaluate({ session_id, cwd: repo, hook_event_name: "PreToolUse", tool_name, tool_input }, store, t).output as {
+        hookSpecificOutput?: { permissionDecision?: string; permissionDecisionReason?: string; additionalContext?: string };
+      };
+    // 1. a lesson edit reaches the generated file on the very next call
+    writeFileSync(lesson, "# B\n## Tender settled twice\nSimbol: `SettleOrder`\nNew wording.\n");
+    const later = new Date(Date.now() + 5000);
+    utimesSync(lesson, later, later);
+    expect(call("up1", "Read", { file_path: join(repo, "backend", "svc.go") }).hookSpecificOutput?.additionalContext).toContain("regenerated");
+    expect(readFileSync(rule, "utf8")).toContain("New wording.");
+    // 2. a renamed symbol: the lesson now points nowhere, the commit is refused once with the files already rewritten
+    writeFileSync(join(repo, "backend", "svc.go"), "package svc\n\nfunc SettleBill() {}\n");
+    const first = call("up2", "Bash", { command: "git commit -m x" });
+    expect(first.hookSpecificOutput?.permissionDecision).toBe("deny");
+    expect(first.hookSpecificOutput?.permissionDecisionReason).toContain("git add -f .claude/rules/lessons/");
+    expect(existsSync(rule)).toBe(false);
+    expect(call("up2", "Bash", { command: "git commit -m x" }).hookSpecificOutput?.permissionDecision).toBeUndefined();
+    // 3. a hand edit to a generated file is flagged
+    expect(call("up3", "Edit", { file_path: rule, new_string: "x" }).hookSpecificOutput?.additionalContext).toContain("is generated from docs/lessons");
   });
 
   test("a trigger word alone recalls its memory here, and is listed from another project's cwd", () => {

@@ -3,6 +3,7 @@ import { basename, dirname, join } from "node:path";
 import { config } from "./config.ts";
 import { memorySources, memoryTriggers, parseMemory, projectSlug, type Entry } from "./corpus.ts";
 import { mutedIds, recordAck, reportWrong } from "./feedback.ts";
+import { filesInCommand, lessonsDir, regenAll, regenIfLessonsChanged, routedLessons } from "./lessons.ts";
 import { appendHookLog, liveSessions } from "./log.ts";
 import { Store } from "./store.ts";
 import { dataSpans, type Match, matchOutside, Triggers } from "./triggers.ts";
@@ -119,22 +120,53 @@ function mtime(path: string): number | undefined {
 
 // After a Bash call, every dirty file whose mtime moved during it is this session's work: the only attribution that
 // sees edits made by scripts, redirects and sed, which is how most edits on this machine are made.
-function attributeBash(input: HookInput, state: SessionState): boolean {
-  if (!state.bashStart) return false;
+function attributeBash(input: HookInput, state: SessionState): string[] {
+  if (!state.bashStart) return [];
   const repos = new Set(
     [repoRoot(commandDir(input.tool_input?.command, input.cwd)), repoRoot(input.cwd)].filter((r): r is string => !!r),
   );
-  let added = false;
+  const added: string[] = [];
   for (const repo of repos) {
     for (const f of dirtyFiles(repo)) {
       const m = mtime(f);
       if (m !== undefined && m >= state.bashStart - 5 && !state.touched.includes(f)) {
         state.touched.push(f);
-        added = true;
+        added.push(f);
       }
     }
   }
   return added;
+}
+
+// Lessons routed to files a Bash command opened or changed, which Claude Code's path rules never load for. Each file's
+// lessons go in once per session and count against the session budget.
+function bashLessons(files: string[], input: HookInput, state: SessionState): { text: string; ids: string[] } | undefined {
+  if (process.env.BATAS_NO_BASH_LESSONS === "1") return undefined;
+  const parts: string[] = [];
+  const ids: string[] = [];
+  let bytes = 0;
+  for (const f of files) {
+    const repo = repoRoot(dirname(f));
+    const hit = repo ? routedLessons(repo, f) : undefined;
+    if (!hit || state.injected.includes(hit.id)) continue;
+    if (state.spent + bytes + hit.text.length > config.inject.sessionBytes) {
+      parts.push(`(more lessons for ${hit.id.slice("lessons-file:".length)} — session budget spent; read .claude/rules/lessons/)`);
+      continue;
+    }
+    parts.push(hit.text);
+    bytes += hit.text.length;
+    ids.push(hit.id);
+    state.injected.push(hit.id);
+  }
+  if (!parts.length) return undefined;
+  const text = [
+    "batas: lessons recorded for the file(s) this Bash command opened or changed — Claude Code only loads them for the",
+    "Read/Edit/Write tools, so here they are. Read them before changing this code.",
+    "",
+    ...parts,
+  ].join("\n");
+  state.spent += text.length;
+  return { text, ids };
 }
 
 // The session's real start is its transcript's creation time. Defaulting to "first seen by this hook" made every
@@ -440,6 +472,41 @@ function relevantMemories(
   };
 }
 
+// Routed lesson files are a generated copy of docs/lessons resolved against the code, so they go stale the moment either
+// changes. A lesson edit is caught on the next hook call (a stat of docs/lessons), a renamed or moved symbol only by a
+// full re-resolution, which runs before a commit: the commit is refused once, with the files already regenerated, so
+// the next attempt can stage them. Hand edits to the generated files are flagged, since the next run discards them.
+function lessonsUpkeep(input: HookInput, probe: { cmd?: string; path?: string }): { id: string; text: string; deny?: boolean } | undefined {
+  const dir = probe.cmd ? commandDir(probe.cmd, input.cwd) : probe.path ? dirname(probe.path) : input.cwd;
+  const repo = repoRoot(dir);
+  if (!repo || !existsSync(lessonsDir(repo))) return undefined;
+  if (probe.path?.includes("/.claude/rules/lessons/") && input.tool_name && WRITE_TOOLS.has(input.tool_name)) {
+    return {
+      id: "lessons:generated",
+      text: "batas: .claude/rules/lessons/ is generated from docs/lessons by `just lessons-route` — the next run discards an edit here. Change the lesson in docs/lessons/ instead.",
+    };
+  }
+  if (probe.cmd && git(String.raw`commit\b`).test(shellSurface(probe.cmd)) && !ACK_FOREIGN.test(probe.cmd)) {
+    const stale = regenAll(repo);
+    if (stale.length) {
+      return {
+        id: "lessons:stale",
+        deny: true,
+        text:
+          `batas: ${stale.length} routed lesson file(s) were stale against docs/lessons and the code, and have just been regenerated ` +
+          "(a lesson changed, or a symbol it names was renamed or moved). Stage them with this commit — `git add -f .claude/rules/lessons/` — then commit again.",
+      };
+    }
+    return undefined;
+  }
+  const changed = regenIfLessonsChanged(repo);
+  if (!changed?.length) return undefined;
+  return {
+    id: "lessons:regen",
+    text: `batas: docs/lessons changed, so .claude/rules/lessons/ was regenerated (${changed.length} file(s)). Commit them with the lesson change.`,
+  };
+}
+
 export function evaluate(input: HookInput, store: Store, triggers: Triggers): { output: object; fired: string[] } {
   const event = input.hook_event_name ?? "";
   const session = input.session_id ?? "nosession";
@@ -466,8 +533,16 @@ export function evaluate(input: HookInput, store: Store, triggers: Triggers): { 
   if (event === "PostToolUse") {
     if (input.tool_name !== "Bash") return { output: {}, fired: [] };
     const st = loadSession(session);
-    if (attributeBash(input, st)) saveSession(session, st);
-    return { output: {}, fired: [] };
+    const changed = attributeBash(input, st);
+    const lessons = changed.length ? bashLessons(changed, input, st) : undefined;
+    if (changed.length) saveSession(session, st);
+    const upkeep = changed.some((f) => f.includes("/docs/lessons/")) ? lessonsUpkeep(input, {}) : undefined;
+    const text = [lessons?.text, upkeep?.text].filter(Boolean).join("\n\n");
+    if (!text) return { output: {}, fired: [] };
+    return {
+      output: { hookSpecificOutput: { hookEventName: event, additionalContext: text } },
+      fired: [...(lessons?.ids ?? []), ...(upkeep ? [upkeep.id] : [])],
+    };
   }
 
   let probe: { cmd?: string; path?: string; code?: string; prompt?: string } = {};
@@ -531,8 +606,18 @@ export function evaluate(input: HookInput, store: Store, triggers: Triggers): { 
     probe.prompt && project
       ? relevantMemories(store, probe.prompt, project, [...state.injected, ...state.hinted, ...silenced])
       : { full: [], more: [] };
+  const upkeep = event === "PreToolUse" ? lessonsUpkeep(input, probe) : undefined;
+  if (upkeep?.deny) {
+    return {
+      output: { hookSpecificOutput: { hookEventName: event, permissionDecision: "deny", permissionDecisionReason: upkeep.text } },
+      fired: [upkeep.id],
+    };
+  }
   const live = probe.cmd ? liveNote(input, state) : probe.path ? step5bNote(input, state) : undefined;
-  if (!matches.length && !memories.full.length && !memories.more.length && !live) return { output: {}, fired: [] };
+  const opened = probe.cmd
+    ? bashLessons(filesInCommand(probe.cmd, commandDir(probe.cmd, input.cwd) ?? input.cwd ?? "/"), input, state)
+    : undefined;
+  if (!matches.length && !memories.full.length && !memories.more.length && !live && !opened && !upkeep) return { output: {}, fired: [] };
 
   const sections: string[] = [];
   const fired: string[] = [];
@@ -541,6 +626,14 @@ export function evaluate(input: HookInput, store: Store, triggers: Triggers): { 
     sections.push(live.text);
     fired.push(live.id);
     state.injected.push(live.id);
+  }
+  if (opened) {
+    sections.push(opened.text);
+    fired.push(...opened.ids);
+  }
+  if (upkeep) {
+    sections.push(upkeep.text);
+    fired.push(upkeep.id);
   }
 
   if (probe.prompt) {

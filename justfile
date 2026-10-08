@@ -47,6 +47,14 @@ lesson-mine days="30" min="3":
 memory-share *args:
     bun scripts/memory-share.ts {{args}}
 
+# route each docs/lessons entry to the file that defines its Simbol, as a path-scoped rule Claude Code loads on Read (dry run; --apply writes, --check fails when stale)
+lessons-route repo *args:
+    bun scripts/lessons-route.ts {{repo}} {{args}}
+
+# does a lesson reach the agent when it opens the file? fresh claude -p sessions; mode read | bash (sed) | python (costs one session per case)
+delivery-eval repo mode="read" cases="15" controls="5" seed="11":
+    bun scripts/delivery-eval.ts {{repo}} {{cases}} {{controls}} {{seed}} {{mode}}
+
 # memories naming a file that no longer exists: stale only when git once tracked it, with the rename target (report only)
 memory-audit:
     bun scripts/memory-audit.ts

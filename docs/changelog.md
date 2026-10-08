@@ -1,5 +1,14 @@
 # batas Changelog
 
+## v0.15.0 — Lesson sekarang muncul sendiri saat agen membuka kodenya
+
+- Sebelumnya batas hanya mencocokkan kata di prompt dan perintah, jadi lesson di `docs/lessons/` tidak pernah sampai ke agen kecuali ada yang memanggil `recall`. Diukur di mendadak-pos: **0 dari 15** lesson sampai saat agen membuka file yang dibahas lesson itu.
+- Perintah baru `just lessons-route <repo>`: setiap lesson dipasang ke file kode yang mendefinisikan simbol di baris `Simbol:`-nya, sebagai aturan yang dimuat Claude Code sendiri saat file itu dibuka. Di mendadak-pos: 560 dari 824 lesson terpasang ke 398 file. Diukur ulang: **15 dari 15** sampai.
+- File yang dibuka atau diubah lewat Bash (`cat`, `sed`, script `python3`) tidak dimuat oleh Claude Code, jadi batas sekarang menyuntikkan lesson-nya sendiri untuk jalur itu.
+- Salinan lesson diperbarui otomatis: saat lesson diedit, langsung dibuat ulang; sebelum commit, dicek ulang terhadap kode (fungsi yang diganti nama atau dipindah ketahuan), dan commit ditolak sekali sampai file barunya ikut di-stage. Edit langsung ke salinan diperingatkan.
+- Perintah baru `just delivery-eval <repo> [read|bash|python]` untuk mengukur ulang kapan saja.
+- Belum tercakup: 264 lesson tanpa `Simbol:` atau dengan nama yang terlalu umum (`EndOfDay`, `Checkout`); itu masih lewat `recall`.
+
 ## v0.14.2 — Penjaga push tidak bisa lagi dilewati, dan job `claude -p` yang commit tetap dihitung
 
 - Job `claude -p` yang sudah commit di sebuah repo sekarang dihitung sebagai sesi aktif lagi, jadi push dari sesimu diblokir sampai kamu cek `git log`. Probe agent yang tidak commit tetap tidak memblokir.
