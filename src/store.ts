@@ -163,6 +163,14 @@ export class Store {
     }[];
   }
 
+  // Empties the index inside the same file, so servers holding it open keep a valid handle; deleting the file under
+  // them (the old `just reindex`) left each with "disk I/O error".
+  reset() {
+    this.db.transaction(() => {
+      for (const t of ["files", "entries", "links", "fts"]) this.db.run(`DELETE FROM ${t}`);
+    })();
+  }
+
   close() {
     this.db.close();
   }

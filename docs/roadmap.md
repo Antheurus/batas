@@ -80,3 +80,20 @@ raw dump into `docs/lessons/`.
     Status: planned.
 12. **Semantic recall** — local multilingual embeddings fused with BM25 in the MCP server; eval 6/8 → target ≥ 7/8.
     Status: planned.
+
+## Priority 4 — from the 2026-10-08 rebuild (lessons by location, semantic recall)
+
+10. **Semantic recall with two fused models** — the user requires semantic search, good in Indonesian AND English.
+    Measured on 40 mendadak-pos lessons x blind EN/ID paraphrases (top-3): BM25 18/33; me5-small+bge-m3 RRF 30/30
+    (best so far, 60 vs 51); Indonesian-only LazarusNLP models weak on this technical text; EmbeddingGemma 2 under
+    test. Ships only when Indonesian is at least BM25's 33. Needs a warm daemon (cold model loads take seconds).
+11. **Resolve `Simbol:` through the GitNexus graph instead of a declaration regex** — Graphify's design point is a
+    deterministic tree-sitter AST pass; GitNexus already holds that AST graph here (one owner per concern, see the
+    2026-08-12 rejection of Graphify as a GitNexus duplicate), so lessons-route should ask it, not re-parse.
+12. **Provenance on every route** — Graphify tags each edge EXTRACTED or INFERRED. A routed lesson should say whether
+    its file link is a declared symbol (exact) or an owner/field fallback (inferred), so a doubtful route is visible.
+13. **Per-repo lesson map report** — Graphify's GRAPH_REPORT.md equivalent: files carrying the most lessons, lessons
+    that route nowhere (264 in mendadak-pos), stale routes, delivery-eval history.
+
+Graphify itself was re-checked 2026-10-08 (v0.9.80): still "Not a vector index. No embeddings", a codebase graph
+that duplicates GitNexus; it does not replace batas, which carries lessons, rules and preferences, not code structure.

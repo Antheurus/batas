@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -548,6 +548,33 @@ describe("writers", () => {
 });
 
 describe("mcp server", () => {
+  test("keeps answering after the index is deleted and rebuilt under it", async () => {
+    // its own state dir: deleting the shared test index would break every later test in this process the same way
+    const state = mkdtempSync(join(tmpdir(), "batas-reopen-"));
+    const indexFile = join(state, "index.db");
+    const client = new Client({ name: "batas-test-reopen", version: "0" });
+    await client.connect(
+      new StdioClientTransport({
+        command: "bun",
+        args: [join(import.meta.dir, "..", "src", "mcp.ts")],
+        env: { ...(process.env as Record<string, string>), BATAS_STATE_DIR: state },
+        cwd: demo,
+      }),
+    );
+    const recall = async () =>
+      ((await client.callTool({ name: "recall", arguments: { query: "pg_dump restore empty database", limit: 3 } })) as { content: { text: string }[] })
+        .content[0]?.text ?? "";
+    expect(await recall()).toContain("gotcha:B1");
+    // what the old `just reindex` did while every session's server held the file open
+    for (const f of ["", "-wal", "-shm"]) rmSync(`${indexFile}${f}`, { force: true });
+    const rebuilt = new Store(indexFile);
+    rebuilt.refresh("all");
+    rebuilt.close();
+    await Bun.sleep(5100);
+    expect(await recall()).toContain("gotcha:B1");
+    await client.close();
+  }, 30000);
+
   test("lists the eight tools and answers recall and get over stdio", async () => {
     const client = new Client({ name: "batas-test", version: "0" });
     await client.connect(

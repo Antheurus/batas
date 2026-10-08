@@ -1,5 +1,12 @@
 # batas Changelog
 
+## v0.15.2 — batas tidak lagi rusak saat index dibangun ulang sesi lain
+
+- Gejala: `mcp__batas__get` / `recall` menjawab "disk I/O error" sampai sesinya dibuka ulang. Penyebabnya `just reindex` menghapus file index sementara server batas di sesi lain masih membukanya (terjadi tiga kali semalam dari sesi mendadak-pos).
+- `just reindex` sekarang membangun ulang di dalam file yang sama, dan server batas membuka ulang index sendiri kalau filenya sudah diganti atau kena error I/O.
+- Server batas yang sudah berjalan sebelum versi ini tetap memakai kode lama; error itu hilang setelah sesinya dibuka ulang.
+- Roadmap: empat item baru dari rebuild hari ini dan dari cara kerja Graphify (Graphify sendiri tetap tidak menggantikan batas).
+
 ## v0.15.1 — Lesson tidak lagi dobel untuk `sed`, dan satu lesson yang salah alamat dibetulkan
 
 - Diukur ulang: Claude Code sendiri ternyata memuat lesson saat agen membaca file dengan `sed -n` (3 dari 3), tapi tidak untuk `cat`, `head`, `grep`, atau script `python3` (semuanya tidak ada). batas sekarang hanya menyuntikkan lesson untuk jalur yang tidak dimuat Claude Code, jadi lesson tidak muncul dua kali.

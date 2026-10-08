@@ -13,12 +13,33 @@ import { logChangelog, logProgress, ORIGINS, recordMemory } from "./write.ts";
 
 const KINDS = ["rule", "rule-section", "reference", "memory", "project-rule", "progress", "changelog", "context"] as const;
 
-const store = new Store();
+// The server lives as long as its Claude session, so the index can be rebuilt or deleted under it by another session.
+// A handle on a deleted file answered every call with "disk I/O error" until the session restarted; it is reopened
+// whenever the file on disk is no longer the one this handle opened, or a refresh hits an I/O error.
+const inode = () => (existsSync(config.indexFile) ? statSync(config.indexFile).ino : -1);
+let store = new Store();
+let openedIno = inode();
 let lastRefresh = 0;
 
+function reopen() {
+  try {
+    store.close();
+  } catch {}
+  store = new Store();
+  openedIno = inode();
+  lastRefresh = 0;
+}
+
 function fresh(): Store {
+  if (inode() !== openedIno) reopen();
   if (Date.now() - lastRefresh > 5000) {
-    store.refresh("all");
+    try {
+      store.refresh("all");
+    } catch (err) {
+      if (!/disk I\/O|SQLITE_IOERR|no such table|database disk image/i.test(String(err))) throw err;
+      reopen();
+      store.refresh("all");
+    }
     lastRefresh = Date.now();
   }
   return store;

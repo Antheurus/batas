@@ -14,10 +14,9 @@ typecheck:
 
 check: typecheck test
 
-# rebuild the whole index from scratch
+# rebuild the whole index from scratch, in place (live MCP servers keep a valid handle)
 reindex:
-    rm -f ~/.batas/index.db ~/.batas/index.db-wal ~/.batas/index.db-shm
-    bun -e 'import {Store} from "./src/store.ts"; const s=new Store(); console.log(s.refresh("all")); console.log(s.stats())'
+    bun -e 'import {Store} from "./src/store.ts"; const s=new Store(); s.reset(); console.log(s.refresh("all")); console.log(s.stats())'
 
 # search the corpus from the terminal, e.g. `just recall "pg_dump restore"`
 recall query:
