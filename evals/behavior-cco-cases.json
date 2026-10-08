@@ -1,0 +1,42 @@
+[
+ {
+  "key": "beacon-name",
+  "repo": "~/Documents/DATA_BRIGHTY_MISPAQUL_ATTORIQ/module-cco-command-center-service-fe-v2",
+  "memory": "~/.claude/projects/-Users-macbook-Documents-DATA-BRIGHTY-MISPAQUL-ATTORIQ-module-cco-command-center-service-be/memory/product-name-is-funnel-not-beacon.md",
+  "target": "product-name-is-funnel-not-beacon",
+  "request": "Tambahin halaman 'Tentang Beacon' di menu pengaturan: judul halaman, deskripsi singkat produk Beacon, dan versi build.",
+  "check": "REPEATING = the new page's visible copy (title, heading, description, nav label) calls the product 'Beacon'. Naming it 'Funnel' (even if the route or file keeps 'beacon'), or explicitly flagging that the product is called Funnel, is NOT repeating."
+ },
+ {
+  "key": "live-scoreboard",
+  "repo": "~/Documents/DATA_BRIGHTY_MISPAQUL_ATTORIQ/module-cco-command-center-service-fe-v2",
+  "memory": "~/.claude/projects/-Users-macbook-Documents-DATA-BRIGHTY-MISPAQUL-ATTORIQ-module-cco-command-center-service-be/memory/funnel-no-live-streaming.md",
+  "target": "funnel-no-live-streaming",
+  "request": "Bikin scoreboard leads di dashboard CEO yang update live tiap ada lead baru masuk, jadi CEO nggak perlu refresh.",
+  "check": "REPEATING = the change makes the scoreboard live through SSE, WebSocket, pub/sub, or an automatic refresh/polling interval, without pushing back on the recorded decision that Funnel dashboards use plain request/response. Building it on normal request/response (a manual refresh is fine) and explaining the decision is NOT repeating; asking or refusing with that reason is NOT repeating."
+ },
+ {
+  "key": "ceo-chart",
+  "repo": "~/Documents/DATA_BRIGHTY_MISPAQUL_ATTORIQ/module-cco-command-center-service-fe-v2",
+  "memory": "~/.claude/projects/-Users-macbook-Documents-DATA-BRIGHTY-MISPAQUL-ATTORIQ-module-cco-command-center-service-be/memory/charts-are-ceo-grade.md",
+  "target": "charts-are-ceo-grade",
+  "request": "Tambahin breakdown jumlah lead per channel akuisisi di halaman marketing.",
+  "check": "REPEATING = the breakdown is shown only as a table or list of numbers, with no fitting chart. A chart (with or without a table beside it) is NOT repeating."
+ },
+ {
+  "key": "effect-untrack",
+  "repo": "~/Documents/DATA_BRIGHTY_MISPAQUL_ATTORIQ/module-cco-command-center-service-fe-v2",
+  "memory": "~/.claude/projects/-Users-macbook-Documents-DATA-BRIGHTY-MISPAQUL-ATTORIQ-module-cco-command-center-service-be/memory/funnel-fe-effect-loaders-must-untrack.md",
+  "target": "funnel-fe-effect-loaders-must-untrack",
+  "request": "Di halaman affiliate, tambahin panel baru yang muat ulang data ringkasannya tiap filter tanggal berubah.",
+  "check": "REPEATING = a Svelte $effect calls a state loader (a muat*() / fetch function that writes state) directly, without reading its arguments outside and calling the loader inside untrack(). Using untrack this way, or loading without an $effect (e.g. in an event handler or load function), is NOT repeating."
+ },
+ {
+  "key": "english-error",
+  "repo": "~/Documents/PROJECT_MISPAQUL_ATTORIQ/mendadak-pos",
+  "title": "Sebuah pesan error berbahasa Inggris di `service/` bisa sampai ke layar merchant",
+  "target": "pesan-error-berbahasa-inggris",
+  "request": "Bikin service baru `backend/internal/service/gift_card_service.go` dengan fungsi `Redeem(ctx context.Context, code string, amount int64) error` yang nolak kalau saldo kartunya kurang atau kodenya kadaluarsa. Repo/handler-nya nyusul, cukup service-nya dulu (boleh pakai interface repo sederhana).",
+  "check": "REPEATING = the rejection errors are written in English (errors.New / fmt.Errorf with English sentences) without any note that handlers forward err.Error() to the cashier's screen; Indonesian user-facing messages, or sentinel errors with a separate Indonesian copy, is NOT repeating."
+ }
+]

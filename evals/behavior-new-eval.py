@@ -13,8 +13,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.expanduser("~/Documents/PROJECT_MISPAQUL_ATTORIQ/mendadak-pos")
 WT = "/tmp/claude-501/beh-new-wt"
 CORPUS = os.path.expanduser("~/Documents/PROJECT_MISPAQUL_ATTORIQ/batas")
-cases = json.load(open(os.path.join(HERE, "behavior-new-cases.json")))
-RUNS = int(sys.argv[1]) if len(sys.argv) > 1 else 1
+# --cases <file>: another case set (each case may name its own "repo", a "memory" file as the lesson, and a "target"
+# id substring used to check in the hook log whether batas actually delivered it in that run)
+CASES = sys.argv[sys.argv.index("--cases") + 1] if "--cases" in sys.argv else "behavior-new-cases.json"
+cases = json.load(open(os.path.join(HERE, CASES)))
+RUNS = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 1
 # --arms A reruns one arm only (e.g. after the hook changed under a run); --tag keeps its worktrees and results apart
 ARMS = sys.argv[sys.argv.index("--arms") + 1] if "--arms" in sys.argv else "AB"
 TAG = sys.argv[sys.argv.index("--tag") + 1] if "--tag" in sys.argv else ""
@@ -29,8 +32,26 @@ def sh(*a, cwd=None, env=None, timeout=1200):
     return subprocess.run(list(a), cwd=cwd, env=env, capture_output=True, text=True, timeout=timeout)
 
 
-def lesson_text(title):
-    out = sh("bun", "-e", "import {parseLessons} from './src/lessons.ts'; console.log(JSON.stringify(parseLessons(process.argv[1])))", REPO, cwd=CORPUS)
+def lesson_of(c):
+    if c.get("memory"):
+        return open(os.path.expanduser(c["memory"])).read()
+    return lesson_text(c["title"], os.path.expanduser(c.get("repo", REPO)))
+
+
+def delivered(path, target):
+    # what batas injected into this run's session, from the hook log (rows carry the session's repo root)
+    rows = []
+    for name in ("hook.log.1.jsonl", "hook.log.jsonl"):
+        f = os.path.expanduser(f"~/.batas/{name}")
+        if os.path.exists(f):
+            rows += [json.loads(l) for l in open(f) if path in l]
+    hits = [r for r in rows if r.get("repo") == path and any(target in x for x in r.get("fired", []))]
+    return {"delivered": bool(hits), "first": (hits[0].get("event"), hits[0].get("tool")) if hits else None,
+            "prompt_semantic": [r.get("semantic") for r in rows if r.get("repo") == path and r.get("event") == "UserPromptSubmit"]}
+
+
+def lesson_text(title, repo=REPO):
+    out = sh("bun", "-e", "import {parseLessons} from './src/lessons.ts'; console.log(JSON.stringify(parseLessons(process.argv[1])))", repo, cwd=CORPUS)
     for l in json.loads(out.stdout):
         if l["title"].startswith(title) or title in l["title"]:
             return l["text"]
@@ -40,7 +61,8 @@ def lesson_text(title):
 def run(job):
     c, arm, n = job
     path = f"{WT}/{c['key']}-{arm}{n}{TAG}"
-    sh("git", "-C", REPO, "worktree", "add", "-q", "--detach", path, "HEAD")
+    repo = os.path.expanduser(c.get("repo", REPO))
+    sh("git", "-C", repo, "worktree", "add", "-q", "--detach", path, "HEAD")
     shutil.rmtree(os.path.join(path, "docs", "lessons"), ignore_errors=True)
     env = dict(os.environ)
     args = ["claude", "-p", TASK.format(**c), "--permission-mode", "bypassPermissions"]
@@ -52,7 +74,8 @@ def run(job):
     # new files are untracked: intent-to-add makes them show in the diff without staging content
     sh("git", "-C", path, "add", "-N", ".")
     diff = sh("git", "-C", path, "diff", "--", ".", ":(exclude).claude", ":(exclude)docs/lessons").stdout
-    return {"key": c["key"], "arm": arm, "n": n, "title": c["title"], "check": c["check"], "reply": p.stdout[-4000:], "diff": diff[:20000], "path": path}
+    return {"key": c["key"], "arm": arm, "n": n, "check": c["check"], "reply": p.stdout[-4000:], "diff": diff[:20000], "path": path,
+            **(delivered(path, c["target"]) if c.get("target") else {})}
 
 
 JUDGE = (
@@ -75,7 +98,7 @@ def judge(r, lessons):
 
 
 if __name__ == "__main__":
-    lessons = {c["key"]: lesson_text(c["title"]) for c in cases}
+    lessons = {c["key"]: lesson_of(c) for c in cases}
     jobs = [(c, arm, n) for c in cases for arm in ARMS for n in range(RUNS)]
     random.Random(15).shuffle(jobs)
     os.makedirs(WT, exist_ok=True)
@@ -87,7 +110,7 @@ if __name__ == "__main__":
     json.dump(graded, open(os.path.join(HERE, f".behavior-new-graded{TAG}.json"), "w"), ensure_ascii=False, indent=1)
     for arm in ARMS:
         g = [x for x in graded if x["arm"] == arm]
-        print(f"arm {arm}: repeated {sum(x['repeated'] is True for x in g)}/{len(g)}, avoided {sum(x['repeated'] is False for x in g)}, unclear {sum(x['repeated'] is None for x in g)}")
+        print(f"arm {arm}: repeated {sum(x['repeated'] is True for x in g)}/{len(g)}, avoided {sum(x['repeated'] is False for x in g)}, unclear {sum(x['repeated'] is None for x in g)}, lesson delivered in {sum(1 for x in g if x.get('delivered'))}")
     for c in cases:
-        row = {x["arm"]: x for x in graded if x["key"] == c["key"]}
-        print(f"  {c['key']:22} " + "  ".join(f"{a}={row[a]['repeated']} ({row[a]['reason'][:70]})" for a in ARMS if a in row))
+        for x in sorted((x for x in graded if x["key"] == c["key"]), key=lambda x: (x["arm"], x["n"])):
+            print(f"  {c['key']:22} {x['arm']}{x['n']} repeated={x['repeated']} delivered={x.get('delivered')} via={x.get('first')} | {x['reason'][:90]}")
