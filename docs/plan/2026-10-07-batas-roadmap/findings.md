@@ -51,3 +51,20 @@ the ones measured at the time, also recorded in each commit body and in `docs/pr
 - Anything that BLOCKS must read only the shell surface (no heredocs, no quotes) and resolve the command's own
   directory; a warning may read deeper.
 - Calibrate any matcher with negatives that must return NOTHING before shipping (lessons B54, improve lesson 14).
+
+## Session 2 (2026-10-08) — roadmap 9/4/8/7/5, then the rebuild
+
+- `11dae40` v0.8.0 prompt-audit; `410ad4a` v0.9.0 memory-audit (84 stale paths in 60 memories); `07ea9b9` v0.10.0
+  per-session budget (measured max 36 KB, cap 64 KB); `4453ebb` v0.11.0 lesson-mine (found B29 blind to multi-line
+  python -c); `268b34f` v0.12.0 memory-share (19 files -> 2).
+- The user found batas unusable: lessons reached an agent only through prompt words or an explicit recall. Measured
+  0/15 delivered. `da37247` v0.15.0 routes each lesson to the file defining its Simbol as a path rule (mendadak-pos
+  560/824 -> 398 files), covers Bash reads/edits, regenerates on lesson edits and gates commits. Delivery 15/15 for
+  Read, cat and python; controls 5/5. `v0.15.1` withdrew a sed-based Bash number (Claude Code loads rules after
+  `sed -n` itself) and fixed an owner-less Simbol misroute.
+- `52b3ed9` v0.15.2: `just reindex` deleted the index under live MCP servers ("disk I/O error"); now rebuilt in place and
+  the server reopens.
+- Semantic recall measured (`7aee494`): gemma2 text-only + me5-small RRF EN 35/40 ID 36/40 vs BM25 18/33. Not built.
+- Behavior eval inconclusive (A 0/8, B 0/8 repeated): the traps were guarded by existing code and tests.
+- Lessons: an eval whose "before" arm already passes is measuring the wrong path — check what produced the pass
+  before reporting a gain; measure the thing at risk (sed vs cat).
