@@ -15,6 +15,9 @@ WT = "/tmp/claude-501/beh-new-wt"
 CORPUS = os.path.expanduser("~/Documents/PROJECT_MISPAQUL_ATTORIQ/batas")
 cases = json.load(open(os.path.join(HERE, "behavior-new-cases.json")))
 RUNS = int(sys.argv[1]) if len(sys.argv) > 1 else 1
+# --arms A reruns one arm only (e.g. after the hook changed under a run); --tag keeps its worktrees and results apart
+ARMS = sys.argv[sys.argv.index("--arms") + 1] if "--arms" in sys.argv else "AB"
+TAG = sys.argv[sys.argv.index("--tag") + 1] if "--tag" in sys.argv else ""
 
 TASK = (
     "{request}\n\nKerjakan langsung di repo ini. Jangan commit, jangan push, jangan jalankan server. "
@@ -36,7 +39,7 @@ def lesson_text(title):
 
 def run(job):
     c, arm, n = job
-    path = f"{WT}/{c['key']}-{arm}{n}"
+    path = f"{WT}/{c['key']}-{arm}{n}{TAG}"
     sh("git", "-C", REPO, "worktree", "add", "-q", "--detach", path, "HEAD")
     shutil.rmtree(os.path.join(path, "docs", "lessons"), ignore_errors=True)
     env = dict(os.environ)
@@ -73,18 +76,18 @@ def judge(r, lessons):
 
 if __name__ == "__main__":
     lessons = {c["key"]: lesson_text(c["title"]) for c in cases}
-    jobs = [(c, arm, n) for c in cases for arm in ("A", "B") for n in range(RUNS)]
+    jobs = [(c, arm, n) for c in cases for arm in ARMS for n in range(RUNS)]
     random.Random(15).shuffle(jobs)
     os.makedirs(WT, exist_ok=True)
     with ThreadPoolExecutor(3) as ex:
         results = list(ex.map(run, jobs))
-    json.dump(results, open(os.path.join(HERE, ".behavior-new-runs.json"), "w"), ensure_ascii=False, indent=1)
+    json.dump(results, open(os.path.join(HERE, f".behavior-new-runs{TAG}.json"), "w"), ensure_ascii=False, indent=1)
     with ThreadPoolExecutor(4) as ex:
         graded = list(ex.map(lambda r: judge(r, lessons), results))
-    json.dump(graded, open(os.path.join(HERE, ".behavior-new-graded.json"), "w"), ensure_ascii=False, indent=1)
-    for arm in ("A", "B"):
+    json.dump(graded, open(os.path.join(HERE, f".behavior-new-graded{TAG}.json"), "w"), ensure_ascii=False, indent=1)
+    for arm in ARMS:
         g = [x for x in graded if x["arm"] == arm]
         print(f"arm {arm}: repeated {sum(x['repeated'] is True for x in g)}/{len(g)}, avoided {sum(x['repeated'] is False for x in g)}, unclear {sum(x['repeated'] is None for x in g)}")
     for c in cases:
         row = {x["arm"]: x for x in graded if x["key"] == c["key"]}
-        print(f"  {c['key']:22} A={row['A']['repeated']} B={row['B']['repeated']}  | A: {row['A']['reason'][:80]} | B: {row['B']['reason'][:80]}")
+        print(f"  {c['key']:22} " + "  ".join(f"{a}={row[a]['repeated']} ({row[a]['reason'][:70]})" for a in ARMS if a in row))

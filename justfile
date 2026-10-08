@@ -22,9 +22,16 @@ reindex:
 recall query:
     bun -e 'import {Store} from "./src/store.ts"; const s=new Store(); s.refresh("all"); const hits = await s.search(process.argv[1], {limit: 10, timeoutMs: 30000}); if (!hits) console.log("batasd is starting, retry in a moment"); for (const h of hits ?? []) console.log(h.id.padEnd(60), h.title.slice(0, 90))' "{{query}}"
 
-# stop batasd and start it again on the current code (vectors reload from disk, nothing is re-embedded)
+# stop batasd and start it again on the current code (vectors reload from disk, nothing is re-embedded); through launchd when its agent is loaded
 batasd-restart:
-    bun -e 'import {ask, start} from "./src/semantic.ts"; import {rmSync} from "node:fs"; import {join} from "node:path"; import {config} from "./src/config.ts"; console.log("stopped", await ask({op: "quit"}, 2000)); await Bun.sleep(1500); rmSync(join(config.stateDir, "batasd.spawned"), {force: true}); start(); for (let i = 0; i < 60; i++) { const r = await ask({op: "status"}, 1000); if (r) { console.log("running", r); break; } await Bun.sleep(1000); }'
+    #!/usr/bin/env bash
+    if launchctl print "gui/$(id -u)/dev.batas.batasd" >/dev/null 2>&1; then
+      bun -e 'import {ask} from "./src/semantic.ts"; await ask({op: "quit"}, 2000)'; sleep 1.5
+      launchctl kickstart -k "gui/$(id -u)/dev.batas.batasd"
+    else
+      bun -e 'import {ask, start} from "./src/semantic.ts"; import {rmSync} from "node:fs"; import {join} from "node:path"; import {config} from "./src/config.ts"; await ask({op: "quit"}, 2000); await Bun.sleep(1500); rmSync(join(config.stateDir, "batasd.spawned"), {force: true}); start();'
+    fi
+    bun -e 'import {ask} from "./src/semantic.ts"; for (let i = 0; i < 60; i++) { const r = await ask({op: "status"}, 1000); if (r) { console.log("running", r); break; } await Bun.sleep(1000); }'
 
 # batasd: pid, vectors held, whether a sync is running (starts it when it is down)
 semantic-status:

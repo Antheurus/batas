@@ -1,3 +1,4 @@
 .corpus.json
 .behavior-runs.json
 .behavior-graded.json
+.behavior-new-*.json

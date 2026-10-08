@@ -1,7 +1,7 @@
 import { copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, symlinkSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { config } from "./config.ts";
-import { start } from "./semantic.ts";
 import { Store } from "./store.ts";
 
 type HookCmd = { type: "command"; command: string; timeout?: number };
@@ -65,6 +65,45 @@ function installSkill(): string {
   }
 }
 
+// batasd runs from login and is never idled out (the user's choice, 2026-10-08: semantic matching always available,
+// ~3.5 GB held, near-zero CPU idle). launchd restarts it only after a crash: a second copy exits 0 when another holds
+// the lock, and KeepAlive=true would respawn that copy every 10 s forever.
+const AGENT = "dev.batas.batasd";
+function installAgent(): string {
+  const uv = Bun.which("uv");
+  const bun = Bun.which("bun");
+  if (!uv || !bun) return "skipped: uv or bun not on PATH";
+  const plist = join(homedir(), "Library", "LaunchAgents", `${AGENT}.plist`);
+  const log = join(config.stateDir, "batasd.out");
+  const path = [...new Set([dirname(uv), dirname(bun), "/usr/bin", "/bin", "/usr/sbin", "/sbin"])].join(":");
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>${AGENT}</string>
+  <key>ProgramArguments</key>
+  <array><string>${uv}</string><string>run</string><string>--script</string><string>${join(repo, "batasd", "batasd.py")}</string></array>
+  <key>EnvironmentVariables</key><dict><key>PATH</key><string>${path}</string></dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
+  <key>StandardOutPath</key><string>${log}</string>
+  <key>StandardErrorPath</key><string>${log}</string>
+</dict>
+</plist>
+`;
+  mkdirSync(dirname(plist), { recursive: true });
+  mkdirSync(config.stateDir, { recursive: true });
+  const same = existsSync(plist) && readFileSync(plist, "utf8") === xml;
+  const domain = `gui/${process.getuid?.() ?? 501}`;
+  const loaded = Bun.spawnSync(["launchctl", "print", `${domain}/${AGENT}`], { stdout: "pipe", stderr: "pipe" }).exitCode === 0;
+  if (same && loaded) return "already installed and loaded";
+  if (loaded) Bun.spawnSync(["launchctl", "bootout", `${domain}/${AGENT}`]);
+  writeFileSync(plist, xml);
+  const boot = Bun.spawnSync(["launchctl", "bootstrap", domain, plist], { stdout: "pipe", stderr: "pipe" });
+  if (boot.exitCode !== 0) throw new Error(`launchctl bootstrap failed: ${boot.stderr.toString()}`);
+  return `installed ${plist} and loaded it`;
+}
+
 if (!existsSync(config.triggersFile)) {
   mkdirSync(dirname(config.triggersFile), { recursive: true });
   writeFileSync(config.triggersFile, "# batas triggers — see the batas repo README for the format\n");
@@ -73,10 +112,10 @@ const added = installHooks();
 console.log(`hooks: ${added.length ? `added ${added.join(", ")}` : "already present"}`);
 console.log(`mcp: ${installMcp()}`);
 console.log(`skill: ${installSkill()}`);
+console.log(`batasd agent: ${installAgent()}`);
 const t = performance.now();
 const store = new Store();
 const r = store.refresh("all");
 console.log(`corpus: ${r.changed} files parsed in ${Math.round(performance.now() - t)}ms`);
 console.log(`entries: ${store.stats().map((s) => `${s.kind} ${s.n}`).join(", ")}`);
-start();
-console.log("batasd starting: the first full embedding pass runs in the background (`just semantic-status`)");
+console.log("batasd: the first full embedding pass runs in the background after it starts (`just semantic-status`)");

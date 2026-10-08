@@ -20,7 +20,8 @@ LOCK = STATE / "batasd.lock"
 VECTORS = STATE / "vectors.lance"
 LOG = STATE / "batasd.log"
 REPO = Path(__file__).resolve().parent.parent
-IDLE_S = float(os.environ.get("BATASD_IDLE_MIN", "30")) * 60
+# 0 = never exit on idle (the default: the user chose always-on, started at login by the launchd agent from `just install`)
+IDLE_S = float(os.environ.get("BATASD_IDLE_MIN", "0")) * 60
 RESYNC_S = 120
 RRF_K = 60
 STASH_S = 300
@@ -266,7 +267,7 @@ class Daemon:
     def watchdog(self, server):
         while True:
             time.sleep(30)
-            if time.time() - self.last_seen > IDLE_S and not self.index.syncing:
+            if IDLE_S > 0 and time.time() - self.last_seen > IDLE_S and not self.index.syncing:
                 log("idle, exiting")
                 server.shutdown()
                 return

@@ -75,10 +75,12 @@ rule whose fixture stops firing turns the suite red instead of failing silently 
 |---|---|
 | `just install` | registers the MCP server (user scope), adds the three hooks to `~/.claude/settings.json` (after writing a backup), links the skill, and builds the index |
 | `just check` | typecheck + tests |
-| `just recall "pg_dump restore"` | search from the terminal |
+| `just recall "restore a dump into an empty database"` | search by meaning from the terminal |
+| `just semantic-status` / `just batasd-restart` | is batasd up, how many vectors; restart it on the current code |
+| `just semantic-eval [--lessons\|--repo\|--all]` / `just semantic-calibrate` | recall quality on the 80 blind probes; where the prompt gate sits |
 | `just fire "git stash pop"` | which rules a command or phrase fires |
 | `just log` | recent hook calls: what fired, and how many ms it took |
-| `just reindex` | rebuild the index from scratch |
+| `just reindex` | re-embed whatever changed, and wait for it |
 
 State lives in `~/.batas/`: `vectors.lance` (batasd's embeddings), `batasd.sock` / `batasd.log`, `sessions/` (which
 rules each session was already given) and `hook.log.jsonl`. The text itself is never copied: the hook and the MCP server
@@ -90,9 +92,16 @@ parse the markdown files directly (the rules in ~8 ms, all ~8,000 entries in ~26
   go through `batasd/batasd.py`: EmbeddingGemma 2 (text only) and multilingual-e5-small, fused by reciprocal rank. On 80
   blind English and Indonesian queries against 40 lessons it found the right one in the top 3 for 35/40 and 36/40,
   where the SQLite BM25 it replaced managed 18/40 and 33/40 (`evals/semantic-compare.py`, `just semantic-eval`).
-- **One warm process.** Two models take ~15 s to load, so batasd stays up behind a unix socket, starts on the first call
-  that needs it, and exits after 30 idle minutes. A cold or busy daemon costs a prompt its semantic matches, never
-  the user's wait: the hook's budget is 150 ms and it carries on without them.
+- **One warm process, always on.** `just install` adds a launchd agent (`dev.batas.batasd`) that starts batasd at login
+  and restarts it only after a crash; it never exits on idle (`BATASD_IDLE_MIN` > 0 restores that). Measured
+  2026-10-08: ~3.5 GB footprint on the GPU (`BATASD_DEVICE=cpu`: ~1.05 GB, but 0.2-2 s per query under load), 0.03 s
+  of CPU per 150 s idle, 11% of one core at 3.5 queries a second.
+- **A prompt never waits.** The hook gives batasd what is left of its 150 ms budget. An idle Apple GPU answers its first
+  query in 0.5-0.7 s, so such a prompt goes on with trigger words only, and its search finishes in batasd under the
+  session id; the session's next hook call, normally the turn's first tool use, picks it up and injects it.
+- **Only a hit that stands out arrives.** A nearest neighbour always exists, so the hook injects the single best match
+  only when its Gemma cosine stands at least 0.07 above this repo's 10th-best (about 5% of real prompts;
+  `just semantic-calibrate`). Trigger words stay alongside: semantic reaches only a few of the memories they reach.
 - **Command, file and code triggers stay regex** (`~/.claude/batas/triggers.toml`, the collision guard). A command is a
   literal surface, and a safety path should not be fuzzy or slower on every tool call. Decided with the user on
   2026-10-08.
