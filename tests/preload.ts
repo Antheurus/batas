@@ -46,6 +46,14 @@ writeFileSync(
   "# demo-app Changelog\n\n## v0.2.0 — Struk printer\n\n- Struk sekarang tercetak rapi.\n",
 );
 
+mkdirSync(join(demo, "docs", "lessons"), { recursive: true });
+mkdirSync(join(demo, "docs", "qa"), { recursive: true });
+writeFileSync(
+  join(demo, "docs", "lessons", "backend.md"),
+  "# Backend lessons\n\n## Tender lebih dari bon EDC dobel-settle — card payment more than the bill\nSimbol: settleTender\nThe overflow was settled twice.\n",
+);
+writeFileSync(join(demo, "docs", "qa", "context.md"), "# QA context\n\n## Struk tanpa codepage — garbled receipt\nInvariant: set codepage before printing.\n");
+
 process.env.BATAS_CLAUDE_HOME = claudeHome;
 process.env.BATAS_STATE_DIR = join(root, "state");
 process.env.BATAS_PROJECT_ROOTS = repos;

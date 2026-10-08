@@ -285,6 +285,15 @@ describe("hook", () => {
     expect(copiesOf("drift.md", projectsDir).map((c) => c.text)).toEqual(["v1+v2\n", "v1+v2\n"]);
   });
 
+  test("recall reaches a repo's docs/lessons and docs/qa/context.md", () => {
+    const s = new Store();
+    s.refresh("all");
+    const ids = (q: string) => s.search(q, { limit: 5 }).map((h) => h.id);
+    expect(ids("tender bon EDC dobel settle")[0]).toStartWith("project:demo-app:lessons/backend.md#tender-lebih-dari-bon-edc");
+    expect(ids("garbled receipt codepage invariant").some((id) => id.startsWith("project:demo-app:qa/context.md#"))).toBe(true);
+    s.close();
+  });
+
   test("a trigger word alone recalls its memory here, and is listed from another project's cwd", () => {
     const none = new Triggers({});
     const here = evaluate({ session_id: "g1", cwd: "/tmp/demo", hook_event_name: "UserPromptSubmit", prompt: "commit terus push ya" }, store, none)

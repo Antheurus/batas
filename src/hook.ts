@@ -46,12 +46,11 @@ type SessionState = {
 // text is an agent's report, not the user's request, so matching phrases in it only produces noise.
 const SYSTEM_PROMPT = /<task-notification>|\[SYSTEM NOTIFICATION/;
 
-// Measured 2026-10-07 over 236 sessions: p50 2.5 KB, p90 19.6 KB, max 36 KB injected per session. The budget sits
-// above every observed session, so it only stops a runaway, never an ordinary day's rules.
+// The budget sits above every measured session, so it only stops a runaway, never an ordinary day's rules.
 const BUDGET_NOTE = `batas: this session's injection budget (${Math.round(config.inject.sessionBytes / 1000)} KB) is spent — further matches are named, not injected; read them with mcp__batas__get.`;
 // The user's way of saying the last injection did not belong; it mutes those ids for the session and is recorded.
 // Commands that read or write the shared index and working tree — exactly what a second session in the same checkout
-// can corrupt or carry along (another session's push deployed a local commit on 2026-10-07).
+// can corrupt or carry along.
 const SHARED_GIT = /\bgit\s+(commit|push|add|stash|reset|checkout|switch|merge|rebase|pull|restore|clean|cherry-pick|revert)\b/;
 
 // The directory a Bash command actually runs git in: a `cd X &&` or `git -C X` in the command beats the session's cwd.
@@ -190,7 +189,7 @@ export function shellSurface(cmd: string): string {
     .replace(/"(?:\\.|[^"\\])*"/g, " ");
 }
 
-// Blocks only the two shapes that carried another session's work on 2026-10-07: a sweeping stage/discard while their
+// Blocks only the two shapes that carry another session's work: a sweeping stage/discard while their
 // files are dirty, and a push while they are live. Each has a code-supported way through, so it can never dead-lock.
 function collisionDeny(input: HookInput, state: SessionState): { deny?: string; acked?: string } {
   const raw = input.tool_input?.command;
