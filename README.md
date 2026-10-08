@@ -13,7 +13,7 @@ git, and readable by a human. batas indexes them and puts them in front of the a
 | Global rules (always-on + path-scoped slices), addressed `gotcha:D27`, `lessons:C18` | `~/.claude/rules/*.md` |
 | Incident write-ups and skill references | `~/.claude/references/`, `~/.claude/skills/*/references/` |
 | Per-project memory: user, feedback, project, reference | `~/.claude/projects/*/memory/*.md` |
-| Project rules, `docs/progress.md`, `docs/changelog.md`, `docs/context/` | every repo under the project roots |
+| Project rules, `docs/progress.md`, `docs/changelog.md`, `docs/context/`, `docs/lessons/`, `docs/qa/context.md` | every repo under the project roots |
 
 ## How it reaches the agent
 
@@ -105,3 +105,38 @@ parse the markdown files directly (the rules in ~8 ms, all ~8,000 entries in ~26
 - **Command, file and code triggers stay regex** (`~/.claude/batas/triggers.toml`, the collision guard). A command is a
   literal surface, and a safety path should not be fuzzy or slower on every tool call. Decided with the user on
   2026-10-08.
+
+## batas and Graphify
+
+[Graphify](https://github.com/Graphify-Labs/graphify) comes up as the obvious ready-made alternative. It was measured
+against this machine's real usage on 2026-08-12 and re-checked on 2026-09-30 and 2026-10-08 (v0.9.80, the current
+release). It answers a different question, so it does not replace batas.
+
+| | Graphify | batas |
+|---|---|---|
+| What it knows | the structure of a folder: code, docs, papers, images, video | what went wrong before and what the user wants: rules, incidents, memories, lessons, progress |
+| Source | tree-sitter AST for code (deterministic, local); a model for docs and media | the hand-written markdown, parsed in place, never copied |
+| Search | graph traversal; "Not a vector index. No embeddings, no vector store" (its README) | semantic: two local embedding models, Indonesian and English |
+| When it reaches the agent | when the agent queries the graph; the Claude Code install adds a nudge in `CLAUDE.md` and a PreToolUse hook | on its own: a rule fires on the command or file, a lesson on the code being opened, a memory on the prompt |
+| Overlap here | the same job as GitNexus, already installed and indexed across every repo | none: GitNexus covers code structure, batas covers behaviour |
+
+Why it is not used:
+
+- **Two code graphs is one concern with two owners.** GitNexus already holds the AST graph for every repo here and
+  the rules require it before every edit. A second graph would drift from the first with nothing to reconcile them.
+- **It has no answer for what batas is for.** A graph of the code cannot say that `pg_dump` into a migrated database
+  drops tables, or that the user wants hooks to warn instead of ask. That knowledge lives in prose, which Graphify
+  does not search by meaning.
+- **The context it saves is not where the cost is.** The 2026-08-12 measurement put the expensive part in the
+  always-loaded rules (~52k tokens on every first call), not in tool output. batas cut that floor by moving rules
+  into slices and injected items; Graphify does not touch it.
+
+What batas took from it (roadmap 11-13, `docs/roadmap.md`):
+
+- **Resolve a lesson's `Simbol:` through the GitNexus graph** instead of the declaration regex in `src/lessons.ts`,
+  the same deterministic-AST idea without a second parser.
+- **Provenance on every route.** Graphify tags each edge `EXTRACTED` or `INFERRED`; a routed lesson should say
+  whether its file link is a declared symbol (exact) or an owner or field fallback (inferred).
+- **A per-repo lesson map**, the counterpart of its `GRAPH_REPORT.md`: files carrying the most lessons, lessons that
+  route nowhere (264 in mendadak-pos), stale routes, and the delivery-eval history.
+

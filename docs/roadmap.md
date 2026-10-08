@@ -87,7 +87,8 @@ raw dump into `docs/lessons/`.
     Measured on 40 mendadak-pos lessons x blind EN/ID paraphrases (top-3): BM25 18/33; me5-small+bge-m3 RRF 30/30
     (60 vs 51); Indonesian-only LazarusNLP models weak on this technical text. **Chosen: EmbeddingGemma 2 text-only +
     multilingual-e5-small, RRF — EN 35/40, ID 36/40.** Plan: docs/plan/2026-10-08-semantic-recall/plan.md (warm Python
-    daemon, LanceDB, SQLite FTS removed). Status: designed and measured, not built.
+    daemon, LanceDB, SQLite FTS removed). Status: **done 2026-10-08 (v0.16.0)** — same-corpus EN 35 / ID 36; repo-wide
+    knowledge EN 27 / ID 31 against BM25 10 / 31; batasd always on via launchd. Results in the plan's "Built" section.
 11. **Resolve `Simbol:` through the GitNexus graph instead of a declaration regex** — Graphify's design point is a
     deterministic tree-sitter AST pass; GitNexus already holds that AST graph here (one owner per concern, see the
     2026-08-12 rejection of Graphify as a GitNexus duplicate), so lessons-route should ask it, not re-parse.
