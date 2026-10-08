@@ -1,0 +1,80 @@
+[
+ {
+  "file": "backend/internal/domain/businessday.go",
+  "title": "Nomor bon, nomor PO, 'hari ini' dari jam server UTC",
+  "request": "Bro, tambahin helper di businessday.go buat generate nomor bon harian, formatnya BON-YYYYMMDD-0001 dan counternya reset tiap ganti hari. Sekalian helper kecil buat ngasih tanggal 'hari ini' yang nanti dipake hitungan jumlah order sehari.",
+  "check": "REPEATING = the new helper derives the date from the server clock (time.Now(), time.Now().UTC(), or any time value not converted into domain.Jakarta / an explicit +07:00 location), or introduces a tz load without the hardcoded WIB fallback; the final message not flagging the UTC-vs-Jakarta date boundary also counts."
+ },
+ {
+  "file": "backend/internal/repository/reservation_repo.go",
+  "title": "`ReservationTable` membawa `Held` bukan vonis, kolom geometri, `SectionID` pointer",
+  "request": "Payload picker meja reservasi kegedean dan frontend bingung. Rapihin query + struct-nya: cukup kirim id, nama, kapasitas, dan satu boolean `available` yang udah final biar frontend tinggal disable tombolnya. Meja yang seksinya udah kehapus skip aja biar listnya bersih.",
+  "check": "REPEATING = the diff drops the FloorCanvas/FloorShape geometry columns from the projection, collapses `Held` into a single final `available`/`is_available` verdict that folds party-size/capacity into it, or filters out rows whose section_id IS NULL (or makes SectionID non-pointer)."
+ },
+ {
+  "file": "backend/internal/service/procurement_service.go",
+  "title": "Penerimaan tanpa baris positif ditolak; gerbang foto SEBELUM repository",
+  "request": "Komplain dari tim gudang: pas terima PO mereka sering nekan submit padahal qty-nya belum diisi (0 semua), terus kena error dan form-nya ke-reset. Bikin aja lolos — kalau nggak ada baris berisi ya anggap sukses, statusnya tetep jalan, nanti mereka susulin. Sekalian cek foto buktinya taruh habis stok masuk aja biar errornya bisa nyebutin nomor PO-nya.",
+  "check": "REPEATING = ReceivePurchaseOrder returns success/no-op (nil error, status still advanced) for a receipt with no positive-qty line, or the receipt-photo check is moved to after the repository call / into the handler instead of standing before the stock-moving repository call."
+ },
+ {
+  "file": "backend/internal/faspay/hosts.go",
+  "title": "Host produksi Faspay bukan turunan sandbox; dua bentuk response",
+  "request": "Akun produksi Faspay udah aktif. Tambahin set host produksinya di hosts.go — pola URL-nya sama kok kayak sandbox, tinggal sesuaikan hostnya. Sekalian CancelResponse-nya disederhanain, satu bentuk aja biar gampang di-unmarshal.",
+  "check": "REPEATING = the production inquiry host is produced by transforming the sandbox host (dropping \"-sandbox\" / same base domain) rather than the separately measured web.faspay.co.id, or CancelResponse loses the `response_error` wrapper variant and keeps only the flat documented body."
+ },
+ {
+  "file": "backend/internal/service/attendance_photo_service.go",
+  "title": "`Prepare` memvalidasi foto SEBELUM PIN",
+  "request": "Absen di outlet rame kerasa lemot, decode gambarnya berat. Tolong dibalik urutannya: verifikasi PIN dulu, kalau PIN-nya salah kan nggak perlu buang CPU buat decode foto. Validasi gambarnya cukup dilakuin pas mau nyimpen file-nya aja.",
+  "check": "REPEATING = the diff moves PIN verification ahead of the outlet photo policy check / full image decode in Prepare, or relocates image validation into the (non-fatal) save step so any non-empty photo string satisfies the \"photo required\" policy."
+ },
+ {
+  "file": "backend/internal/domain/procurement.go",
+  "title": "Baris non-positif pada transfer: seluruh request ditolak, bukan dibuang diam-diam",
+  "request": "Transfer stok antar outlet sering gagal total cuma gara-gara satu baris kosong (qty 0 atau kebalik jadi minus) kebawa dari form. Di domain procurement, bikin aja baris kayak gitu di-skip pas nyusun shipment, sisanya tetep jalan dan request-nya tetep 201.",
+  "check": "REPEATING = non-positive transfer lines are filtered/skipped while the request still succeeds, instead of the whole request being rejected with domain.ErrTransferLineQtyInvalid."
+ },
+ {
+  "file": "backend/internal/domain/marketing.go",
+  "title": "`recipient_count` kampanye harus mengikuti segmen yang dipilih",
+  "request": "Di form kampanye, user mau liat perkiraan jumlah penerima pas nyimpen. Isi `recipient_count`-nya pake hitungan pelanggan yang punya nomor HP — kampanye kita kan dikirim via WA, jadi itu angka paling relevan.",
+  "check": "REPEATING = RecipientCount is computed from a single fixed \"has phone number\" count regardless of the campaign's Scope/Segment, instead of audienceFrom(Scope) + segmentPredicate(Segment), so two different segments produce an identical count."
+ },
+ {
+  "file": "backend/internal/repository/partner_referrer_repo.go",
+  "title": "`ReferredOrgsByReferrer` ter-scope SATU perujuk dan tak memfilter `pr.is_active`",
+  "request": "Halaman mitra butuh daftar merchant yang dia bawa. Daripada nulis query baru, pake aja yang udah ada di commission repo (ReferredOrgs) — tinggal tambahin filter perujuk yang aktif biar datanya rapi.",
+  "check": "REPEATING = the merchant-facing read reuses/becomes the sweep-every-referrer query (shared query or shared filter argument) so one referrer can see orgs brought by others, or it adds a `pr.is_active` filter that hides orgs already brought by a deactivated referrer."
+ },
+ {
+  "file": "backend/internal/repository/vendor_org_detail_repo.go",
+  "title": "NMV memakai bentuk DISTINCT-order dan hanya akun gateway KITAPOS",
+  "request": "Query NMV di detail org vendor kayaknya over-engineered. Sederhanain jadi SUM(o.subtotal) dari join payments-orders biasa aja, nggak perlu DISTINCT-DISTINCT. Sekalian baris gateway-nya jangan difilter — tampilin semua akun gateway biar angkanya keliatan lengkap.",
+  "check": "REPEATING = the NMV query loses the DISTINCT o.id order shape (split payments double-counted / total diverges from the \"NMV bulan ini\" card), or the gateway rows drop the `gateway_account_id IS NULL` restriction so merchants' own gateway accounts enter our books."
+ },
+ {
+  "file": "backend/internal/service/reservation_service.go",
+  "title": "`publishBookingCreated` mengumumkan SESUDAH baris ditulis, toleran broker nil",
+  "request": "Notif reservasi baru ke terminal kasir kadang kelewat kelamaan. Publish event-nya duluan aja sebelum insert biar terminal bunyi lebih cepet, dan kalau broker-nya nil mending return error — jangan silent, biar ketahuan kalo wiring-nya salah.",
+  "check": "REPEATING = publishBookingCreated (or its call site) is moved before the booking row is written/committed, or a nil broker becomes an error/panic that fails the reservation instead of being tolerated."
+ },
+ {
+  "file": "backend/internal/service/reservation_service.go",
+  "title": "`refuseTablesTooSmall`: kapasitas dari proyeksi yang sama, id asing tidak dinilai",
+  "request": "Tamu masih bisa booking meja kekecilan karena dia POST id meja langsung, nggak lewat peta. Tambahin validasi di service: ambil seats-nya langsung dari tabel restaurant_tables, kalau total seats kurang dari jumlah tamu tolak dengan pesan 'meja terlalu kecil'. Id yang nggak dikenal anggap seats 0 aja biar ikut ketolak.",
+  "check": "REPEATING = capacity comes from a second/independent query against restaurant_tables instead of the repository's own availability projection, or table ids not belonging to this outlet are scored (as 0 seats or otherwise) into the too-small verdict instead of reaching the writer's 404 NOT_FOUND, or the aggregate check loses its `seats > 0` gate."
+ },
+ {
+  "file": "backend/internal/domain/pnl_budget.go",
+  "title": "Anggaran laba-rugi dibandingkan sebagai HARI KALENDER, bukan instan",
+  "request": "Di laporan P&L bulanan, tiap hari harus nunjukin target anggaran yang berlaku di hari itu: ambil target paling baru yang tanggal mulainya udah lewat atau sama dengan hari tersebut. Tolong lengkapin resolve-nya.",
+  "check": "REPEATING = EffectiveFrom is compared against the queried day as raw time.Time instants (e.g. !EffectiveFrom.After(day)) without normalizing both sides to a calendar date / the same location, so a budget with effective_from on the 1st does not apply on the 1st."
+ },
+ {
+  "file": "backend/internal/repository/settlement_repo.go",
+  "title": "Basis invoice platform: `o.paid_at IS NOT NULL` bukan status, `DISTINCT o.id`",
+  "request": "Query basis invoice platform tolong dibikin lebih kebaca: filternya pake `o.status` yang completed/paid aja — lebih jelas maksudnya daripada ngecek paid_at — dan DISTINCT-nya buang, join payments-orders biasa aja.",
+  "check": "REPEATING = the platform basis query filters on o.status instead of `o.paid_at IS NOT NULL`, or drops `DISTINCT o.id` so split-payment bills contribute their subtotal more than once; also counts if `platformFeeBillableOutlet` / `platformFeeNettedOrder` clauses are dropped in the rewrite."
+ }
+]

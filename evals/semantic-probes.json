@@ -1,0 +1,203 @@
+[
+ {
+  "title": "Route master-detail yang dipecah `index.vue` + `[id].vue` mem-remount seluruh layar tiap klik — dan menyatukannya saja tidak cukup",
+  "en": "nuxt list page reloads and loses state when clicking a row to show detail, whole screen refetches",
+  "id": "nuxt klik baris di daftar malah seluruh halaman ke-reload lagi, data fetch ulang terus"
+ },
+ {
+  "title": "`effectivePlanExpr`: paket yang BERHAK diterima org hari ini, langganan lapse jatuh ke free bukan ke tak ada",
+  "en": "what tier should an organization get when its paid subscription stops being paid",
+  "id": "langganan merchant berhenti dibayar, dia dapat paket apa sekarang"
+ },
+ {
+  "title": "`SettleCheckout` satu-satunya penulis `paid_via = 'checkout'`: upaya untuk invoice lunas/void jadi `paid_unapplied`, tak menyentuh `restaurants`",
+  "en": "payment webhook retried twice for same invoice, where does the extra money go if invoice already paid",
+  "id": "pembayaran masuk dua kali untuk tagihan yang sudah lunas, uangnya dicatat di mana"
+ },
+ {
+  "title": "Membulatkan `x` dan `width` terpisah di `boundBoxFunc` menggeser poros gestur, dan selisihnya masuk balik ke frame berikutnya",
+  "en": "konva transformer with grid snap keeps growing shape while dragging slowly, opposite edge drifts",
+  "id": "resize kanvas pakai snap grid, bentuknya makin melar kalau drag pelan tapi normal kalau cepat"
+ },
+ {
+  "title": "Tes integrasi: DSN hanya dari environment proses, tidak naik ke `.env` terdekat — absen = SKIP kecuali `KITAPOS_TEST_DB_REQUIRED`, database dev ditolak",
+  "en": "go test suite all green but every database test was skipped because connection string not loaded",
+  "id": "go test hijau semua padahal tes database-nya nggak jalan, env nggak kebaca"
+ },
+ {
+  "title": "`ModifierSet.UsageCount` pointer: key absen = tak ada yang menghitung, bukan tak ada item memakai (`ListSetsForItem`)",
+  "en": "should an optional computed count field be a pointer or plain int in api response struct",
+  "id": "field jumlah yang cuma diisi sebagian endpoint mending pointer atau int biasa"
+ },
+ {
+  "title": "`useCookie` melewatkan nilai mentah ke `destr`, jadi cookie yang ditulis `'1'` kembali sebagai ANGKA 1 — dan penjaga `=== '1'` gagal dengan bentuk yang persis seperti cookie tidak pernah terkirim",
+  "en": "nuxt cookie value comparison always false on ssr even though cookie is being sent",
+  "id": "nuxt simpan cookie lalu dibandingkan selalu false, sidebar balik ke default terus"
+ },
+ {
+  "title": "`restoreFromDraft` MENGISI KOSONG dan tak pernah menimpa: `/lanjutkan` sebelum router mendorong ke `/qr/{token}`, 'Nama wajib diisi'",
+  "en": "restoring saved draft wipes the name and phone user already entered, form refuses submit",
+  "id": "pulihin draft malah ngosongin nama dan telepon yang udah keisi, submit ditolak"
+ },
+ {
+  "title": "Menambah PRASYARAT ke sebuah endpoint merobohkan setiap slice yang tidak tahu prasyarat itu ada — dan `go test` + browser hijau tidak bisa melihatnya",
+  "en": "added new validation requirement to endpoint, unit tests and manual check pass but api test suite breaks everywhere",
+  "id": "nambah syarat baru di endpoint, tes unit lolos tapi banyak skenario uat jadi merah"
+ },
+ {
+  "title": "Settlement: `already_with_merchant` vs `transferred_by_kitapos`, `net_revenue` bukan payout, dan `process(from, to)` harus meneruskan periode",
+  "en": "confirmation dialog shows different amount than what gets processed when date range is filtered",
+  "en_note": null,
+  "id": "angka di dialog konfirmasi beda sama yang diproses waktu rentang tanggal difilter"
+ },
+ {
+  "title": "`ApplyToOrderTx`: split dihitung dari jumlah tersimpan bukan dari klien, replay kalah balapan, `spendable` menjumlah dua deposit",
+  "en": "two down payments on one bill each claim the full total, double applied amount",
+  "id": "dua dp di satu bon masing-masing ngaku nutup semua, potongannya jadi dobel"
+ },
+ {
+  "title": "Kode pairing tablet tak bisa memindai QR: ditukar kredensial yang SAMA, printer tanpa token mendapat satu",
+  "en": "device setup unusable on tablets without camera, cannot type long token by hand",
+  "id": "tablet nggak bisa scan qr buat daftarin printer, tokennya kepanjangan buat diketik"
+ },
+ {
+  "title": "`KnownChannels` diurutkan dan dilayani ke composer, peta kolom alamat diikat tes bukan compiler",
+  "en": "keeping picker options in sync with backend channel list without import cycle between packages",
+  "id": "opsi dropdown kanal pesan sering ketinggalan sama backend, dua paket nggak boleh saling impor"
+ },
+ {
+  "title": "Laci kas: membuka laci baru tetap boleh walau ada yang ditinggal terbuka orang lain, daftarnya yang mencegah buta",
+  "en": "should opening a new cash session be blocked when another shift left one open",
+  "id": "boleh buka sesi kas baru nggak kalau punya orang lain masih kebuka dari hari sebelumnya"
+ },
+ {
+  "title": "`CreateWithItems` satu transaksi order plus item, `billFor` di bawah kunci per-outlet, `then` terakhir membatalkan seluruh order",
+  "en": "order saved but some line items missing, duplicate bill numbers under concurrent checkout",
+  "id": "order kesimpen tapi itemnya nggak lengkap, nomor bon kembar waktu kasir barengan"
+ },
+ {
+  "title": "Gerbang tenant untuk baris berkunci-id-saja: `sameOutlet` menjawab 404, dan `outletFromClaims` wajib duduk di grup `WithOutletContext`",
+  "en": "staff can edit another branch record by guessing uuid, should response be 403 or 404",
+  "id": "kasir bisa ubah data cabang lain cuma dengan tau uuid-nya, balikin 403 atau 404"
+ },
+ {
+  "title": "Vitest harus meng-alias `~`/`@` sendiri dan berjalan di UTC — spec tanggal yang ditulis di laptop Jakarta lulus walau `timeZone: 'Asia/Jakarta'` dihapus",
+  "en": "vitest cannot find module with tilde path import while nuxt build works fine",
+  "id": "vitest error cannot find module padahal import-nya jalan di nuxt, tes tanggal beda hasil di ci"
+ },
+ {
+  "title": "`/pos/orders` dan `/pos/orders/{id}`: SATU komponen halaman dengan param opsional `[[id]]` dan `key: 'pos-orders'` eksplisit — dua file me-remount seluruh papan tiap ketukan",
+  "en": "selecting an order in pos list blanks the left panel and shows loading every tap",
+  "id": "tiap pilih pesanan panel kiri kedip dan muncul memuat lagi, daftarnya ngosong"
+ },
+ {
+  "title": "Spec yang merah HANYA di DB dev bersama dan hijau di stack segar adalah selisih FIXTURE, bukan cacat fitur",
+  "en": "browser test fails only against shared dev database but passes on fresh seeded stack",
+  "id": "tes gagal cuma di database dev, kalau stack baru malah lolos, bingung salahnya di mana"
+ },
+ {
+  "title": "`useTablePagination`: reset offset saat FILTER berubah, dan `reveal(match)` melompat ke halaman baris yang baru dibuat",
+  "en": "table shows empty page after typing a search while on page 4, new row not visible after create",
+  "id": "tabel jadi kosong habis nyari padahal di halaman 4, baris baru nggak keliatan abis disimpan"
+ },
+ {
+  "title": "`AssignedOutlets`: HQ tak bisa membaca penugasan orang lain, staf org lain `ErrNotFound` bukan forbidden (orakel id lintas tenant)",
+  "en": "edit form cannot load which branches a staff member is assigned to, endpoint only answers about caller",
+  "id": "form edit staf nggak bisa nampilin cabang yang dia pegang, endpoint-nya cuma jawab buat diri sendiri"
+ },
+ {
+  "title": "`required`: DATANG sekali per SHIFT, foto keluar diwajibkan setiap kali, PULANG frame sendiri SETIAP kali (komentar lama salah sejak v1.70.0)",
+  "en": "should clock out reuse the clock in photo or require a fresh capture every time",
+  "id": "absen pulang perlu foto baru atau pakai foto masuk aja, komentarnya beda sama kodenya"
+ },
+ {
+  "title": "Panel per-objek di POS adalah sheet yang di-scope ke barisnya, bukan drawer setinggi viewport — yang kedua menutupi toolbar yang justru dipakai bersama seleksi itu",
+  "en": "editing panel overlay blocks the toolbar buttons needed for the selected item, pointer events intercepted",
+  "id": "panel edit nutupin toolbar yang justru dipakai buat objek kepilih, tombolnya nggak bisa diklik"
+ },
+ {
+  "title": "Interface khusus-printer yang dikasih Router MEMBAJAK default route mesin konter, dan gejalanya \"internet mati tiap kali nyetak\" — bukan firewall",
+  "en": "mac loses internet whenever a print job is sent, second wired interface for printer only",
+  "id": "tiap nyetak internet mati di mesin kasir, padahal lan-nya cuma buat printer"
+ },
+ {
+  "title": "`sumopod.Environment` SATU setelan: sandbox dan live beda host dan key, pasangan silang 401 polos (matriks 2x2)",
+  "en": "payment gateway returns 401 unauthorized, credentials look correct but environment config split in two",
+  "id": "gateway bayar balikin 401 terus padahal key-nya bener, host dan key beda setelan"
+ },
+ {
+  "title": "`POST /orders` 500: varian ditulis ke `item_variants` riwayat rollback, tak punya opsi sepadan sehingga FK `order_items.variant_id` menolak (migrasi 143)",
+  "en": "creating order returns 500 foreign key violation on variant id after schema moved variants table",
+  "id": "bikin pesanan 500 karena varian, foreign key varian nolak padahal variannya ada"
+ },
+ {
+  "title": "Probe browser yang meng-`import()` URL dep Vite sebuah pustaka ber-state modul mendapat INSTANSI KEDUA sesudah HMR, jadi ia memanggil observer yang tidak dirender siapa pun",
+  "en": "toast call returns success but no notification appears when triggered from a browser console import",
+  "id": "panggil toast dari script probe sukses tapi nggak ada notif muncul sama sekali"
+ },
+ {
+  "title": "Anggaran laba-rugi dibandingkan sebagai HARI KALENDER, bukan instan: tanggal mulai tanggal 1 tak berlaku di tanggal 1",
+  "en": "budget with start date of the first does not apply on the first, date column scanned as midnight utc",
+  "id": "target yang mulai tanggal 1 nggak kepake di tanggal 1, selisih tujuh jam zona waktu"
+ },
+ {
+  "title": "`activeOrderFor` mendegradasi ke nil, bar order aktif milik pemilik bon: pemindai stiker tak boleh membaca tab orang asing",
+  "en": "anyone scanning the table qr can see and add to another guest open bill",
+  "id": "siapa pun yang scan stiker meja bisa liat dan nambah pesanan di bon orang lain"
+ },
+ {
+  "title": "`bookingOwnedBy`: kolom `outlet_id` = kunci, arm kedua ekor belum di-backfill (migrasi 092), OR bukan COALESCE",
+  "en": "ownership check during a column backfill, old rows resolve via relation chain new rows via column",
+  "id": "cek kepemilikan pas kolom baru belum di-backfill, baris lama lewat relasi baris baru lewat kolom"
+ },
+ {
+  "title": "`rfc822`: header CRLF, newline dibuang (injeksi header lewat judul kampanye), Subject Q-encoded, Faspay menolak em dash",
+  "en": "hand built email message, operator supplied subject with newline and non ascii dash breaks delivery",
+  "id": "bikin email manual, judul dari operator ada newline dan tanda pisah panjang bikin kacau"
+ },
+ {
+  "title": "Laba kotor tak digabung dengan suku baru: query ketiga terpisah, tanggal literal DATE dari Go bukan cast timestamp",
+  "en": "adding a new cost term to existing revenue aggregate would change numbers people already quoted",
+  "id": "mau nambah komponen biaya ke agregat laba, takut angka laporan lama berubah"
+ },
+ {
+  "title": "Hanya RECEIPT yang mencapai done menstempel bon, best-effort, `job.OrderID` nil untuk test print dijaga di sini bukan `MarkPrinted`",
+  "en": "print bridge keeps resending a finished job because the ack failed on bookkeeping update",
+  "id": "bridge printer ngulang job yang udah kelar gara-gara update penanda gagal, test print nggak ada bon"
+ },
+ {
+  "title": "Resolver tautan Google Maps: SSRF — allowlist harus ANCHORED di setiap hop, dan User-Agent peramban membuatnya \"sukses\" tanpa hasil",
+  "en": "backend follows user supplied short map link to expand it, host check and redirect hops safety",
+  "id": "backend ngikutin link peta pendek dari user, cek host-nya aman belum di tiap redirect"
+ },
+ {
+  "title": "`?drawer=1` mati kecuali diminta: membuka laci pada pembayaran kartu kelemahan kontrol kas",
+  "en": "should the cash drawer pop automatically on every receipt print including card payments",
+  "id": "laci kas mesti kebuka otomatis tiap cetak bon atau cuma kalau diminta"
+ },
+ {
+  "title": "`derivativeVersion` dinaikkan saat OUTPUT encoder berubah (v2, v3, v4), bukan saat lebar bertambah: tanpa bump byte lama identik",
+  "en": "image processing fix shows no effect because cached derivative bytes are returned unchanged",
+  "id": "udah benerin encoder gambar tapi hasilnya byte-nya sama persis, cache turunan nggak ke-refresh"
+ },
+ {
+  "title": "Kartu absen: nama outlet dibaca dari `GET /attendance/me`, subjek bukan pemilik sesi butuh izin sendiri, kredensial subjek tidak disimpan",
+  "en": "attendance card shows one branch name but the record lands in a different branch",
+  "id": "kartu absen nampilin nama cabang lain dari baris yang kesimpen, switcher hq bikin beda"
+ },
+ {
+  "title": "Tautkan DP ke bon di layar bayar: `PaidDepositFor` join `table_bookings.order_id` yang dulu tak pernah ditulis siapa pun, dan kontrolnya di dekat angka yang diubah",
+  "en": "paid deposit never deducted from the bill because the linking column is never populated",
+  "id": "dp yang udah dibayar nggak pernah kepotong di bon, kolom penghubungnya kosong terus"
+ },
+ {
+  "title": "`MenuPhotoStudio` adalah panel, bukan modal; jalur AI sengaja tanpa permukaan",
+  "en": "image editor loses click outside handling and test locators when moved out of the form container",
+  "id": "komponen input gambar rusak handler klik luar pas dipindah keluar container form"
+ },
+ {
+  "title": "`NormalizeNavFavorites` validasi BENTUK saja: server tak memegang registry nav frontend, whitelist menolak rute sah di hari layar baru",
+  "en": "backend rejects saving a sidebar shortcut for a newly added page because of a route whitelist",
+  "id": "backend nolak simpan pintasan menu buat halaman baru gara-gara daftar rute di server"
+ }
+]

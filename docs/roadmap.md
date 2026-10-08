@@ -85,8 +85,9 @@ raw dump into `docs/lessons/`.
 
 10. **Semantic recall with two fused models** — the user requires semantic search, good in Indonesian AND English.
     Measured on 40 mendadak-pos lessons x blind EN/ID paraphrases (top-3): BM25 18/33; me5-small+bge-m3 RRF 30/30
-    (best so far, 60 vs 51); Indonesian-only LazarusNLP models weak on this technical text; EmbeddingGemma 2 under
-    test. Ships only when Indonesian is at least BM25's 33. Needs a warm daemon (cold model loads take seconds).
+    (60 vs 51); Indonesian-only LazarusNLP models weak on this technical text. **Chosen: EmbeddingGemma 2 text-only +
+    multilingual-e5-small, RRF — EN 35/40, ID 36/40.** Plan: docs/plan/2026-10-08-semantic-recall/plan.md (warm Python
+    daemon, LanceDB, SQLite FTS removed). Status: designed and measured, not built.
 11. **Resolve `Simbol:` through the GitNexus graph instead of a declaration regex** — Graphify's design point is a
     deterministic tree-sitter AST pass; GitNexus already holds that AST graph here (one owner per concern, see the
     2026-08-12 rejection of Graphify as a GitNexus duplicate), so lessons-route should ask it, not re-parse.
