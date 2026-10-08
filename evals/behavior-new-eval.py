@@ -69,6 +69,10 @@ def run(job):
     shutil.rmtree(os.path.join(path, "docs", "lessons"), ignore_errors=True)
     env = dict(os.environ)
     args = ["claude", "-p", TASK.format(**c), "--permission-mode", "bypassPermissions"]
+    if arm == "C":
+        # forced delivery: batas on with the prompt gate lowered, so a memory that is already the top hit arrives;
+        # isolates "does a delivered memory change behavior" from "does the gate let it through"
+        env["BATAS_SEMANTIC_MIN_GAP"] = "0.03"
     if arm == "B":
         shutil.rmtree(os.path.join(path, ".claude", "rules", "lessons"), ignore_errors=True)
         env["BATAS_OFF"] = "1"

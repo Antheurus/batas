@@ -29,7 +29,8 @@ export const config = {
   // A prompt match counts only when the best hit's Gemma cosine stands minGap above the 10th (scripts/semantic-calibrate.ts,
   // docs/plan/2026-10-08-semantic-recall/plan.md); fullCos lets another project's memory in full instead of listed.
   // writeHook stays off: a cosine gap does not separate a written file's lesson from noise (scripts/write-calibrate.ts).
-  semantic: { promptHook: true, minGap: 0.07, writeHook: false, writeGap: 0.07, fullCos: 0.6 },
+  // BATAS_SEMANTIC_MIN_GAP overrides the prompt gate for one session (the behavior eval's forced-delivery arm).
+  semantic: { promptHook: true, minGap: Number(process.env.BATAS_SEMANTIC_MIN_GAP ?? 0.07), writeHook: false, writeGap: 0.07, fullCos: 0.6 },
   inject: { maxItems: 3, maxChars: 9000, maxPromptHints: 5, maxMemories: 2, memoryChars: 1500, maxMoreMemories: 8, sessionBytes: 64000 },
 };
 

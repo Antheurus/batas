@@ -1,5 +1,11 @@
 # batas Changelog
 
+## v0.16.1 — Memori dari proyek lain kembali muncul dari kata pemicu
+
+- Sejak v0.16.0, memori yang dicatat di satu proyek tidak pernah muncul di repo lain dari kata pemicunya, contohnya keputusan Funnel yang dicatat di backend tapi berlaku di frontend. Sudah diperbaiki.
+- Tes perilaku di repo Funnel: kalau memori yang tepat sampai ke agen, agen mengikutinya ("Beacon" ditulis 0 dari 3 kali, padahal tanpa memori 6 dari 6). Tapi batas baru berhasil mengantar memori yang tepat di 2 dari 15 percobaan. Jadi yang perlu diperbaiki adalah ketepatan pengantaran, bukan isinya.
+- Internal: tes perilaku bisa memaksa pengantaran untuk satu sesi (BATAS_SEMANTIC_MIN_GAP), tidak berpengaruh ke pemakaian biasa.
+
 ## v0.16.0 — batas sekarang mencari berdasarkan makna, dalam bahasa Indonesia dan Inggris
 
 - `recall` dan `check` sekarang mencari berdasarkan makna, bukan kata yang sama. Dua model lokal (EmbeddingGemma 2 dan multilingual-e5-small) jalan di laptop, tanpa internet.

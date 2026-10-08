@@ -2,3 +2,5 @@
 .behavior-runs.json
 .behavior-graded.json
 .behavior-new-*.json
+.cases-forced.json
+.cases-incontext.json
