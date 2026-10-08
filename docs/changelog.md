@@ -1,15 +1,22 @@
 # batas Changelog
 
-## v0.13.0 — Recall ikut membaca arsip insiden dan invarian QA tiap repo
+## v0.14.1 — Sumber baru recall dijaga test, dua memory hari ini bisa muncul lagi
 
-- `recall` dan `check` sekarang juga menemukan isi `docs/lessons/*.md` dan `docs/qa/context.md` di setiap repo, jadi cerita yang dipindah keluar dari komentar kode tetap bisa ditemukan agen.
-- Pemicu aturan 'cerita insiden tidak masuk kode' (lessons:G1) kini juga mengenali komentar berbahasa Indonesia seperti 'sejak 2026-09-21' dan 'terukur: 1000'.
+- Ada test yang membuktikan `docs/lessons/` dan `docs/qa/context.md` benar-benar terbaca recall. Kalau salah satunya berhenti terbaca, `just check` jadi merah.
+- Dua memory mendadak-pos dari hari ini belum punya kata pemicu, jadi batas tidak pernah memunculkannya: "pengetahuan dipindah ke batas, disuling, bukan arsip mentah" dan "biaya KITAPOS/MDR tidak boleh bisa dihitung dari layar HQ". Keduanya sekarang punya pemicu, dan tidak ada memory lagi yang tanpa pemicu.
+- Nomor versi dibetulkan: dua sesi sama-sama memakai v0.13.0. Yang mendarat belakangan (aturan B56/B57 dan probe `claude -p`) sekarang v0.14.0.
+- Internal: komentar bercerita (tanggal, angka ukur) di kode batas dihapus.
 
-## v0.13.0 — Tiga kesalahan berulang jadi aturan, dan probe `claude -p` tidak lagi dianggap sesi lain
+## v0.14.0 — Tiga kesalahan berulang jadi aturan, dan probe `claude -p` tidak lagi dianggap sesi lain
 
 - Dua aturan baru yang muncul otomatis saat perintahnya diketik: `echo =====` tanpa kutip gagal di zsh (lessons:B56, 46 sesi kena), dan `--include=*.go` tanpa kutip dianggap glob oleh zsh (lessons:B57, 18 sesi). Aturan "cwd terbawa antar perintah" (lessons:B20) sekarang juga muncul saat `cd backend` relatif.
 - Pemicunya sudah diuji ke 49.175 perintah asli: B56 menangkap 111 dari 114 kegagalan, B57 47 dari 47, B20 28 dari 36. Versi yang diberi kutip atau path absolut tidak memicu apa-apa.
 - Penjaga push tidak lagi memblokir karena sesi `claude -p` yang dijalankan agent sendiri (misalnya untuk menguji aturan). Perlindungan file kotor milik sesi lain tetap berlaku untuk sesi seperti itu.
+
+## v0.13.0 — Recall ikut membaca arsip insiden dan invarian QA tiap repo
+
+- `recall` dan `check` sekarang juga menemukan isi `docs/lessons/*.md` dan `docs/qa/context.md` di setiap repo, jadi cerita yang dipindah keluar dari komentar kode tetap bisa ditemukan agen.
+- Pemicu aturan 'cerita insiden tidak masuk kode' (lessons:G1) kini juga mengenali komentar berbahasa Indonesia seperti 'sejak 2026-09-21' dan 'terukur: 1000'.
 
 ## v0.12.0 — Satu memory untuk banyak project
 
