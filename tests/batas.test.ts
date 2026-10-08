@@ -187,6 +187,22 @@ describe("hook", () => {
     expect(out.fired).toContain("memory:-tmp-demo/land-without-asking");
   });
 
+  test("a subagent's brief gets the memories it matches appended, through the real hook process", async () => {
+    const run = async (toolInput: object) => {
+      const p = Bun.spawn(["bun", join(import.meta.dir, "..", "src", "hook.ts")], { stdin: "pipe", stdout: "pipe", env: process.env });
+      p.stdin.write(JSON.stringify({ session_id: `sub-${Math.random()}`, cwd: "/tmp/sibling-repo", hook_event_name: "PreToolUse", tool_name: "Agent", tool_input: toolInput }));
+      p.stdin.end();
+      return JSON.parse(await new Response(p.stdout).text()) as { hookSpecificOutput?: { updatedInput?: { prompt?: string; description?: string } } };
+    };
+    const out = await run({ description: "land it", prompt: "selesaikan fiturnya lalu commit terus push", subagent_type: "general-purpose" });
+    const brief = out.hookSpecificOutput?.updatedInput?.prompt ?? "";
+    expect(brief.startsWith("selesaikan fiturnya lalu commit terus push")).toBe(true);
+    expect(brief).toContain("memory:-tmp-demo/land-without-asking");
+    expect(brief).toContain("Never wait for a go-signal");
+    expect(out.hookSpecificOutput?.updatedInput?.description).toBe("land it");
+    expect(await run({ description: "x", prompt: "rapikan indentasi di file ini" })).toEqual({});
+  }, 20000);
+
   test("a rule prompt phrase fires on the user's own words, never on a quoted line or a side agent's note", () => {
     const rt = new Triggers({ "gotcha:D2": { prompt: ["captcha"] } });
     const ask = (prompt: string, session_id: string) =>

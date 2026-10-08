@@ -13,7 +13,8 @@ const hookCmd = `bun "${join(repo, "src", "hook.ts")}"`;
 const mcpEntry = join(repo, "src", "mcp.ts");
 
 const WANT: { event: string; matcher?: string }[] = [
-  { event: "PreToolUse", matcher: "Bash|Read|Edit|Write|MultiEdit|NotebookEdit" },
+  // Agent|Task: a subagent's brief is matched like a prompt and gets the memories appended (see briefSubagent)
+  { event: "PreToolUse", matcher: "Bash|Read|Edit|Write|MultiEdit|NotebookEdit|Agent|Task" },
   // Attributes files a Bash command changed (scripts, redirects, sed) to the session, for the collision guard.
   { event: "PostToolUse", matcher: "Bash" },
   { event: "UserPromptSubmit" },
@@ -28,8 +29,15 @@ function installHooks(): string[] {
   const added: string[] = [];
   for (const w of WANT) {
     const groups = (settings.hooks[w.event] ??= []);
-    const present = groups.some((g) => g.hooks.some((h) => h.command === hookCmd));
-    if (present) continue;
+    const present = groups.find((g) => g.hooks.some((h) => h.command === hookCmd));
+    if (present) {
+      // an older install registered a narrower matcher; widen it in place rather than adding a second group
+      if (w.matcher && present.matcher !== w.matcher) {
+        present.matcher = w.matcher;
+        added.push(`${w.event} (matcher widened)`);
+      }
+      continue;
+    }
     const group: HookGroup = { hooks: [{ type: "command", command: hookCmd, timeout: 5 }] };
     if (w.matcher) group.matcher = w.matcher;
     groups.push(group);

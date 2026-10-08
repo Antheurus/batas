@@ -1,5 +1,11 @@
 # batas Changelog
 
+## v0.17.0 — Subagent sekarang ikut menerima memori yang relevan
+
+- Subagent tidak pernah menerima memori: tugasnya datang lewat panggilan tool Agent, bukan prompt, jadi hook prompt batas tidak pernah melihatnya. Sekarang tugas subagent dicocokkan seperti prompt biasa, dan memori yang cocok ditempel ke tugasnya, dalam teks lengkap.
+- Terbukti dengan dua sesi yang identik: subagent yang diberi memori menyebut keputusanmu 7 Oktober (Funnel tidak pakai SSE/live) dengan kata-katamu sendiri; subagent tanpa memori langsung merancang SSE.
+- Setelah update ini jalankan `just install` sekali di repo batas (sudah dijalankan di mesin ini). Berlaku untuk sesi baru.
+
 ## v0.16.1 — Memori dari proyek lain kembali muncul dari kata pemicu
 
 - Sejak v0.16.0, memori yang dicatat di satu proyek tidak pernah muncul di repo lain dari kata pemicunya, contohnya keputusan Funnel yang dicatat di backend tapi berlaku di frontend. Sudah diperbaiki.

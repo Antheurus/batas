@@ -24,6 +24,8 @@ type HookInput = {
     new_string?: string;
     content?: string;
     edits?: { new_string?: string }[];
+    // the Agent/Task tool: the subagent's whole brief
+    prompt?: string;
   };
   prompt?: string;
   last_assistant_message?: string;
@@ -939,6 +941,37 @@ async function settleSemantic(
   };
 }
 
+// A subagent never sends a UserPromptSubmit: its task arrives as the parent's Agent/Task tool call, so prompt-time
+// memories never reached one (measured: a native subagent planning SSE for Funnel did not know the user's recorded
+// no-live decision that a full session quoted). The brief goes through the same matching as a user prompt, under a
+// session id of its own (the subagent sees none of what the parent was given), and what matches is appended to the
+// brief itself — a subagent cannot ask back, so listed memories travel as full text too.
+async function briefSubagent(input: HookInput, store: Store, semantic: SemanticHit[] | undefined): Promise<{ output: object; fired: string[] }> {
+  const brief = input.tool_input?.prompt ?? "";
+  const as = { session_id: `${input.session_id ?? "nosession"}:agent:${Date.now()}`, cwd: input.cwd, hook_event_name: "UserPromptSubmit", prompt: brief };
+  const r = evaluate(as, store, Triggers.load(), semantic);
+  const ctx = (r.output as { hookSpecificOutput?: { additionalContext?: string } }).hookSpecificOutput?.additionalContext;
+  if (!ctx) return { output: {}, fired: [] };
+  const extra: string[] = [];
+  for (const id of r.fired.filter((f) => f.startsWith("memory:") && !ctx.includes(`### ${f}`)).slice(0, config.inject.maxMemories)) {
+    const e = resolve(store, id);
+    if (!e) continue;
+    const body = e.body.length > config.inject.memoryChars ? `${e.body.slice(0, config.inject.memoryChars)}…` : e.body;
+    extra.push(`### ${e.id} — ${e.title}\n${body}`);
+  }
+  const block = [ctx, ...(extra.length ? ["", "batas: full text of the memories listed above:", ...extra] : [])].join("\n");
+  return {
+    output: {
+      hookSpecificOutput: {
+        hookEventName: "PreToolUse",
+        permissionDecision: "allow",
+        updatedInput: { ...input.tool_input, prompt: `${brief}\n\n---\n${block}` },
+      },
+    },
+    fired: r.fired,
+  };
+}
+
 // A `claude -p` session is the agent's own probe until it commits; from then on its commits ride on the next push.
 export function logFlags(input: HookInput, entrypoint?: string): { headless?: true; committed?: true } {
   const command = input.tool_name === "Bash" ? (input.tool_input?.command ?? "") : "";
@@ -967,11 +1000,12 @@ async function main() {
   let semanticState: "warm" | "cold" | undefined;
   try {
     input = JSON.parse(await Bun.stdin.text()) as HookInput;
-    const prompting = input.hook_event_name === "UserPromptSubmit" && !!input.prompt && !SYSTEM_PROMPT.test(input.prompt);
+    const dispatching = input.hook_event_name === "PreToolUse" && (input.tool_name === "Agent" || input.tool_name === "Task") && !!input.tool_input?.prompt && process.env.BATAS_NO_SUBAGENT_BRIEF !== "1";
+    const prompting = (input.hook_event_name === "UserPromptSubmit" && !!input.prompt && !SYSTEM_PROMPT.test(input.prompt)) || dispatching;
     // Sent before the corpus is read, so the daemon encodes while this process parses; whatever is left of the prompt
     // budget is the wait. A cold or busy daemon costs this prompt its semantic match (the trigger words still run),
     // never the user's time.
-    const own = prompting && config.semantic.promptHook ? ownWords(input.prompt ?? "").trim() : "";
+    const own = prompting && config.semantic.promptHook ? ownWords((dispatching ? input.tool_input?.prompt : input.prompt) ?? "").trim().slice(0, 4000) : "";
     // Scoped to the session's repo: the standout gate compares the best hit with this repo's 10th neighbour, which is
     // what actually competes here (an unscoped reference drowned the right lesson in every other repo's entries).
     const pending = own ? semanticSearch(own, { kinds: SEMANTIC_KINDS, scope: repoName(input.cwd), limit: 12, stash: input.session_id, timeoutMs: Math.max(20, config.latencyBudgetMs.prompt - (performance.now() - started) - 30) }) : undefined;
@@ -981,7 +1015,7 @@ async function main() {
       semantic = await pending;
       semanticState = semantic ? "warm" : "cold";
     }
-    result = evaluate(input, store, Triggers.load(), semantic);
+    result = dispatching ? await briefSubagent(input, store, semantic) : evaluate(input, store, Triggers.load(), semantic);
     if (input.session_id) result = await settleSemantic(input, store, result, semanticState);
     pruneSessions();
   } catch (err) {
