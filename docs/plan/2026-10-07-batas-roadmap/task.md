@@ -39,7 +39,15 @@ rule check passed (B1, C18, B14 inject their full text). Remaining: roadmap 5 (d
 
 - [x] Verify the shortened global rules in a fresh session (rules load only at session start): a task that used to
       trigger a dropped detail (pg restore, git stash) — does the agent behave, does batas inject the full text?
-- [ ] User decisions: (a) batas `CLAUDE.md` has never been committed (machine-wide gitignore) — `git add -f` it or keep
+- [x] User decisions (settled 2026-10-08: CLAUDE.md stays local; scrape-mono globs fixed in e6839ff9): (a) batas `CLAUDE.md` has never been committed (machine-wide gitignore) — `git add -f` it or keep
       local; (b) scrape-mono `p-platform-adapters.md` / `p-scraping-patterns.md` point at `backend/src/**`, which no
       longer exists, so they never load — fix the globs, delete, or leave; an untracked `all-workflow.md` there is
       another session's.
+
+## Semantic recall and the behaviour question (2026-10-08)
+
+- [x] **Task 13 — semantic search replaces lexical** (`docs/plan/2026-10-08-semantic-recall/plan.md`): batasd
+      (EmbeddingGemma 2 + multilingual-e5-small, LanceDB vectors), SQLite removed, MCP recall/check semantic, prompt
+      hook gated by a standout gap with late delivery, always-on launchd agent. v0.16.0 (c86deb0, 0418be0, 5c7a901).
+- [ ] **Task 15 — discriminating behaviour eval**: `evals/behavior-new-eval.py`, 8 traps in NEW code taken from
+      lessons that route to no file, both arms without `docs/lessons`; A = batas on, B = batas off and no MCP.

@@ -1,5 +1,14 @@
 # batas Changelog
 
+## v0.16.0 — batas sekarang mencari berdasarkan makna, dalam bahasa Indonesia dan Inggris
+
+- `recall` dan `check` sekarang mencari berdasarkan makna, bukan kata yang sama. Dua model lokal (EmbeddingGemma 2 dan multilingual-e5-small) jalan di laptop, tanpa internet.
+- Di satu repo, lesson yang benar masuk 3 teratas untuk 27 dari 40 pertanyaan berbahasa Inggris (pencarian kata yang lama: 10) dan 31 dari 40 berbahasa Indonesia (sama dengan yang lama).
+- Pemicu dari perintah, file dan kode tetap memakai pola teks persis, seperti yang diputuskan bersama.
+- Prompt hanya mendapat satu kecocokan, dan hanya kalau kecocokannya jelas menonjol (sekitar 5% prompt). Prompt tidak pernah menunggu: kalau model belum siap, kecocokannya datang di aksi pertama agen pada giliran itu.
+- batasd selalu jalan sejak login (agen launchd `dev.batas.batasd`). Ia memegang sekitar 3,5 GB RAM; saat diam CPU-nya praktis nol. `just install` memasangnya.
+- Database SQLite dihapus. Teks tetap dibaca langsung dari file aslinya, jadi error "disk I/O" saat index dibangun ulang tidak bisa terjadi lagi.
+
 ## v0.15.2 — batas tidak lagi rusak saat index dibangun ulang sesi lain
 
 - Gejala: `mcp__batas__get` / `recall` menjawab "disk I/O error" sampai sesinya dibuka ulang. Penyebabnya `just reindex` menghapus file index sementara server batas di sesi lain masih membukanya (terjadi tiga kali semalam dari sesi mendadak-pos).

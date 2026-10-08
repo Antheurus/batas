@@ -74,3 +74,15 @@ Decision: `google/embeddinggemma-2` loaded text-only (`config_kwargs={"vision_co
 - **Command, file and code triggers stay regex** (decided with the user 2026-10-08; memory
   `batas-command-file-triggers-stay-regex`). Semantic covers recall, check, prompt -> memory/rule/lesson matching.
 - **Worktree sessions resolve to the main repo** (`repoName`), since the corpus is indexed from the main checkout.
+- **Results against acceptance** (2026-10-08, v0.16.0):
+  1. Same corpus as the offline comparison: EN 35/40, ID 36/40 — met. The real corpus is harder: repo-wide
+     knowledge EN 27 / ID 31 (BM25 on the same corpus 10 / 31), everything unscoped EN 10 / ID 26 (BM25 7 / 22).
+     Recall ranks knowledge apart from history and interleaves repo with global entries because of this.
+  2. Hook prompt in-hook p95 94-154 ms at machine load ~6 — met when the machine is quiet, at the edge under load. An
+     idle GPU's first query (0.5-0.7 s) is not waited for: the match is stashed and delivered on the next tool call.
+  3. delivery-eval bash 15/15, controls 5/5 — met. Behavior eval: task 15.
+  4. MCP recall says "starting", get keeps answering while batasd is down, recall recovers in the same session — met.
+- **Prompt gate**: absolute cosine was rejected (positives 0.77 vs unrelated prompts' top hit 0.72). The gate is the best
+  Gemma cosine minus the repo's 10th-best >= 0.07: ~5% of real prompts, ~18/22 relevant on a hand read at 0.065.
+  Trigger words are NOT retired (step 3): semantic reaches only 7 of the 96 memories they reach.
+- **Runs always on** (user decision 2026-10-08): launchd agent `dev.batas.batasd`, MPS, ~3.5 GB, ~0 CPU idle.
