@@ -959,7 +959,14 @@ async function briefSubagent(input: HookInput, store: Store, semantic: SemanticH
     const body = e.body.length > config.inject.memoryChars ? `${e.body.slice(0, config.inject.memoryChars)}…` : e.body;
     extra.push(`### ${e.id} — ${e.title}\n${body}`);
   }
-  const block = [ctx, ...(extra.length ? ["", "batas: full text of the memories listed above:", ...extra] : [])].join("\n");
+  // A memory matched on words can contradict the brief ("jangan commit" matched "commit and push without asking"),
+  // and blocking negated words drops real matches ("nggak mau auto compact" is that memory's whole topic), so the
+  // precedence is stated instead: the brief is the specific instruction, a memory the general background.
+  const block = [
+    "batas: background from the user's recorded memories, matched to this brief. Where one conflicts with an explicit instruction in the brief above, the brief wins.",
+    ctx,
+    ...(extra.length ? ["", "batas: full text of the memories listed above:", ...extra] : []),
+  ].join("\n");
   return {
     output: {
       hookSpecificOutput: {

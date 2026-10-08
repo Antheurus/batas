@@ -199,6 +199,7 @@ describe("hook", () => {
     expect(brief.startsWith("selesaikan fiturnya lalu commit terus push")).toBe(true);
     expect(brief).toContain("memory:-tmp-demo/land-without-asking");
     expect(brief).toContain("Never wait for a go-signal");
+    expect(brief).toContain("the brief wins");
     expect(out.hookSpecificOutput?.updatedInput?.description).toBe("land it");
     expect(await run({ description: "x", prompt: "rapikan indentasi di file ini" })).toEqual({});
   }, 20000);
