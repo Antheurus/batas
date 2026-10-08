@@ -18,13 +18,14 @@ GitNexus answers "what does this code do". batas answers "what has gone wrong he
 want". Both are consulted before acting; neither replaces the other.
 
 The markdown files stay the source of truth — `~/.claude/rules/`, `~/.claude/references/`, per-project `memory/`,
-each repo's `.claude/rules/`, `docs/progress.md`, `docs/changelog.md`. batas indexes them (SQLite FTS5 at
-`~/.batas/index.db`, refreshed on file mtime) and makes them reachable three ways:
+each repo's `.claude/rules/`, `docs/progress.md`, `docs/changelog.md`. batas parses them in place and searches them by
+meaning (batasd: two local embedding models, good in Indonesian and English); command, file and code triggers stay
+exact regex. They are reachable three ways:
 
 | Path | Fires | Reliability |
 |---|---|---|
 | **PreToolUse hook** | the moment a Bash command or a Read/Edit/Write path matches a rule's trigger — injects the full rule once per session | deterministic |
-| **UserPromptSubmit hook** | prompt phrases — injects one-line hints naming rule ids | deterministic |
+| **UserPromptSubmit hook** | memories, rules and lessons close in meaning to the prompt (above a calibrated floor), plus exact prompt phrases — memories in full, rules as one-line hints naming ids | semantic + deterministic |
 | **Stop hook** | the final reply matches a known mistake pattern — blocks once with the rule so the reply gets corrected | deterministic |
 | **MCP tools** | when the agent calls them | only as good as the agent's habit |
 

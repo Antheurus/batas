@@ -1,11 +1,14 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { config } from "./config.ts";
-import { memorySources, memoryTriggers, parseMemory, projectSlug, type Entry } from "./corpus.ts";
+import { memorySources, memoryTriggers, parseMemory, projectSlug, type Entry, type Kind } from "./corpus.ts";
 import { mutedIds, recordAck, reportWrong } from "./feedback.ts";
 import { filesInCommand, lessonsDir, regenAll, regenIfLessonsChanged, routedLessons } from "./lessons.ts";
 import { appendHookLog, liveSessions } from "./log.ts";
+import { semanticSearch, type SemanticHit } from "./semantic.ts";
 import { Store } from "./store.ts";
+
+const SEMANTIC_KINDS: Kind[] = ["memory", "rule", "rule-section", "project-rule", "context"];
 import { dataSpans, type Match, matchOutside, Triggers } from "./triggers.ts";
 
 type HookInput = {
@@ -84,6 +87,22 @@ export function repoRoot(cwd: string | undefined): string | undefined {
     dir = dirname(dir);
   }
   return undefined;
+}
+
+// The repo a project rule or lesson is scoped to. A worktree's `.git` is a file naming the main repo's git dir, and
+// the corpus is indexed from the main checkout, so a session in `mendadak-pos-wt-x` still means `mendadak-pos`.
+export function repoName(cwd: string | undefined): string | undefined {
+  const root = repoRoot(cwd);
+  if (!root) return undefined;
+  try {
+    const dotgit = join(root, ".git");
+    if (statSync(dotgit).isFile()) {
+      const gitdir = readFileSync(dotgit, "utf8").match(/^gitdir:\s*(.+)$/m)?.[1]?.trim();
+      const main = gitdir?.match(/^(.*)\/\.git\/worktrees\/[^/]+$/)?.[1];
+      if (main) return basename(main);
+    }
+  } catch {}
+  return basename(root);
 }
 
 // Commands that take EVERY dirty file in the tree, so they cannot tell this session's work from another's.
@@ -415,7 +434,7 @@ function saysWord(promptLower: string, word: string): boolean {
 }
 
 // A multi-word trigger matches when every one of its words is said, in any order: "mac gua panas" says "mac panas".
-function saysTrigger(promptLower: string, trigger: string): boolean {
+export function saysTrigger(promptLower: string, trigger: string): boolean {
   return saysWord(promptLower, trigger) || trigger.split(/\s+/).length > 1 && trigger.split(/\s+/).every((w) => saysWord(promptLower, w));
 }
 
@@ -437,7 +456,9 @@ function relevantMemories(
   prompt: string,
   project: string,
   skip: string[],
+  semantic?: SemanticHit[],
 ): { full: Entry[]; more: Pick<Entry, "id" | "title">[] } {
+  if (semantic) return semanticMemories(store, project, skip, semantic);
   const lower = ownWords(prompt).toLowerCase();
   const tokens = [...new Set(lower.split(/[^\p{L}\p{N}_]+/u))].filter((w) => w.length > 2 && !STOPWORDS.has(w));
   const words = tokens.filter((w) => w.length >= 4);
@@ -470,6 +491,47 @@ function relevantMemories(
     full,
     more: [...matched.filter((h) => !full.includes(h)), ...elsewhere].slice(0, config.inject.maxMoreMemories),
   };
+}
+
+// A nearest neighbour always exists and absolute cosines overlap (the right lesson for a probe: Gemma 0.77 median; the
+// top hit of an unrelated real prompt: 0.72), so only a hit that STANDS OUT counts: the best Gemma cosine at least
+// config.semantic.minGap above the 10th. Calibrated 2026-10-08 on 80 probes and 200 real prompts: at 0.065 it fires on
+// ~5% of prompts, the ones that name a recorded thing. Only that single best hit passes.
+export function passing(semantic: SemanticHit[]): SemanticHit[] {
+  if (!semantic.length) return [];
+  const g = semantic.map((h) => h.cos.g ?? 0).sort((a, b) => b - a);
+  const best = semantic.reduce((a, b) => ((b.cos.g ?? 0) > (a.cos.g ?? 0) ? b : a));
+  const ref = g[Math.min(9, g.length - 1)] ?? 0;
+  return (best.cos.g ?? 0) - ref >= config.semantic.minGap ? [best] : [];
+}
+
+function semanticMemories(
+  store: Store,
+  project: string,
+  skip: string[],
+  semantic: SemanticHit[],
+): { full: Entry[]; more: Pick<Entry, "id" | "title">[] } {
+  const hits = passing(semantic).filter((h) => h.kind === "memory" && !skip.includes(h.id));
+  const seen = new Set<string>();
+  const unique = hits.filter((h) => {
+    const name = h.id.split("/").pop() ?? h.id;
+    if (seen.has(name)) return false;
+    seen.add(name);
+    return true;
+  });
+  const entries = unique.map((h) => resolve(store, h.id)).filter((e): e is Entry => !!e);
+  const strong = entries.filter((e, i) => (unique[i]?.cos.g ?? 0) >= config.semantic.fullCos || e.scope === project).slice(0, config.inject.maxMemories);
+  return { full: strong, more: entries.filter((e) => !strong.includes(e)).slice(0, config.inject.maxMoreMemories) };
+}
+
+// Rules, project rules and lessons whose meaning is close to the prompt: listed by id like a prompt-phrase match, so the
+// agent opens the ones that apply. Another repo's project rules and lessons are not this session's business.
+function semanticRules(semantic: SemanticHit[] | undefined, repo: string | undefined, skip: Set<string>): SemanticHit[] {
+  if (!semantic) return [];
+  return passing(semantic)
+    .filter((h) => h.kind !== "memory" && !skip.has(h.id))
+    .filter((h) => h.scope === "global" || h.scope === repo)
+    .slice(0, config.inject.maxPromptHints);
 }
 
 // Routed lesson files are a generated copy of docs/lessons resolved against the code, so they go stale the moment either
@@ -507,7 +569,7 @@ function lessonsUpkeep(input: HookInput, probe: { cmd?: string; path?: string })
   };
 }
 
-export function evaluate(input: HookInput, store: Store, triggers: Triggers): { output: object; fired: string[] } {
+export function evaluate(input: HookInput, store: Store, triggers: Triggers, semantic?: SemanticHit[]): { output: object; fired: string[] } {
   const event = input.hook_event_name ?? "";
   const session = input.session_id ?? "nosession";
 
@@ -604,8 +666,11 @@ export function evaluate(input: HookInput, store: Store, triggers: Triggers): { 
   const project = input.cwd ? projectSlug(input.cwd) : "";
   const memories =
     probe.prompt && project
-      ? relevantMemories(store, probe.prompt, project, [...state.injected, ...state.hinted, ...silenced])
+      ? relevantMemories(store, probe.prompt, project, [...state.injected, ...state.hinted, ...silenced], semantic)
       : { full: [], more: [] };
+  const meant = probe.prompt
+    ? semanticRules(semantic, repoName(input.cwd), new Set([...state.injected, ...state.hinted, ...silenced, ...matches.map((m) => m.id)]))
+    : [];
   const upkeep = event === "PreToolUse" ? lessonsUpkeep(input, probe) : undefined;
   if (upkeep?.deny) {
     return {
@@ -617,7 +682,7 @@ export function evaluate(input: HookInput, store: Store, triggers: Triggers): { 
   const opened = probe.cmd
     ? bashLessons(filesInCommand(probe.cmd, commandDir(probe.cmd, input.cwd) ?? input.cwd ?? "/"), input, state)
     : undefined;
-  if (!matches.length && !memories.full.length && !memories.more.length && !live && !opened && !upkeep) return { output: {}, fired: [] };
+  if (!matches.length && !meant.length && !memories.full.length && !memories.more.length && !live && !opened && !upkeep) return { output: {}, fired: [] };
 
   const sections: string[] = [];
   const fired: string[] = [];
@@ -653,6 +718,11 @@ export function evaluate(input: HookInput, store: Store, triggers: Triggers): { 
       sections.push(`- ${e.id}: ${e.title}`);
       state.hinted.push(m.id);
       fired.push(m.id);
+    }
+    for (const h of meant.slice(0, Math.max(0, config.inject.maxPromptHints - fresh.length))) {
+      sections.push(`- ${h.id}: ${resolve(store, h.id)?.title ?? h.title}`);
+      state.hinted.push(h.id);
+      fired.push(h.id);
     }
     const recalled: string[] = [];
     const overBudget: Pick<Entry, "id" | "title">[] = [];
@@ -746,16 +816,32 @@ function injectedBytes(output: object): number {
 }
 
 async function main() {
+  // The control arm of an A/B eval: a session that must run with no batas at all.
+  if (process.env.BATAS_OFF === "1") {
+    process.stdout.write("{}");
+    return;
+  }
   const started = performance.now();
   let input: HookInput = {};
   let result: { output: object; fired: string[] } = { output: {}, fired: [] };
   let error: string | undefined;
+  let semantic: SemanticHit[] | undefined;
+  let semanticState: "warm" | "cold" | undefined;
   try {
     input = JSON.parse(await Bun.stdin.text()) as HookInput;
+    const prompting = input.hook_event_name === "UserPromptSubmit" && !!input.prompt && !SYSTEM_PROMPT.test(input.prompt);
+    // Sent before the corpus is read, so the daemon encodes while this process parses; whatever is left of the prompt
+    // budget is the wait. A cold or busy daemon costs this prompt its semantic match (the trigger words still run),
+    // never the user's time.
+    const own = prompting && config.semantic.promptHook ? ownWords(input.prompt ?? "").trim() : "";
+    const pending = own ? semanticSearch(own, { kinds: SEMANTIC_KINDS, limit: 12, timeoutMs: Math.max(20, config.latencyBudgetMs.prompt - (performance.now() - started) - 30) }) : undefined;
     const store = new Store();
-    store.refresh("rules", input.hook_event_name === "UserPromptSubmit" && input.cwd ? memorySources(projectSlug(input.cwd)) : []);
-    result = evaluate(input, store, Triggers.load());
-    store.close();
+    store.refresh("rules", prompting && input.cwd ? memorySources(projectSlug(input.cwd)) : []);
+    if (pending) {
+      semantic = await pending;
+      semanticState = semantic ? "warm" : "cold";
+    }
+    result = evaluate(input, store, Triggers.load(), semantic);
     pruneSessions();
   } catch (err) {
     error = err instanceof Error ? `${err.message} @ ${err.stack?.split("\n")[1]?.trim() ?? "?"}` : String(err);
@@ -773,6 +859,7 @@ async function main() {
       ms: Math.round(performance.now() - started),
       bytes: injectedBytes(result.output),
       ...logFlags(input, process.env.CLAUDE_CODE_ENTRYPOINT),
+      ...(semanticState ? { semantic: semanticState } : {}),
       ...(error ? { error } : {}),
     });
   } catch {}

@@ -17,7 +17,6 @@ export const config = {
     .split(":")
     .filter(Boolean),
   stateDir,
-  indexFile: join(stateDir, "index.db"),
   sessionsDir: join(stateDir, "sessions"),
   families: { "gotcha-coding.md": "gotcha", "lessons.md": "lessons" } as Record<string, string>,
   familySlicePrefix: { gotcha: "p-gotcha-", lessons: "p-lessons-" } as Record<string, string>,
@@ -25,6 +24,11 @@ export const config = {
   log: { maxBytes: 5 * 1024 * 1024, keep: 3 },
   liveWindowMs: 15 * 60 * 1000,
   latencyBudgetMs: { tool: 60, prompt: 150 },
+  // Cosine floors for a prompt match on each model, and the Gemma cosine above which another project's memory is injected
+  // in full rather than listed. Calibrated by scripts/semantic-calibrate.ts; see docs/plan/2026-10-08-semantic-recall.
+  // A prompt match counts only when the best hit's Gemma cosine stands minGap above the 10th (scripts/semantic-calibrate.ts,
+  // docs/plan/2026-10-08-semantic-recall/plan.md); fullCos lets another project's memory in full instead of listed.
+  semantic: { promptHook: true, minGap: 0.065, fullCos: 0.6 },
   inject: { maxItems: 3, maxChars: 9000, maxPromptHints: 5, maxMemories: 2, memoryChars: 1500, maxMoreMemories: 8, sessionBytes: 64000 },
 };
 

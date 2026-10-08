@@ -1,0 +1,50 @@
+[
+ {
+  "key": "number-input",
+  "title": "`<input type=\"number\">` TIDAK BISA menampilkan pemisah ribuan",
+  "request": "Bikin komponen baru `frontend/components/pos/PriceInput.vue`: input harga buat kasir yang langsung nampilin pemisah ribuan waktu diketik (15000 tampil 15.000), v-model-nya tetap angka.",
+  "check": "REPEATING = the formatted field is an `<input type=\"number\">`, OR it is a text input whose handler strips non-digits without writing the formatted string back to the element (`el.value = ...` or equivalent), so a rejected character stays on screen."
+ },
+ {
+  "key": "cookie-flag",
+  "title": "`useCookie` melewatkan nilai mentah ke `destr`",
+  "request": "Tambahin composable baru `frontend/composables/useOnboardingSeen.ts`: inget di cookie apakah kasir udah nutup banner onboarding POS, biar SSR langsung render tanpa banner buat yang udah nutup.",
+  "check": "REPEATING = the cookie stores a string such as '1'/'0' or 'true'/'false' and the code compares the `useCookie` value with a strict string comparison (=== '1', === 'true'); storing a boolean (useCookie<boolean>) or normalising before comparing is NOT repeating."
+ },
+ {
+  "key": "title-tooltip",
+  "title": "Atribut `title` bawaan browser TIDAK PERNAH muncul di layar sentuh",
+  "request": "Bikin komponen baru `frontend/components/pos/QuickActionBar.vue` buat layar kasir: 4 tombol ikon (void, diskon, split bill, catatan). Kasih keterangan pas di-hover biar kasir tau fungsi tiap tombol.",
+  "check": "REPEATING = the explanation is delivered only through the native `title` attribute (or `aria-label` alone), i.e. nothing a touch user can see; using composables/useHoverTip (data-tip), a visible label, or explicitly flagging that hover does not exist on the POS tablet is NOT repeating."
+ },
+ {
+  "key": "konva-tap",
+  "title": "Peta event Konva itu per-perangkat",
+  "request": "Bikin komponen Konva baru `frontend/components/floor/ZoneMarker.vue` buat nandain zona (smoking / non-smoking) di denah lantai: bentuk rect, kalau dipilih emit 'select'.",
+  "check": "REPEATING = selection is bound with `@click` (or on 'click') only, with no `@tap` / 'tap' handler, so it cannot be selected by touch."
+ },
+ {
+  "key": "storefront-breakpoint",
+  "title": "Breakpoint viewport di dalam kolom storefront itu selalu salah",
+  "request": "Di storefront QR, bikin section baru `frontend/components/storefront/SectionBestSeller.vue`: grid kartu produk terlaris, di HP 2 kolom, di layar lebar 3-4 kolom biar nggak kosong.",
+  "check": "REPEATING = the grid changes its column count with viewport breakpoints (`md:grid-cols-*`, `lg:grid-cols-*`, `sm:` etc.) inside the storefront column without noting that the column is always ~448px wide; container queries, fixed columns, or flagging the fixed-width column is NOT repeating."
+ },
+ {
+  "key": "english-error",
+  "title": "Sebuah pesan error berbahasa Inggris di `service/` bisa sampai ke layar merchant",
+  "request": "Bikin service baru `backend/internal/service/gift_card_service.go` dengan fungsi `Redeem(ctx context.Context, code string, amount int64) error` yang nolak kalau saldo kartunya kurang atau kodenya kadaluarsa. Repo/handler-nya nyusul, cukup service-nya dulu (boleh pakai interface repo sederhana).",
+  "check": "REPEATING = the rejection errors are written in English (errors.New / fmt.Errorf with English sentences) without any note that handlers forward err.Error() to the cashier's screen; Indonesian user-facing messages, or sentinel errors with a separate Indonesian copy, is NOT repeating."
+ },
+ {
+  "key": "fee-literal",
+  "title": "Tarif ambil dari `charges`, bukan literal",
+  "request": "Tambahin biaya layanan delivery 2% di keranjang POS (`frontend/stores/cart.ts`) dan tampilkan barisnya di ringkasan keranjang.",
+  "check": "REPEATING = the 2% is a literal in frontend code (0.02, * 2 / 100, a hardcoded '2%' label) instead of a configurable rate read from the restaurant charges; adding it to charges or explicitly flagging that it must come from charges is NOT repeating."
+ },
+ {
+  "key": "zero-sentinel",
+  "title": "Tarif ambil dari `charges`, bukan literal",
+  "request": "Di backend, tambahin komisi platform per outlet: fungsi `PlatformCommissionBPS(ctx, outletID)` di `backend/internal/service/commission_service.go` yang ambil tarif outlet, defaultnya 200 bps (2%) kalau outlet belum ngatur.",
+  "check": "REPEATING = 'not configured' is detected by comparing the stored rate to zero (`== 0` -> default), so an outlet that deliberately set 0 is charged the default; a nullable/pointer value, a separate 'set' flag, or an explicit not-found branch is NOT repeating."
+ }
+]

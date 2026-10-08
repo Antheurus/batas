@@ -80,15 +80,19 @@ rule whose fixture stops firing turns the suite red instead of failing silently 
 | `just log` | recent hook calls: what fired, and how many ms it took |
 | `just reindex` | rebuild the index from scratch |
 
-State lives in `~/.batas/`: `index.db` (SQLite FTS5, WAL), `sessions/` (which rules each session was already given)
-and `hook.log.jsonl`.
+State lives in `~/.batas/`: `vectors.lance` (batasd's embeddings), `batasd.sock` / `batasd.log`, `sessions/` (which
+rules each session was already given) and `hook.log.jsonl`. The text itself is never copied: the hook and the MCP server
+parse the markdown files directly (the rules in ~8 ms, all ~8,000 entries in ~265 ms).
 
-## Why SQLite FTS5 and not a graph or embeddings
+## Search is semantic, triggers are not
 
-- **Shape of the data.** The corpus is a few thousand flat documents, and the questions are keyword questions
-  ("pg_dump", "git stash", an error string). BM25 answers those exactly.
-- **Concurrent sessions.** Many sessions run hooks at once, and WAL mode takes many concurrent readers.
-- **Nothing to install.** It is built into Bun, with no native addon to load on every hook call.
-- **Relations.** The few relations that exist (`_linked to`, `[[wiki]]`) sit in a `links` table.
-- **Embeddings** can be added later as a fallback if keyword recall proves insufficient. The recall test is what
-  will say so.
+- **Search by meaning.** `recall`, `check`'s related list, the prompt hook's memory and rule matching, and lesson lookup
+  go through `batasd/batasd.py`: EmbeddingGemma 2 (text only) and multilingual-e5-small, fused by reciprocal rank. On 80
+  blind English and Indonesian queries against 40 lessons it found the right one in the top 3 for 35/40 and 36/40,
+  where the SQLite BM25 it replaced managed 18/40 and 33/40 (`evals/semantic-compare.py`, `just semantic-eval`).
+- **One warm process.** Two models take ~15 s to load, so batasd stays up behind a unix socket, starts on the first call
+  that needs it, and exits after 30 idle minutes. A cold or busy daemon costs a prompt its semantic matches, never
+  the user's wait: the hook's budget is 150 ms and it carries on without them.
+- **Command, file and code triggers stay regex** (`~/.claude/batas/triggers.toml`, the collision guard). A command is a
+  literal surface, and a safety path should not be fuzzy or slower on every tool call. Decided with the user on
+  2026-10-08.

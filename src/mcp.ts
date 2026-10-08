@@ -1,49 +1,34 @@
-import { existsSync, readFileSync, statSync } from "node:fs";
 import { basename, join } from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { config } from "./config.ts";
 import type { Entry, Kind } from "./corpus.ts";
-import { Store } from "./store.ts";
+import { ask, requestSync } from "./semantic.ts";
+import { type Hit, Store } from "./store.ts";
 import { mutedIds, readAcks, readFeedback, reportWrong, setMuted } from "./feedback.ts";
+import { repoName } from "./hook.ts";
 import { readHookLog } from "./log.ts";
 import { Triggers } from "./triggers.ts";
 import { logChangelog, logProgress, ORIGINS, recordMemory } from "./write.ts";
 
 const KINDS = ["rule", "rule-section", "reference", "memory", "project-rule", "progress", "changelog", "context"] as const;
+const KNOWLEDGE: Kind[] = ["rule", "rule-section", "reference", "memory", "project-rule", "context"];
 
-// The server lives as long as its Claude session, so the index can be rebuilt or deleted under it by another session.
-// A handle on a deleted file answered every call with "disk I/O error" until the session restarted; it is reopened
-// whenever the file on disk is no longer the one this handle opened, or a refresh hits an I/O error.
-const inode = () => (existsSync(config.indexFile) ? statSync(config.indexFile).ino : -1);
-let store = new Store();
-let openedIno = inode();
+// The server lives as long as its Claude session; the corpus is re-read from its files whenever one changed, and a
+// change also nudges batasd to re-embed it.
+const store = new Store();
 let lastRefresh = 0;
 
-function reopen() {
-  try {
-    store.close();
-  } catch {}
-  store = new Store();
-  openedIno = inode();
-  lastRefresh = 0;
-}
-
 function fresh(): Store {
-  if (inode() !== openedIno) reopen();
   if (Date.now() - lastRefresh > 5000) {
-    try {
-      store.refresh("all");
-    } catch (err) {
-      if (!/disk I\/O|SQLITE_IOERR|no such table|database disk image/i.test(String(err))) throw err;
-      reopen();
-      store.refresh("all");
-    }
+    if (store.refresh("all").changed && lastRefresh) requestSync();
     lastRefresh = Date.now();
   }
   return store;
 }
+
+const WARMING = "batas semantic search is starting (two models load in ~10 s, the first full index takes a few minutes) — retry in a moment.";
 
 function text(s: string) {
   return { content: [{ type: "text" as const, text: s }] };
@@ -51,12 +36,6 @@ function text(s: string) {
 
 function fail(err: unknown) {
   return { content: [{ type: "text" as const, text: `error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
-}
-
-function repoName(dir: string): string {
-  let d = dir;
-  while (d !== "/" && !existsSync(join(d, ".git"))) d = join(d, "..");
-  return basename(d === "/" ? dir : d);
 }
 
 function full(e: Entry): string {
@@ -92,16 +71,15 @@ server.registerTool(
         out.push(`${full(e)}\n\n(fired by ${m.via} \`${m.pattern}\`)`);
       }
       const q = [intent, command, file ? basename(file) : undefined].filter(Boolean).join(" ");
-      const related = q
-        ? s
-            .search(q, { kinds: ["rule", "rule-section", "project-rule", "memory"], limit: 6 })
-            .filter((h) => !seen.has(h.id))
-        : [];
+      const found = q ? await s.search(q, { kinds: ["rule", "rule-section", "project-rule", "memory", "context"], scope: repoName(process.cwd()), limit: 6 }) : [];
+      const related = (found ?? []).filter((h) => !seen.has(h.id));
       const lines = [
         out.length ? `# ${out.length} rule(s) triggered\n\n${out.join("\n\n---\n\n")}` : "# No trigger matched",
         related.length
-          ? `\n# Related (BM25 — read the ones that fit with get)\n${related.map((h) => `- ${h.id} [${h.kind}] ${h.title}`).join("\n")}`
-          : "",
+          ? `\n# Related (semantic — read the ones that fit with get)\n${related.map((h) => `- ${h.id} [${h.kind}] ${h.title}`).join("\n")}`
+          : found
+            ? ""
+            : `\n# Related: ${WARMING}`,
       ];
       return text(lines.join("\n"));
     } catch (err) {
@@ -127,12 +105,28 @@ server.registerTool(
   },
   async ({ query, kinds, project, limit }) => {
     try {
-      const hits = fresh().search(query, { kinds: kinds as Kind[] | undefined, scope: project, limit: limit ?? 10 });
-      if (!hits.length) return text(`No entries match "${query}".`);
+      // Inside a repo the default scope is that repo (plus global), and knowledge is ranked apart from history: as one
+      // list, long English progress entries took a quarter of the top-3 slots meant for the distilled lesson.
+      const scope = project ?? repoName(process.cwd());
+      const s = fresh();
+      const n = limit ?? 10;
+      const line = (h: Hit) => `- ${h.id} [${h.kind}${h.scope === "global" ? "" : ` · ${h.scope}`}] ${h.title}\n  ${h.snippet.replace(/\s+/g, " ")}`;
+      if (kinds?.length) {
+        const hits = await s.search(query, { kinds: kinds as Kind[], scope, limit: n });
+        if (!hits) return text(WARMING);
+        return text(hits.length ? hits.map(line).join("\n") : `No entries match "${query}".`);
+      }
+      const [known, past] = await Promise.all([
+        s.search(query, { kinds: KNOWLEDGE, scope, limit: n }),
+        s.search(query, { kinds: ["progress", "changelog"], scope, limit: Math.max(2, Math.ceil(n / 3)) }),
+      ]);
+      if (!known || !past) return text(WARMING);
+      if (!known.length && !past.length) return text(`No entries match "${query}".`);
       return text(
-        hits
-          .map((h) => `- ${h.id} [${h.kind}${h.scope === "global" ? "" : ` · ${h.scope}`}] ${h.title}\n  ${h.snippet.replace(/\s+/g, " ")}`)
-          .join("\n"),
+        [
+          ...known.map(line),
+          ...(past.length ? ["", "# From session history (progress / changelog)", ...past.map(line)] : []),
+        ].join("\n"),
       );
     } catch (err) {
       return fail(err);
@@ -199,10 +193,11 @@ server.registerTool(
   async (a) => {
     try {
       if (a.type === "lesson") {
-        const similar = fresh().search(`${a.title} ${a.description} ${a.body}`, {
-          kinds: ["rule", "rule-section", "project-rule", "memory"],
-          limit: 6,
-        });
+        const similar =
+          (await fresh().search(`${a.title} ${a.description} ${a.body}`, {
+            kinds: ["rule", "rule-section", "project-rule", "memory"],
+            limit: 6,
+          })) ?? [];
         return text(
           [
             "# Draft only — nothing was written",
@@ -231,6 +226,8 @@ server.registerTool(
         origin: a.origin,
         triggers: a.triggers,
       });
+      fresh();
+      requestSync();
       return text(`${w.note}\n${w.file}`);
     } catch (err) {
       return fail(err);
@@ -321,21 +318,22 @@ server.registerTool(
   async () => {
     try {
       const s = fresh();
+      const daemon = await ask<{ pid: number; entries: number; syncing: boolean }>({ op: "status" }, 1000);
       const triggers = Triggers.load();
-      const ruleIds = (s.db.query("SELECT id FROM entries WHERE kind = 'rule'").all() as { id: string }[]).map((r) => r.id);
+      const ruleIds = s.entries("rule").map((r) => r.id);
       const covered = new Set(triggers.ids());
       const missing = ruleIds.filter((id) => !covered.has(id));
       const orphan = [...covered].filter((id) => !ruleIds.includes(id) && !/^(memory|hint):/.test(id));
       // Step 5b's other half: an always-on mother item whose verbatim text has no section in its *-full.md is injected
       // as the condensed line only, which is already in context.
-      const motherRows = s.db.query("SELECT id, source FROM entries WHERE kind = 'rule'").all() as { id: string; source: string }[];
+      const motherRows = s.entries("rule");
       const noFullText = motherRows
         .filter((r) => /\/(lessons\.md|gotcha-coding\.md)$/.test(r.source))
         .map((r) => r.id)
         .filter((id) => {
           const [family, addr] = id.split(":");
           const file = family ? config.familyFullText[family] : undefined;
-          const exact = s.db.query("SELECT 1 FROM entries WHERE id = ?").get(`ref:references/${file}#${addr?.toLowerCase()}`);
+          const exact = s.entries("reference").some((e) => e.id === `ref:references/${file}#${addr?.toLowerCase()}`);
           return !!file && !!addr && !exact;
         });
       const rows = readHookLog(Date.now() - 24 * 3600 * 1000);
@@ -361,7 +359,7 @@ server.registerTool(
       const muted = Object.entries(mutedIds());
       return text(
         [
-          `index: ${config.indexFile} (${Math.round(statSync(config.indexFile).size / 1024)} KB)`,
+          `semantic: ${daemon ? `batasd pid ${daemon.pid}, ${daemon.entries} vectors${daemon.syncing ? ", syncing" : ""}` : "batasd not answering (starting it)"}`,
           `entries: ${s.stats().map((r) => `${r.kind} ${r.n}`).join(", ")}`,
           `triggers: ${covered.size} ids in ${config.triggersFile}; ${missing.length} rules without triggers${missing.length ? `: ${missing.slice(0, 40).join(" ")}${missing.length > 40 ? " …" : ""}` : ""}`,
           orphan.length ? `orphan trigger ids (no such rule): ${orphan.join(" ")}` : "orphan trigger ids: none",

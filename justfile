@@ -14,13 +14,29 @@ typecheck:
 
 check: typecheck test
 
-# rebuild the whole index from scratch, in place (live MCP servers keep a valid handle)
+# re-embed whatever changed and wait for it (batasd keeps vectors in ~/.batas/vectors.lance; the text stays in its files)
 reindex:
-    bun -e 'import {Store} from "./src/store.ts"; const s=new Store(); s.reset(); console.log(s.refresh("all")); console.log(s.stats())'
+    bun -e 'import {ask, start} from "./src/semantic.ts"; const r = await ask({op: "sync", wait: true}, 3600000); if (!r) { start(); console.log("batasd was not running; started it, the first index runs in the background (just semantic-status)"); } else console.log(r)'
 
-# search the corpus from the terminal, e.g. `just recall "pg_dump restore"`
+# search the corpus from the terminal by meaning, e.g. `just recall "restore a dump into an empty database"`
 recall query:
-    bun -e 'import {Store} from "./src/store.ts"; const s=new Store(); s.refresh("all"); for (const h of s.search(process.argv[1], {limit: 10})) console.log(h.id.padEnd(60), h.title.slice(0, 90))' "{{query}}"
+    bun -e 'import {Store} from "./src/store.ts"; const s=new Store(); s.refresh("all"); const hits = await s.search(process.argv[1], {limit: 10, timeoutMs: 30000}); if (!hits) console.log("batasd is starting, retry in a moment"); for (const h of hits ?? []) console.log(h.id.padEnd(60), h.title.slice(0, 90))' "{{query}}"
+
+# stop batasd and start it again on the current code (vectors reload from disk, nothing is re-embedded)
+batasd-restart:
+    bun -e 'import {ask, start} from "./src/semantic.ts"; import {rmSync} from "node:fs"; import {join} from "node:path"; import {config} from "./src/config.ts"; console.log("stopped", await ask({op: "quit"}, 2000)); await Bun.sleep(1500); rmSync(join(config.stateDir, "batasd.spawned"), {force: true}); start(); for (let i = 0; i < 60; i++) { const r = await ask({op: "status"}, 1000); if (r) { console.log("running", r); break; } await Bun.sleep(1000); }'
+
+# batasd: pid, vectors held, whether a sync is running (starts it when it is down)
+semantic-status:
+    bun -e 'import {ask} from "./src/semantic.ts"; console.log((await ask({op: "status"}, 2000)) ?? "not answering: started it, models load in ~15 s")'
+
+# acceptance 1: the 80 blind EN/ID probes through batasd, right lesson in top 3 (target EN>=35 ID>=36); --all searches every kind
+semantic-eval *args:
+    bun scripts/semantic-eval.ts {{args}}
+
+# where the hook's cosine floor sits: probe positives kept, real prompts with a hit, trigger-word matches also reached
+semantic-calibrate n="300":
+    bun scripts/semantic-calibrate.ts {{n}}
 
 # which rules fire for a command, e.g. `just fire "git stash pop"`
 fire cmd:

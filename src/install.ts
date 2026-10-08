@@ -1,6 +1,7 @@
 import { copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { config } from "./config.ts";
+import { start } from "./semantic.ts";
 import { Store } from "./store.ts";
 
 type HookCmd = { type: "command"; command: string; timeout?: number };
@@ -75,6 +76,7 @@ console.log(`skill: ${installSkill()}`);
 const t = performance.now();
 const store = new Store();
 const r = store.refresh("all");
-console.log(`index: ${r.changed} files indexed in ${Math.round(performance.now() - t)}ms -> ${config.indexFile}`);
+console.log(`corpus: ${r.changed} files parsed in ${Math.round(performance.now() - t)}ms`);
 console.log(`entries: ${store.stats().map((s) => `${s.kind} ${s.n}`).join(", ")}`);
-store.close();
+start();
+console.log("batasd starting: the first full embedding pass runs in the background (`just semantic-status`)");

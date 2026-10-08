@@ -56,3 +56,21 @@ Decision: `google/embeddinggemma-2` loaded text-only (`config_kwargs={"vision_co
 3. Hook prompt path: memories and rules by semantic match; retire trigger-word matching once the prompt eval
    (just trigger-audit / prompt-audit replaced by a semantic hit-rate replay) shows no loss.
 4. Latency gate, cold-start behavior, docs, changelog.
+
+## Built (2026-10-08) — where it departs from the design above, and why
+
+- **LanceDB holds only vectors and the ids that key them.** Measured first: the whole corpus (7,990 entries, 14 MB)
+  parses from its markdown in ~265 ms and the rules alone in ~8 ms, so the hook parses what it needs per call and the
+  MCP server keeps everything in memory, re-parsing a file when its mtime moves. No second copy of the text exists to
+  drift, and there is no shared database file for a live session to lose (the v0.15.2 "disk I/O error" class is gone
+  by construction, not by a reopen guard). SQLite is not used anywhere.
+- **batasd pulls the corpus itself** by running `src/export.ts` (the TypeScript parsers, one JSON line per entry with a
+  sha1) at start, every 120 s, and when the MCP server writes a memory. It re-embeds only changed hashes and persists
+  every 512 rows, so an interrupted first index keeps what it paid for.
+- **Encode lock per 16 documents**, so a search arriving during a full index waits one small batch, not a chunk.
+- **The hook keeps trigger words as the fallback** whenever batasd does not answer inside the prompt budget, and logs
+  `semantic: warm|cold` per prompt. Trigger-word matching is retired only after `just semantic-calibrate` shows
+  semantic reaches what it reaches.
+- **Command, file and code triggers stay regex** (decided with the user 2026-10-08; memory
+  `batas-command-file-triggers-stay-regex`). Semantic covers recall, check, prompt -> memory/rule/lesson matching.
+- **Worktree sessions resolve to the main repo** (`repoName`), since the corpus is indexed from the main checkout.

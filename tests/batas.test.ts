@@ -27,7 +27,7 @@ store.refresh("all");
 
 describe("corpus", () => {
   test("indexes every numbered rule of both families exactly once", () => {
-    const rows = store.db.query("SELECT id FROM entries WHERE kind = 'rule'").all() as { id: string }[];
+    const rows = store.entries("rule");
     const gotcha = rows.filter((r) => r.id.startsWith("gotcha:")).length;
     const lessons = rows.filter((r) => r.id.startsWith("lessons:")).length;
     expect(gotcha).toBe(155);
@@ -39,11 +39,6 @@ describe("corpus", () => {
     expect(e?.source.endsWith("p-gotcha-db.md")).toBe(true);
     expect(e?.body).toContain("uuid5");
   });
-
-  test("search reaches memory and other repos' project rules", () => {
-    expect(store.search("additionalContext ask popups").map((h) => h.id)).toContain("memory:-tmp-demo/hooks-warn-not-ask");
-    expect(store.search("ESC/POS codepage rupiah")[0]?.scope).toBe("demo-app");
-  });
 });
 
 describe("triggers", () => {
@@ -51,16 +46,14 @@ describe("triggers", () => {
   const ids = Object.keys(specs).filter((id) => !id.startsWith("_"));
 
   test.skipIf(!ids.length)("cover every numbered rule and no phantom id", () => {
-    const rules = (store.db.query("SELECT id FROM entries WHERE kind = 'rule'").all() as { id: string }[]).map((r) => r.id);
+    const rules = store.entries("rule").map((r) => r.id);
     expect(rules.filter((id) => !ids.includes(id))).toEqual([]);
     expect(ids.filter((id) => id.startsWith("hint:") && !specs[id]?.text)).toEqual([]);
     expect(ids.filter((id) => !rules.includes(id) && !/^(memory|hint):/.test(id))).toEqual([]);
   });
 
   test.skipIf(!ids.length)("every rule in an injected-only slice has a cmd/path/code trigger — or it can never arrive", () => {
-    const injected = (
-      store.db.query("SELECT id FROM entries WHERE kind = 'rule' AND source LIKE '%-injected.md'").all() as { id: string }[]
-    ).map((r) => r.id);
+    const injected = store.entries("rule").filter((r) => r.source.endsWith("-injected.md")).map((r) => r.id);
     const unreachable = injected.filter((id) => {
       const s = specs[id] ?? {};
       return !(s.cmd?.length || s.path?.length || s.code?.length);
@@ -139,6 +132,25 @@ describe("hook", () => {
     expect(hit.hookSpecificOutput?.additionalContext).not.toContain("### memory:-tmp-demo/hooks-warn-not-ask");
     expect(ask("bikin hooks yang warn aja, jangan ask popups advisory", "m1").output).toEqual({});
     expect(ask("perketat\n\nHere is a note offered by a side agent:\n> hooks warn ask popups advisory", "m4").output).toEqual({});
+  });
+
+  test("a semantic hit arrives only when it stands out from the 10th neighbour, and only the best one", () => {
+    const none = new Triggers({});
+    const gap = config.semantic.minGap;
+    const hit = (id: string, kind: string, scope: string, g: number) =>
+      ({ id, kind, scope, title: id, source: "x", score: 0.03, cos: { g, e: 0.85 } }) as never;
+    const crowd = (base: number) => Array.from({ length: 10 }, (_, i) => hit(`ref:filler-${i}`, "reference", "global", base - i * 0.001));
+    const ask = (session_id: string, hits: never[]) =>
+      JSON.stringify(evaluate({ session_id, cwd: "/tmp/demo", hook_event_name: "UserPromptSubmit", prompt: "jangan tanya pakai popup" }, store, none, hits).output);
+    const strong = ask("s1", [hit("memory:-tmp-demo/hooks-warn-not-ask", "memory", "-tmp-demo", 0.7 + gap + 0.01), ...crowd(0.7)]);
+    expect(strong).toContain("### memory:-tmp-demo/hooks-warn-not-ask");
+    expect(strong).not.toContain("filler");
+    // the nearest neighbour of any prompt is always something; a top hit that does not stand out is noise
+    expect(ask("s2", [hit("memory:-tmp-demo/hooks-warn-not-ask", "memory", "-tmp-demo", 0.7 + gap - 0.01), ...crowd(0.7)])).toBe("{}");
+    // a standout rule is listed by id
+    expect(ask("s3", [hit("gotcha:B13", "rule", "global", 0.8 + gap), ...crowd(0.8)])).toContain("- gotcha:B13");
+    // another repo's project rule belongs to that repo's sessions
+    expect(ask("s4", [hit("project:other-repo:all-x.md", "project-rule", "other-repo", 0.8 + gap), ...crowd(0.8)])).toBe("{}");
   });
 
   test("a rule prompt phrase fires on the user's own words, never on a quoted line or a side agent's note", () => {
@@ -287,13 +299,10 @@ describe("hook", () => {
     expect(copiesOf("drift.md", projectsDir).map((c) => c.text)).toEqual(["v1+v2\n", "v1+v2\n"]);
   });
 
-  test("recall reaches a repo's docs/lessons and docs/qa/context.md", () => {
-    const s = new Store();
-    s.refresh("all");
-    const ids = (q: string) => s.search(q, { limit: 5 }).map((h) => h.id);
-    expect(ids("tender bon EDC dobel settle")[0]).toStartWith("project:demo-app:lessons/backend.md#tender-lebih-dari-bon-edc");
-    expect(ids("garbled receipt codepage invariant").some((id) => id.startsWith("project:demo-app:qa/context.md#"))).toBe(true);
-    s.close();
+  test("the corpus carries a repo's docs/lessons and docs/qa/context.md", () => {
+    const ids = store.entries("context").map((e) => e.id);
+    expect(ids.some((id) => id.startsWith("project:demo-app:lessons/backend.md#tender-lebih-dari-bon-edc"))).toBe(true);
+    expect(ids.some((id) => id.startsWith("project:demo-app:qa/context.md#"))).toBe(true);
   });
 
   test("lessons-route puts each lesson on the file that defines its symbol, and only there", () => {
@@ -548,30 +557,24 @@ describe("writers", () => {
 });
 
 describe("mcp server", () => {
-  test("keeps answering after the index is deleted and rebuilt under it", async () => {
-    // its own state dir: deleting the shared test index would break every later test in this process the same way
-    const state = mkdtempSync(join(tmpdir(), "batas-reopen-"));
-    const indexFile = join(state, "index.db");
-    const client = new Client({ name: "batas-test-reopen", version: "0" });
+  test("with batasd down, recall says it is warming up and get still answers", async () => {
+    const client = new Client({ name: "batas-test-cold", version: "0" });
     await client.connect(
       new StdioClientTransport({
         command: "bun",
         args: [join(import.meta.dir, "..", "src", "mcp.ts")],
-        env: { ...(process.env as Record<string, string>), BATAS_STATE_DIR: state },
+        env: { ...(process.env as Record<string, string>) },
         cwd: demo,
       }),
     );
-    const recall = async () =>
-      ((await client.callTool({ name: "recall", arguments: { query: "pg_dump restore empty database", limit: 3 } })) as { content: { text: string }[] })
-        .content[0]?.text ?? "";
-    expect(await recall()).toContain("gotcha:B1");
-    // what the old `just reindex` did while every session's server held the file open
-    for (const f of ["", "-wal", "-shm"]) rmSync(`${indexFile}${f}`, { force: true });
-    const rebuilt = new Store(indexFile);
-    rebuilt.refresh("all");
-    rebuilt.close();
-    await Bun.sleep(5100);
-    expect(await recall()).toContain("gotcha:B1");
+    const recall = (await client.callTool({ name: "recall", arguments: { query: "pg_dump restore empty database", limit: 3 } })) as {
+      content: { text: string }[];
+      isError?: boolean;
+    };
+    expect(recall.isError).toBeFalsy();
+    expect(recall.content[0]?.text).toContain("semantic search is starting");
+    const get = (await client.callTool({ name: "get", arguments: { id: "gotcha:B1" } })) as { content: { text: string }[] };
+    expect(get.content[0]?.text).toContain("pg_dump");
     await client.close();
   }, 30000);
 
@@ -587,10 +590,6 @@ describe("mcp server", () => {
     );
     const tools = (await client.listTools()).tools.map((x) => x.name).sort();
     expect(tools).toEqual(["check", "get", "log_changelog", "log_progress", "mute", "recall", "record", "status"]);
-    const recall = (await client.callTool({ name: "recall", arguments: { query: "pg_dump restore empty database", limit: 3 } })) as {
-      content: { text: string }[];
-    };
-    expect(recall.content[0]?.text).toContain("gotcha:B1");
     const get = (await client.callTool({ name: "get", arguments: { id: "lessons:C18" } })) as { content: { text: string }[] };
     expect(get.content[0]?.text).toContain("git stash push");
     const draft = (await client.callTool({
@@ -598,7 +597,6 @@ describe("mcp server", () => {
       arguments: { type: "lesson", name: "x", title: "stash pop takes another session's work", description: "d", body: "git stash pop after a failed push", origin: "agent-initiated" },
     })) as { content: { text: string }[] };
     expect(draft.content[0]?.text).toContain("Draft only");
-    expect(draft.content[0]?.text).toContain("lessons:C18");
     expect(draft.content[0]?.text).toContain('origin = "agent-initiated"');
     await client.close();
   }, 30000);
@@ -899,7 +897,6 @@ describe("latency budget", () => {
       const s = new Store();
       s.refresh("rules");
       evaluate({ session_id: `lat-t${i}`, hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command: "git commit -m x && git push origin main" } }, s, t);
-      s.close();
       ms.push(performance.now() - started);
     }
     expect(p95(ms)).toBeLessThan(config.latencyBudgetMs.tool);
@@ -912,7 +909,6 @@ describe("latency budget", () => {
       const s = new Store();
       s.refresh("rules", memorySources("-tmp-demo"));
       evaluate({ session_id: `lat-p${i}`, cwd: "/tmp/demo", hook_event_name: "UserPromptSubmit", prompt: "commit terus push, hooks warn popups" }, s, t);
-      s.close();
       ms.push(performance.now() - started);
     }
     expect(p95(ms)).toBeLessThan(config.latencyBudgetMs.prompt);

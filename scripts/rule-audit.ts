@@ -61,7 +61,7 @@ store.refresh("rules");
 const ALWAYS_ON = new Set(["lessons.md", "gotcha-coding.md"]);
 const promoteShare = Number(process.argv[4] ?? 0.3);
 const demoteShare = Number(process.argv[5] ?? 0.02);
-const rows = (store.db.query("SELECT id, source, body FROM entries WHERE kind = 'rule'").all() as { id: string; source: string; body: string }[]).map(
+const rows = store.entries("rule").map(
   (r) => ({ ...r, file: r.source.split("/").pop() ?? "", share: (sessionsHit.get(r.id)?.size ?? 0) / Math.max(sessionCount, 1) }),
 );
 const triggerable = (id: string) => {

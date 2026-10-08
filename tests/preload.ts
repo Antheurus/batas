@@ -58,3 +58,5 @@ process.env.BATAS_CLAUDE_HOME = claudeHome;
 process.env.BATAS_STATE_DIR = join(root, "state");
 process.env.BATAS_PROJECT_ROOTS = repos;
 process.env.BATAS_TEST_ROOT = root;
+// Semantic search needs batasd with both models; tests/semantic.test.ts starts one when BATAS_SEMANTIC=1.
+if (process.env.BATAS_SEMANTIC !== "1") process.env.BATAS_NO_DAEMON = "1";
