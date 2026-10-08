@@ -45,9 +45,12 @@ def delivered(path, target):
         f = os.path.expanduser(f"~/.batas/{name}")
         if os.path.exists(f):
             rows += [json.loads(l) for l in open(f) if path in l]
-    hits = [r for r in rows if r.get("repo") == path and any(target in x for x in r.get("fired", []))]
+    # macOS reports /tmp as /private/tmp, and the hook logs the session's real cwd
+    same = {path, os.path.realpath(path)}
+    rows = [r for r in rows if r.get("repo") in same]
+    hits = [r for r in rows if any(target in x for x in r.get("fired", []))]
     return {"delivered": bool(hits), "first": (hits[0].get("event"), hits[0].get("tool")) if hits else None,
-            "prompt_semantic": [r.get("semantic") for r in rows if r.get("repo") == path and r.get("event") == "UserPromptSubmit"]}
+            "prompt_semantic": [r.get("semantic") for r in rows if r.get("event") == "UserPromptSubmit"]}
 
 
 def lesson_text(title, repo=REPO):

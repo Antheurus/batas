@@ -13,7 +13,7 @@ import { copiesOf, shareMemory } from "../scripts/memory-share.ts";
 import { routeLessons, ruleFile, staleFiles } from "../scripts/lessons-route.ts";
 import { routeRepo, writeRoutes } from "../src/lessons.ts";
 import { errorsIn } from "../scripts/transcripts.ts";
-import { memorySources } from "../src/corpus.ts";
+import { allMemorySources } from "../src/corpus.ts";
 import { mutedIds, readAcks, readFeedback, setMuted } from "../src/feedback.ts";
 import { appendHookLog, liveSessions, readHookLog } from "../src/log.ts";
 import { Store } from "../src/store.ts";
@@ -176,6 +176,15 @@ describe("hook", () => {
     expect(w?.text).toContain("matches the file just written (backend/x.go)");
     expect(w?.text).toContain("### gotcha:B13");
     expect(w?.text).toContain("uuid5");
+  });
+
+  test("another project's memory reaches a repo that has none of its own, through its trigger words", () => {
+    // the prompt path loads every project's memories: a sibling repo (Funnel's frontend) is governed by decisions
+    // recorded under another project (its backend), and with only its own loaded nothing could ever fire there
+    const s = new Store();
+    s.refresh("rules", allMemorySources());
+    const out = evaluate({ session_id: "x1", cwd: "/tmp/sibling-repo", hook_event_name: "UserPromptSubmit", prompt: "udah, commit terus push aja" }, s, new Triggers({}));
+    expect(out.fired).toContain("memory:-tmp-demo/land-without-asking");
   });
 
   test("a rule prompt phrase fires on the user's own words, never on a quoted line or a side agent's note", () => {
@@ -932,7 +941,7 @@ describe("latency budget", () => {
     for (let i = 0; i < 40; i++) {
       const started = performance.now();
       const s = new Store();
-      s.refresh("rules", memorySources("-tmp-demo"));
+      s.refresh("rules", allMemorySources());
       evaluate({ session_id: `lat-p${i}`, cwd: "/tmp/demo", hook_event_name: "UserPromptSubmit", prompt: "commit terus push, hooks warn popups" }, s, t);
       ms.push(performance.now() - started);
     }

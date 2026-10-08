@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { config } from "./config.ts";
-import { memorySources, memoryTriggers, parseMemory, projectSlug, type Entry, type Kind } from "./corpus.ts";
+import { allMemorySources, memoryTriggers, parseMemory, projectSlug, type Entry, type Kind } from "./corpus.ts";
 import { mutedIds, recordAck, reportWrong } from "./feedback.ts";
 import { filesInCommand, lessonsDir, regenAll, regenIfLessonsChanged, routedLessons } from "./lessons.ts";
 import { appendHookLog, liveSessions } from "./log.ts";
@@ -976,7 +976,7 @@ async function main() {
     // what actually competes here (an unscoped reference drowned the right lesson in every other repo's entries).
     const pending = own ? semanticSearch(own, { kinds: SEMANTIC_KINDS, scope: repoName(input.cwd), limit: 12, stash: input.session_id, timeoutMs: Math.max(20, config.latencyBudgetMs.prompt - (performance.now() - started) - 30) }) : undefined;
     const store = new Store();
-    store.refresh("rules", prompting && input.cwd ? memorySources(projectSlug(input.cwd)) : []);
+    store.refresh("rules", prompting ? allMemorySources() : []);
     if (pending) {
       semantic = await pending;
       semanticState = semantic ? "warm" : "cold";

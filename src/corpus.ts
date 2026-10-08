@@ -180,15 +180,20 @@ export function globalSources(): Source[] {
     }
   }
 
-  if (existsSync(config.projectsDir)) {
-    for (const project of readdirSync(config.projectsDir)) {
-      for (const file of listMd(join(config.projectsDir, project, "memory"))) {
-        if (basename(file) === "MEMORY.md") continue;
-        sources.push({ file, parse: () => [parseMemory(file, project)] });
-      }
-    }
-  }
+  sources.push(...allMemorySources());
   return sources;
+}
+
+// Every project's memories. The prompt hook reads all of them, not only its own project's: a decision recorded under
+// one repo's project often governs a sibling repo (Funnel's backend memories govern its frontend), and with only the
+// session's own memories loaded their trigger words could never fire there.
+export function allMemorySources(): Source[] {
+  if (!existsSync(config.projectsDir)) return [];
+  return readdirSync(config.projectsDir).flatMap((project) =>
+    listMd(join(config.projectsDir, project, "memory"))
+      .filter((file) => basename(file) !== "MEMORY.md")
+      .map((file) => ({ file, parse: () => [parseMemory(file, project)] })),
+  );
 }
 
 const TRIGGERS_MARK = " · triggers: ";
