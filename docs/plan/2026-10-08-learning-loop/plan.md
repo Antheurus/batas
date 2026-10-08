@@ -32,7 +32,11 @@ fell short; build it in a fresh session, one item at a time, each with its eval 
 - Eval: replay today's session prompts; the four corrections must each produce one recorded memory, zero on the
   non-correction prompts.
 
-### 2. Semantic recall
+### 2. Semantic recall — SUPERSEDED 2026-10-08
+
+Built instead as semantic-only search (no BM25 fusion, no BM25 fallback; the user requires semantic search):
+`docs/plan/2026-10-08-semantic-recall/plan.md`, v0.16.0. The text below is the original proposal, kept as history.
+
 - **Embedding**: local, multilingual (Indonesian + English), no API key. Recommended: `multilingual-e5-small`
   (384 dims) through `@huggingface/transformers` in bun; vectors stored as Float32 BLOBs in the existing sqlite;
   brute-force cosine over all entries (~10k × 384 is well under 50 ms).
