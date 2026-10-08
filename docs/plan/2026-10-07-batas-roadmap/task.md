@@ -61,3 +61,13 @@ rule check passed (B1, C18, B14 inject their full text). Remaining: roadmap 5 (d
       moment the agent WRITES a new file (path + content say far more than the prompt), and inject a standout lesson
       there. Needs the user's go before building; measure with this eval in a repo whose code does not already guard
       the traps.
+
+## Session 3 results and what is still unproven (2026-10-09)
+
+- [x] Funnel behaviour eval (`evals/results/2026-10-08-behavior-funnel.json`): A 4/15 = B 4/15, target delivered 2/15;
+      the right memory in context drops Beacon from 6/6 to 0/3. Subagent briefs (v0.17.0) proven by what agents said.
+- [ ] Memory delivery coverage — memory-specific gate, trigger review, Funnel eval re-run showing A < B (handover-03 #1)
+- [ ] Word-overlap listing noise (handover-03 #2)
+- [ ] Prompt hook p95 <= 150 ms under load (handover-03 #3)
+- [ ] Behaviour proofs at 3 runs per arm (handover-03 #4)
+- [ ] Pasted text / task suffix shifting queries; extra memories on the SSE brief; dead `memorySources` (handover-03 #5-7)

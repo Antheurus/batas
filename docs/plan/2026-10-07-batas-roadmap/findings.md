@@ -68,3 +68,33 @@ the ones measured at the time, also recorded in each commit body and in `docs/pr
 - Behavior eval inconclusive (A 0/8, B 0/8 repeated): the traps were guarded by existing code and tests.
 - Lessons: an eval whose "before" arm already passes is measuring the wrong path — check what produced the pass
   before reporting a gain; measure the thing at risk (sed vs cat).
+
+## Session 3 (2026-10-08/09) — semantic recall built, behaviour proven to the edge of what is delivered
+
+- `c86deb0` v0.16.0 semantic recall: batasd (EmbeddingGemma 2 text-only + multilingual-e5-small, RRF k=60, MPS),
+  LanceDB holds only vectors, SQLite removed, text parsed from the files (rules ~8 ms, all 7,991 entries ~265 ms).
+  Same-corpus probes EN 35 / ID 36 (acceptance 1). Repo-wide knowledge EN 27 / ID 31 vs BM25 10 / 31 on the same
+  corpus; recall now ranks knowledge apart from history and interleaves repo with global (EN 17 -> 27).
+- `0418be0` prompt gate = best Gemma cosine minus the repo's true 10th-best (`ref` from batasd) >= 0.07: 16/300 real
+  prompts, ~18/22 relevant on a hand read. Absolute cosine rejected (positives 0.77 vs noise 0.72). Shipped once with a
+  bug (missing cosines read as 0 opened the gate); log showed no live injection. Idle Apple GPU answers its first query
+  in 0.47-0.71 s, so a cold prompt's search is stashed and delivered on the next hook call.
+- `5c7a901` user chose batasd always on (launchd `dev.batas.batasd`, MPS, ~3.5 GB, idle 0.03 s CPU / 150 s). CPU mode
+  rejected: 0.2-2 s per query under load. Power measured with machine-monitor + top.
+- `e35c9b0` write-time lesson matching built and switched OFF: similarity cannot pair a new file with its trap lesson
+  (6/29 on top, gaps below noise; bge-reranker-v2-m3 scored targets 0.00-0.41 at 1.2 s, +3.9 GB). A trap lesson applies
+  only after reasoning about the implementation. LLM-judge route offered, not chosen.
+- Behaviour evals: mendadak-pos new-code traps A 0/8 vs B 1/8 (repo guards them). Funnel fe-v2 memory traps, 3 runs/arm:
+  A 4/15 = B 4/15, target delivered 2/15. Exact naming memory in context: Beacon 0/3 vs 6/6 without. Results in
+  `evals/results/2026-10-08-behavior-{new,funnel}.json`.
+- `82751ac` v0.16.1 regression fixed: the in-memory store parsed only the session's own project's memories, so no
+  memory recorded under another project fired on its triggers (Funnel backend memories never reached fe-v2).
+- `91e11a7` v0.17.0 subagents: a subagent never sends UserPromptSubmit; its brief is now matched like a prompt at the
+  Agent/Task PreToolUse and the memories are appended (updatedInput). Proven by what agents said unprompted: briefed
+  subagent quoted the user's 7 Oct no-live decision, unbriefed one planned SSE; hook log 182 ms vs 19 ms.
+- `01c6a63` brief beats a conflicting memory ("jangan commit" brief + "commit without asking" memory): 3/3 obeyed the
+  brief. Negation-aware triggers were built and rejected: on 3,000 real prompts they dropped on-topic hits
+  ("nggk mau auto compact" is that memory's topic).
+- Lessons: an eval must log per run whether the thing under test was DELIVERED (hook log, real paths — /tmp vs
+  /private/tmp hid it); a hook change that applies immediately (E10) mid-eval splits an arm, rerun it; read the hook
+  log before claiming no live impact; a pipe to `head` killed `just install` before it wrote (B14).
