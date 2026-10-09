@@ -48,6 +48,8 @@ type SessionState = {
   spent: number;
   // semantic searches left with batasd for a later hook call to pick up: the prompt's, and each new file's
   pending: Pending[];
+  // repos whose memory list (listForRepo) this session has already been given
+  listed: string[];
 };
 
 type Pending = { key: string; kind: "prompt" | "write"; at: number; file?: string };
@@ -419,9 +421,10 @@ function loadSession(id: string): SessionState {
       bashStart: s.bashStart ?? 0,
       spent: s.spent ?? 0,
       pending: s.pending ?? [],
+      listed: s.listed ?? [],
     };
   } catch {
-    return { injected: [], hinted: [], lastPrompt: [], muted: [], touched: [], started: Date.now(), bashStart: 0, spent: 0, pending: [] };
+    return { injected: [], hinted: [], lastPrompt: [], muted: [], touched: [], started: Date.now(), bashStart: 0, spent: 0, pending: [], listed: [] };
   }
 }
 
@@ -535,6 +538,31 @@ function relevantMemories(
     .filter((h, i, all) => all.findIndex((o) => o.id.split("/").pop() === h.id.split("/").pop()) === i);
   const more = [...strong, ...meant.full, ...meant.more].filter((h) => !full.some((f) => f.id === h.id));
   return { full, more: [...more, ...elsewhere].slice(0, config.inject.maxMoreMemories) };
+}
+
+// Decisions recorded under another project that govern this repo (a memory's `repos:`), named once per session on its
+// first prompt, title only. Neither trigger words nor meaning reached them on fresh wording: on held-out Funnel requests
+// written by an agent that never saw the triggers, prompt-time delivery was 0/6, while the right memory sat first by
+// meaning under the gate. The repo's own project memories are not listed: Claude Code already loads its MEMORY.md.
+function listForRepo(store: Store, repo: string | undefined, project: string, state: SessionState, silenced: Set<string>): { text: string; ids: string[] } | undefined {
+  if (!repo || state.listed.includes(repo)) return undefined;
+  state.listed.push(repo);
+  const seen = new Set<string>();
+  const mems = store
+    .entries("memory")
+    .filter((m) => m.repos?.includes(repo) && m.scope !== project && !silenced.has(m.id))
+    .filter((m) => {
+      const name = m.id.split("/").pop() ?? m.id;
+      if (seen.has(name)) return false;
+      seen.add(name);
+      return true;
+    });
+  if (!mems.length) return undefined;
+  const lines = mems.map((m) => `- ${m.id} — ${m.title.split(" · triggers: ")[0]}`);
+  return {
+    text: [`batas: decisions recorded for ${repo} in other projects — open one with mcp__batas__get <id> when the work touches it:`, ...lines].join("\n"),
+    ids: mems.map((m) => m.id),
+  };
 }
 
 // A nearest neighbour always exists and absolute cosines overlap (the right lesson for a probe: Gemma 0.77 median; the
@@ -789,7 +817,8 @@ export function evaluate(input: HookInput, store: Store, triggers: Triggers, sem
   const opened = probe.cmd
     ? bashLessons(filesInCommand(probe.cmd, commandDir(probe.cmd, input.cwd) ?? input.cwd ?? "/"), input, state)
     : undefined;
-  if (!matches.length && !meant.length && !memories.full.length && !memories.more.length && !live && !opened && !upkeep) return { output: {}, fired: [] };
+  const repoList = probe.prompt ? listForRepo(store, repoName(input.cwd), project, state, silenced) : undefined;
+  if (!matches.length && !meant.length && !memories.full.length && !memories.more.length && !live && !opened && !upkeep && !repoList) return { output: {}, fired: [] };
 
   const sections: string[] = [];
   const fired: string[] = [];
@@ -852,7 +881,8 @@ export function evaluate(input: HookInput, store: Store, triggers: Triggers, sem
       state.hinted.push(mem.id);
       fired.push(mem.id);
     }
-    if (!sections.length && !tools.length && !recalled.length && !listed.length) return { output: {}, fired: [] };
+    if (repoList) fired.push(...repoList.ids.filter((id) => !fired.includes(id)));
+    if (!sections.length && !tools.length && !recalled.length && !listed.length && !repoList) return { output: {}, fired: [] };
     state.lastPrompt = fired.filter((id) => !id.startsWith("hint:"));
     const text = [
       ...(recalled.length
@@ -861,6 +891,7 @@ export function evaluate(input: HookInput, store: Store, triggers: Triggers, sem
       ...(listed.length
         ? ["batas: more memories that match (full text: mcp__batas__get <id>) — open any that bear on the work:", ...listed, ""]
         : []),
+      ...(repoList ? [repoList.text, ""] : []),
       ...tools.map((t) => `batas: ${t}`),
       ...(sections.length
         ? [

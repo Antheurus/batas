@@ -131,6 +131,7 @@ export function recordMemory(a: {
   origin: Origin;
   replace?: boolean;
   triggers?: string[];
+  repos?: string[];
 }): Written {
   if (!ORIGINS.includes(a.origin)) throw new Error(`origin must be one of ${ORIGINS.join(", ")}`);
   const name = a.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -145,9 +146,10 @@ export function recordMemory(a: {
   mkdirSync(dir, { recursive: true });
   const description = a.description.replace(/"/g, "'");
   const triggers = (a.triggers ?? []).map((t) => t.replace(/[",\n]/g, " ").trim().toLowerCase()).filter(Boolean);
+  const repos = (a.repos ?? []).map((r) => r.replace(/[",\n\s]/g, "")).filter(Boolean);
   writeFileSync(
     file,
-    `---\nname: ${name}\ndescription: "${description}"\n${triggers.length ? `triggers: "${triggers.join(", ")}"\n` : ""}metadata:\n  type: ${a.type}\n  origin: ${a.origin}\n  recorded: ${today()}\n---\n\n${a.body.trim()}\n`,
+    `---\nname: ${name}\ndescription: "${description}"\n${triggers.length ? `triggers: "${triggers.join(", ")}"\n` : ""}${repos.length ? `repos: "${repos.join(", ")}"\n` : ""}metadata:\n  type: ${a.type}\n  origin: ${a.origin}\n  recorded: ${today()}\n---\n\n${a.body.trim()}\n`,
   );
   const index = join(dir, "MEMORY.md");
   const indexText = existsSync(index) ? readFileSync(index, "utf8") : "# Memory Index\n\n";

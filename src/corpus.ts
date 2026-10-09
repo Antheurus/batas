@@ -20,6 +20,8 @@ export type Entry = {
   body: string;
   source: string;
   line: number;
+  // memories only: repos this memory governs although it was recorded under another project (see listForRepo)
+  repos?: string[];
 };
 
 const FAMILY_HEAD = /^## ([A-Z])\. (.+)$/;
@@ -216,6 +218,11 @@ export function parseMemory(file: string, project: string): Entry {
   const type = fm.type ?? raw.match(/^\s+type:\s*(\w+)/m)?.[1] ?? "note";
   const origin = fm.origin ?? raw.match(/^\s+origin:\s*([\w-]+)/m)?.[1];
   const triggers = (fm.triggers ?? raw.match(/^\s+triggers:\s*(.+)$/m)?.[1] ?? "").replace(/^["'\[]|["'\]]$/g, "").trim();
+  const repos = (fm.repos ?? "")
+    .replace(/^["'\[]|["'\]]$/g, "")
+    .split(",")
+    .map((r) => r.trim())
+    .filter(Boolean);
   const name = basename(file, ".md");
   return {
     id: `memory:${project}/${name}`,
@@ -225,6 +232,7 @@ export function parseMemory(file: string, project: string): Entry {
     body: body.trim(),
     source: file,
     line: 1,
+    ...(repos.length ? { repos } : {}),
   };
 }
 

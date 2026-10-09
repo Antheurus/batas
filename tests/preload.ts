@@ -23,6 +23,11 @@ writeFileSync(
   "---\nname: land-without-asking\ndescription: \"Agent lands its own work on the base\"\ntriggers: \"commit, push, tunggu aba-aba\"\nmetadata:\n  type: feedback\n---\n\nNever wait for a go-signal to land finished work.\n",
 );
 
+writeFileSync(
+  join(memDir, "funnel-no-live.md"),
+  "---\nname: funnel-no-live\ndescription: \"Funnel dashboards stay request/response, no live streaming\"\nrepos: \"funnel-fe\"\nmetadata:\n  type: project\n---\n\nNo SSE or polling on Funnel dashboards.\n",
+);
+
 // Production carries ~600 memories with triggers across projects; the latency budget is only honest at that scale.
 const bulkDir = join(claudeHome, "projects", "-tmp-bulk", "memory");
 mkdirSync(bulkDir, { recursive: true });

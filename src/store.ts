@@ -3,6 +3,7 @@
 // files whose mtime moved. Search is semantic and lives in batasd; the SQLite + FTS5 index this replaced could only
 // match words, and a database file shared between live sessions was the source of the "disk I/O error" class.
 import { readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { allSources, type Entry, type Kind, type Source } from "./corpus.ts";
 import { semanticSearch } from "./semantic.ts";
 
@@ -19,11 +20,14 @@ export class Store {
   // per call and parsing every project's memories cost it ~25-35 ms of a 150 ms budget.
   refresh(scope: "rules" | "all" = "all", extra: Source[] = [], cacheFile?: string): { changed: number; removed: number } {
     const sources = [...allSources(scope), ...extra];
+    // Entries are only as current as the parser that made them: a cache written by an older corpus.ts is dropped whole.
+    const parser = cacheFile ? statSync(join(import.meta.dir, "corpus.ts")).mtimeMs : 0;
     let cache: Record<string, { mtime: number; entries: Entry[] }> = {};
     let dirty = false;
     if (cacheFile) {
       try {
-        cache = JSON.parse(readFileSync(cacheFile, "utf8"));
+        const saved = JSON.parse(readFileSync(cacheFile, "utf8")) as { parser?: number; files?: typeof cache };
+        if (saved.parser === parser && saved.files) cache = saved.files;
       } catch {}
     }
     const seen = new Set<string>();
@@ -60,7 +64,7 @@ export class Store {
       // Written aside and renamed in: concurrent hook processes each see a whole file, never a half-written one.
       try {
         const tmp = `${cacheFile}.${process.pid}`;
-        writeFileSync(tmp, JSON.stringify(cache));
+        writeFileSync(tmp, JSON.stringify({ parser, files: cache }));
         renameSync(tmp, cacheFile);
       } catch {}
     }

@@ -13,7 +13,7 @@ import { copiesOf, shareMemory } from "../scripts/memory-share.ts";
 import { routeLessons, ruleFile, staleFiles } from "../scripts/lessons-route.ts";
 import { routeRepo, writeRoutes } from "../src/lessons.ts";
 import { errorsIn } from "../scripts/transcripts.ts";
-import { allMemorySources } from "../src/corpus.ts";
+import { allMemorySources, parseMemory } from "../src/corpus.ts";
 import { mutedIds, readAcks, readFeedback, setMuted } from "../src/feedback.ts";
 import { appendHookLog, liveSessions, readHookLog } from "../src/log.ts";
 import { Store } from "../src/store.ts";
@@ -60,6 +60,11 @@ describe("parse cache", () => {
     third.refresh("rules", [src], cacheFile);
     expect(parses).toBe(2);
     expect(third.get("x:1")?.title).toBe("## Second");
+    // a cache written by another version of the parser is not trusted
+    const saved = JSON.parse(readFileSync(cacheFile, "utf8"));
+    writeFileSync(cacheFile, JSON.stringify({ ...saved, parser: 1 }));
+    new Store().refresh("rules", [src], cacheFile);
+    expect(parses).toBe(3);
     rmSync(dir, { recursive: true, force: true });
   });
 });
@@ -178,6 +183,25 @@ describe("hook", () => {
     rmSync(repo, { recursive: true, force: true });
   });
 
+  test("a repo's decisions recorded in another project are named once on the session's first prompt, title only", () => {
+    const dir = mkdtempSync(join(tmpdir(), "batas-rl-"));
+    const repo = join(dir, "funnel-fe");
+    Bun.spawnSync(["git", "init", "-q", repo]);
+    const s = new Store();
+    s.refresh("rules", allMemorySources());
+    const ask = (session_id: string, cwd: string) =>
+      evaluate({ session_id, cwd, hook_event_name: "UserPromptSubmit", prompt: "tambahin tab baru di halaman marketing" }, s, new Triggers({}));
+    const first = ask("rl1", repo);
+    const ctx = (first.output as { hookSpecificOutput?: { additionalContext?: string } }).hookSpecificOutput?.additionalContext ?? "";
+    expect(ctx).toContain("- memory:-tmp-demo/funnel-no-live — [project] funnel-no-live");
+    expect(ctx).not.toContain("No SSE or polling");
+    expect(ask("rl1", repo).fired).not.toContain("memory:-tmp-demo/funnel-no-live");
+    const other = join(dir, "other-app");
+    Bun.spawnSync(["git", "init", "-q", other]);
+    expect(ask("rl2", other).fired).not.toContain("memory:-tmp-demo/funnel-no-live");
+    rmSync(dir, { recursive: true, force: true });
+  });
+
   test("sharing content words with a memory surfaces nothing without its trigger word or a meaning match", () => {
     // the word-overlap listing surfaced 273 trigger-less memories on 500 replayed real prompts, mostly unrelated
     const none = new Triggers({});
@@ -215,7 +239,7 @@ describe("hook", () => {
 
   test("a late semantic match renders through the same gate, once", () => {
     const gap = config.semantic.memoryGap;
-    const state = { injected: [], hinted: [], lastPrompt: [], muted: [], touched: [], started: Date.now(), bashStart: 0, spent: 0, pending: [] };
+    const state = { injected: [], hinted: [], lastPrompt: [], muted: [], touched: [], started: Date.now(), bashStart: 0, spent: 0, pending: [], listed: [] };
     const hit = (g: number, ref: number) =>
       ({ id: "memory:-tmp-demo/hooks-warn-not-ask", kind: "memory", scope: "-tmp-demo", title: "x", source: "x", score: 0.03, cos: { g, e: 0.85 }, ref }) as never;
     const input = { session_id: "late1", cwd: "/tmp/demo", hook_event_name: "PreToolUse" };
@@ -657,6 +681,12 @@ describe("writers", () => {
     const text = readFileSync(join(demo, "docs", "progress.md"), "utf8");
     expect(text.startsWith("# demo-app Progress")).toBe(true);
     expect(text).toMatch(/## Session — \d{4}-\d{2}-\d{2} \(cont\) — v0\.3\.0 \(second\)[\s\S]*\(first\)/);
+  });
+
+  test("a memory recorded with repos reads back with them", () => {
+    const w = recordMemory({ projectDir: demo, type: "project", name: "fe-binding", title: "t", description: "d", body: "b", origin: "user-requested", repos: ["funnel-fe", " funnel-fe-v2 "] });
+    expect(readFileSync(w.file, "utf8")).toContain('repos: "funnel-fe, funnel-fe-v2"\n');
+    expect(parseMemory(w.file, "-x").repos).toEqual(["funnel-fe", "funnel-fe-v2"]);
   });
 
   test("memory is written with frontmatter and a MEMORY.md pointer, and refuses silent overwrite", () => {

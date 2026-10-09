@@ -179,6 +179,13 @@ server.registerTool(
           "4-10 words or short phrases the user would actually TYPE when this memory applies, Indonesian AND English, " +
             "colloquial included (e.g. 'panas', 'lemot', 'hot', 'slow'). The hook injects the memory when a prompt says one.",
         ),
+      repos: z
+        .array(z.string())
+        .optional()
+        .describe(
+          "Repo names (directory basenames) this memory governs although it is recorded under another project, e.g. a backend " +
+            "decision that binds its frontend repo. Every session in those repos is told its title on the first prompt.",
+        ),
       body: z.string().describe("The fact/rule. For feedback/project follow with **Why:** and **How to apply:** lines"),
       project_dir: z.string().optional().describe("Defaults to the session's working directory"),
       replace: z.boolean().optional().describe("Overwrite an existing memory with the same name"),
@@ -225,6 +232,7 @@ server.registerTool(
         replace: a.replace,
         origin: a.origin,
         triggers: a.triggers,
+        repos: a.repos,
       });
       fresh();
       requestSync();
