@@ -140,3 +140,32 @@ What batas took from it (roadmap 11-13, `docs/roadmap.md`):
 - **A per-repo lesson map**, the counterpart of its `GRAPH_REPORT.md`: files carrying the most lessons, lessons that
   route nowhere (264 in mendadak-pos), stale routes, and the delivery-eval history.
 
+
+## batas and cocoindex-code
+
+[cocoindex-code](https://github.com/cocoindex-io/cocoindex-code) was checked on 2026-10-09. It is semantic search over
+source code: tree-sitter AST chunks, one embedding model (`snowflake-arctic-embed-xs` locally, or a cloud provider
+through LiteLLM), LMDB + SQLite per repo, and a single MCP tool, `search`. Like Graphify, it answers a code question, so
+it overlaps GitNexus, not batas.
+
+| | cocoindex-code | batas |
+|---|---|---|
+| What it knows | where code doing X lives, across 28+ file types | rules, incidents, memories, lessons, progress |
+| Chunking | AST nodes (functions, classes) | markdown items and sections, one memory per file |
+| Embeddings | one model; asymmetric query/document params | two local models fused by RRF; e5 `query:`/`passage:` prompts already used |
+| Daemon | starts on first use, exits after 180 min idle | always on via launchd, on the GPU |
+| When it reaches the agent | when the agent calls `search`; its hooks only re-index | on its own: rule on command or file, memory on prompt, Stop check on the reply |
+| Scope | one repo | every repo under the project roots |
+| Evidence | "token saving by 70%", no method given | the recall test, plus 80 blind EN/ID probes |
+
+Why it is not used:
+
+- **Two code indexes is one concern with two owners.** GitNexus already holds the code graph for every repo, which is
+  the same reason Graphify was turned down.
+- **It has no answer for what batas is for.** Code search cannot say that a dump restored into a migrated database
+  drops tables.
+- **A pull-only tool gets forgotten.** 25 of 33 measured sessions made zero GitNexus calls; batas is hook-driven for
+  exactly that reason, and an MCP-only `search` would share the problem.
+
+Nothing was taken from it: incremental re-indexing, asymmetric query/document prompts and a warm model-holding
+daemon are all already in batas, and AST-level code search belongs to GitNexus.
