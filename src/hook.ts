@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { config } from "./config.ts";
-import { allMemorySources, memoryTriggers, parseMemory, projectSlug, type Entry, type Kind } from "./corpus.ts";
+import { allMemorySources, memoryTriggers, parseMemory, parseSections, projectSlug, type Entry, type Kind } from "./corpus.ts";
 import { mutedIds, recordAck, reportWrong } from "./feedback.ts";
 import { filesInCommand, lessonsDir, regenAll, regenIfLessonsChanged, routedLessons } from "./lessons.ts";
 import { appendHookLog, liveSessions } from "./log.ts";
@@ -407,6 +407,17 @@ function resolve(store: Store, id: string): Entry | undefined {
     const file = join(config.projectsDir, mem[1], "memory", `${mem[2]}.md`);
     if (existsSync(file)) return parseMemory(file, mem[1]);
   }
+  // A project rule or lesson named by a trigger: the hook never loads project corpora, so parse just its file.
+  const proj = id.match(/^project:([^:]+):((?:lessons|context|qa)\/)?([^#]+)#/);
+  if (proj?.[1] && proj[3]) {
+    const [, repo, sub, name] = proj;
+    for (const root of config.projectRoots) {
+      const file = sub ? join(root, repo, "docs", sub, name) : join(root, repo, ".claude", "rules", name);
+      if (!existsSync(file)) continue;
+      const kind = sub ? "context" : "project-rule";
+      return parseSections(file, `project:${repo}:${sub ?? ""}${name}`, kind, repo).find((e) => e.id === id);
+    }
+  }
   return undefined;
 }
 
@@ -427,10 +438,6 @@ function render(store: Store, e: Entry, m: Match, origin?: string): string {
   const body = full && full.length > e.body.length ? full : e.body;
   return `### ${e.id}${who} — fired by ${m.via} \`${m.pattern}\` (${basename(e.source)}:${e.line})\n${body}`;
 }
-
-const STOPWORDS = new Set(
-  "this that with from have what when where which there their they them then than into about would could should bikin baru yang dengan untuk dari juga udah sudah bisa harus kalau atau tapi biar nggak gimana kita lagi buat jadi aja mana sama ini itu banget masih perlu secara mungkin terus padahal kenapa ngapain dong deh sih tuh nih kayak gitu gini pake pakai mau minta tolong coba please make sure".split(" "),
-);
 
 function saysWord(promptLower: string, word: string): boolean {
   // Every memory's triggers are checked on every prompt; compiling a unicode regex for each costs ~1 s in total, so
@@ -455,9 +462,11 @@ export function ownWords(prompt: string): string {
     .join("\n");
 }
 
-// Every prompt shares some word with some memory, so a bare FTS hit is noise. A memory matches when the prompt says
-// one of its trigger words; only those are injected in full. Without a trigger, sharing three distinct content words
-// (two in its title or description) only LISTS it, and other projects' memories need a trigger to be listed at all.
+// A memory matches when the prompt says one of its trigger words, or, with a warm batasd, when it stands out by meaning
+// (semanticMemories); a cold prompt's meaning match arrives on the next hook call instead. Sharing content words was
+// tried as a third path and dropped: on 500 replayed real prompts it surfaced 273 memories nobody's trigger named, up
+// to 8 on one prompt, and they were mostly unrelated (scripts/listing-replay.ts). Another project's memory needs its
+// trigger, and is listed rather than injected.
 function relevantMemories(
   store: Store,
   prompt: string,
@@ -465,39 +474,18 @@ function relevantMemories(
   skip: string[],
   semantic?: SemanticHit[],
 ): { full: Entry[]; more: Pick<Entry, "id" | "title">[] } {
-  if (semantic) return semanticMemories(store, project, skip, semantic);
   const lower = ownWords(prompt).toLowerCase();
-  const tokens = [...new Set(lower.split(/[^\p{L}\p{N}_]+/u))].filter((w) => w.length > 2 && !STOPWORDS.has(w));
-  const words = tokens.filter((w) => w.length >= 4);
-  if (!tokens.length) return { full: [], more: [] };
-  // Reads memories through the (kind, scope) index and matches in JS: an FTS query over the whole corpus matched
-  // progress and changelog rows before filtering to memories, and cost ~50 ms a prompt on its own.
   const triggered = (h: Pick<Entry, "title">) => memoryTriggers(h.title).some((t) => saysTrigger(lower, t));
-  const overlap = (h: Entry) => {
-    const title = h.title.toLowerCase();
-    const text = `${title}\n${h.body.toLowerCase()}`;
-    const inText = words.filter((w) => text.includes(w)).length;
-    return inText >= 3 && words.filter((w) => title.includes(w)).length >= 2 ? inText : 0;
-  };
-  const local = store.memories(project).filter((h) => !skip.includes(h.id));
-  const strong = local.filter(triggered);
-  const weak = local
-    .filter((h) => !strong.includes(h))
-    .map((h) => ({ h, n: overlap(h) }))
-    .filter((x) => x.n > 0)
-    .sort((a, b) => b.n - a.n)
-    .map((x) => x.h);
-  const matched = [...strong, ...weak];
+  const strong = store.memories(project).filter((h) => !skip.includes(h.id) && triggered(h));
+  const meant = semantic ? semanticMemories(store, project, [...skip, ...strong.map((h) => h.id)], semantic) : { full: [], more: [] };
+  const full = [...strong, ...meant.full].slice(0, config.inject.maxMemories);
   const elsewhere = store
     .memoryTitlesOutside(project)
-    .filter((h) => !skip.includes(h.id) && triggered(h))
+    .filter((h) => !skip.includes(h.id) && !full.some((f) => f.id === h.id) && triggered(h))
     // The same memory is often copied into several sibling projects; list each name once.
     .filter((h, i, all) => all.findIndex((o) => o.id.split("/").pop() === h.id.split("/").pop()) === i);
-  const full = strong.slice(0, config.inject.maxMemories);
-  return {
-    full,
-    more: [...matched.filter((h) => !full.includes(h)), ...elsewhere].slice(0, config.inject.maxMoreMemories),
-  };
+  const more = [...strong, ...meant.full, ...meant.more].filter((h) => !full.some((f) => f.id === h.id));
+  return { full, more: [...more, ...elsewhere].slice(0, config.inject.maxMoreMemories) };
 }
 
 // A nearest neighbour always exists and absolute cosines overlap (the right lesson for a probe: Gemma 0.77 median; the
@@ -505,10 +493,11 @@ function relevantMemories(
 // config.semantic.minGap above the 10th-best over this repo's entries (`ref`, from batasd). Calibrated 2026-10-08 with
 // `just semantic-calibrate` on 80 probes and 300 real prompts: at 0.07 it passes 16/300 prompts (~18 of 22 read by hand
 // at 0.065 were relevant) and keeps 20/43 probe positives. Only that single best hit passes.
-export function passing(semantic: SemanticHit[], minGap = config.semantic.minGap): SemanticHit[] {
-  if (!semantic.length) return [];
+// `among` narrows which hits may pass (memories have their own gate) while the reference stays the whole result's.
+export function passing(semantic: SemanticHit[], minGap = config.semantic.minGap, among = semantic): SemanticHit[] {
+  if (!among.length) return [];
   const g = semantic.map((h) => h.cos.g ?? 0).sort((a, b) => b - a);
-  const best = semantic.reduce((a, b) => ((b.cos.g ?? 0) > (a.cos.g ?? 0) ? b : a));
+  const best = among.reduce((a, b) => ((b.cos.g ?? 0) > (a.cos.g ?? 0) ? b : a));
   const ref = semantic[0]?.ref ?? g[Math.min(9, g.length - 1)] ?? 1;
   return (best.cos.g ?? 0) - ref >= minGap ? [best] : [];
 }
@@ -518,9 +507,9 @@ function semanticMemories(
   project: string,
   skip: string[],
   semantic: SemanticHit[],
-  minGap = config.semantic.minGap,
+  minGap = config.semantic.memoryGap,
 ): { full: Entry[]; more: Pick<Entry, "id" | "title">[] } {
-  const hits = passing(semantic, minGap).filter((h) => h.kind === "memory" && !skip.includes(h.id));
+  const hits = passing(semantic, minGap, semantic.filter((h) => h.kind === "memory" && !skip.includes(h.id)));
   const seen = new Set<string>();
   const unique = hits.filter((h) => {
     const name = h.id.split("/").pop() ?? h.id;
@@ -595,7 +584,7 @@ export function lateSemantic(
   const silenced = new Set([...state.muted, ...Object.keys(mutedIds())]);
   const skip = [...state.injected, ...state.hinted, ...silenced];
   const project = input.cwd ? projectSlug(input.cwd) : "";
-  const mem = semanticMemories(store, project, skip, hits, minGap);
+  const mem = semanticMemories(store, project, skip, hits, kind === "write" ? minGap : config.semantic.memoryGap);
   const rules = semanticRules(hits, repoName(input.cwd), new Set(skip), minGap);
   const lines: string[] = [];
   const fired: string[] = [];
@@ -729,7 +718,8 @@ export function evaluate(input: HookInput, store: Store, triggers: Triggers, sem
   const silenced = new Set([...state.muted, ...Object.keys(mutedIds())]);
   // Rule phrases read only the user's own words too, the same cut as memory recall: a quoted line is not a request.
   const own = probe.prompt ? { ...probe, prompt: ownWords(probe.prompt) } : probe;
-  const matches = triggers.match(own).filter((m) => !state.injected.includes(m.id) && !silenced.has(m.id));
+  const where = probe.path?.startsWith("/") ? dirname(probe.path) : probe.cmd ? commandDir(probe.cmd, input.cwd) : input.cwd;
+  const matches = triggers.match({ ...own, repo: repoName(where) }).filter((m) => !state.injected.includes(m.id) && !silenced.has(m.id));
   const project = input.cwd ? projectSlug(input.cwd) : "";
   const memories =
     probe.prompt && project

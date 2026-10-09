@@ -30,7 +30,17 @@ export const config = {
   // docs/plan/2026-10-08-semantic-recall/plan.md); fullCos lets another project's memory in full instead of listed.
   // writeHook stays off: a cosine gap does not separate a written file's lesson from noise (scripts/write-calibrate.ts).
   // BATAS_SEMANTIC_MIN_GAP overrides the prompt gate for one session (the behavior eval's forced-delivery arm).
-  semantic: { promptHook: true, minGap: Number(process.env.BATAS_SEMANTIC_MIN_GAP ?? 0.07), writeHook: false, writeGap: 0.07, fullCos: 0.6 },
+  // memoryGap gates memories on their own (the best MEMORY over the same reference): rules and lessons took the single
+  // passing slot from them. At 0.045, 34/300 real prompts pass and ~18 of the 22 added over 0.07 were relevant by hand;
+  // below it about half were not (2026-10-09, scripts/semantic-calibrate.ts).
+  semantic: {
+    promptHook: true,
+    minGap: Number(process.env.BATAS_SEMANTIC_MIN_GAP ?? 0.07),
+    memoryGap: Number(process.env.BATAS_SEMANTIC_MEMORY_GAP ?? 0.045),
+    writeHook: false,
+    writeGap: 0.07,
+    fullCos: 0.6,
+  },
   inject: { maxItems: 3, maxChars: 9000, maxPromptHints: 5, maxMemories: 2, memoryChars: 1500, maxMoreMemories: 8, sessionBytes: 64000 },
 };
 

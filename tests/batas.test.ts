@@ -49,7 +49,8 @@ describe("triggers", () => {
     const rules = store.entries("rule").map((r) => r.id);
     expect(rules.filter((id) => !ids.includes(id))).toEqual([]);
     expect(ids.filter((id) => id.startsWith("hint:") && !specs[id]?.text)).toEqual([]);
-    expect(ids.filter((id) => !rules.includes(id) && !/^(memory|hint):/.test(id))).toEqual([]);
+    // memory and project ids live under the real project roots, which the test corpus replaces with fixtures
+    expect(ids.filter((id) => !rules.includes(id) && !/^(memory|hint|project):/.test(id))).toEqual([]);
   });
 
   test.skipIf(!ids.length)("every rule in an injected-only slice has a cmd/path/code trigger — or it can never arrive", () => {
@@ -66,14 +67,22 @@ describe("triggers", () => {
     const misses: string[] = [];
     for (const id of ids) {
       const s = specs[id] ?? {};
-      for (const cmd of s.t_cmd ?? []) if (!t.match({ cmd }).some((m) => m.id === id)) misses.push(`${id} cmd: ${cmd}`);
-      for (const path of s.t_path ?? []) if (!t.match({ path }).some((m) => m.id === id)) misses.push(`${id} path: ${path}`);
-      for (const code of s.t_code ?? []) if (!t.match({ code }).some((m) => m.id === id)) misses.push(`${id} code: ${code}`);
-      for (const prompt of s.t_prompt ?? []) if (!t.match({ prompt }).some((m) => m.id === id)) misses.push(`${id} prompt: ${prompt}`);
-      for (const reply of s.t_reply ?? []) if (!t.match({ reply }).some((m) => m.id === id)) misses.push(`${id} reply: ${reply}`);
-      for (const reply of s.t_reply_ok ?? []) if (t.match({ reply }).some((m) => m.id === id)) misses.push(`${id} reply_ok fired: ${reply}`);
+      const repo = s.repo?.[0];
+      for (const cmd of s.t_cmd ?? []) if (!t.match({ cmd, repo }).some((m) => m.id === id)) misses.push(`${id} cmd: ${cmd}`);
+      for (const path of s.t_path ?? []) if (!t.match({ path, repo }).some((m) => m.id === id)) misses.push(`${id} path: ${path}`);
+      for (const code of s.t_code ?? []) if (!t.match({ code, repo }).some((m) => m.id === id)) misses.push(`${id} code: ${code}`);
+      for (const prompt of s.t_prompt ?? []) if (!t.match({ prompt, repo }).some((m) => m.id === id)) misses.push(`${id} prompt: ${prompt}`);
+      for (const reply of s.t_reply ?? []) if (!t.match({ reply, repo }).some((m) => m.id === id)) misses.push(`${id} reply: ${reply}`);
+      for (const reply of s.t_reply_ok ?? []) if (t.match({ reply, repo }).some((m) => m.id === id)) misses.push(`${id} reply_ok fired: ${reply}`);
     }
     expect(misses).toEqual([]);
+  });
+
+  test("a repo-scoped trigger fires only in that repo, worktrees included", () => {
+    const t = new Triggers({ "memory:-x/untrack": { code: ["\\$effect\\("], repo: ["funnel-fe"] } });
+    expect(t.match({ code: "$effect(() => {})", repo: "funnel-fe" }).map((m) => m.id)).toEqual(["memory:-x/untrack"]);
+    expect(t.match({ code: "$effect(() => {})", repo: "other-app" })).toEqual([]);
+    expect(t.match({ code: "$effect(() => {})" })).toEqual([]);
   });
 
   test.skipIf(!specs._negative)("ordinary commands, paths and prompts stay quiet", () => {
@@ -123,15 +132,12 @@ describe("hook", () => {
     expect(ctx).not.toContain("_linked from");
   });
 
-  test("a prompt sharing three content words with a trigger-less memory only lists it, once", () => {
+  test("sharing content words with a memory surfaces nothing without its trigger word or a meaning match", () => {
+    // the word-overlap listing surfaced 273 trigger-less memories on 500 replayed real prompts, mostly unrelated
     const none = new Triggers({});
     const ask = (prompt: string, session_id: string) =>
       evaluate({ session_id, cwd: "/tmp/demo", hook_event_name: "UserPromptSubmit", prompt }, store, none);
-    const hit = ask("bikin hooks yang warn aja, jangan ask popups advisory", "m1").output as { hookSpecificOutput?: { additionalContext: string } };
-    expect(hit.hookSpecificOutput?.additionalContext).toContain("- memory:-tmp-demo/hooks-warn-not-ask");
-    expect(hit.hookSpecificOutput?.additionalContext).not.toContain("### memory:-tmp-demo/hooks-warn-not-ask");
     expect(ask("bikin hooks yang warn aja, jangan ask popups advisory", "m1").output).toEqual({});
-    expect(ask("perketat\n\nHere is a note offered by a side agent:\n> hooks warn ask popups advisory", "m4").output).toEqual({});
   });
 
   test("a semantic hit arrives only when it stands out from the 10th neighbour, and only the best one", () => {
@@ -142,11 +148,15 @@ describe("hook", () => {
     const crowd = (base: number) => Array.from({ length: 10 }, (_, i) => hit(`ref:filler-${i}`, "reference", "global", base - i * 0.001));
     const ask = (session_id: string, hits: never[]) =>
       JSON.stringify(evaluate({ session_id, cwd: "/tmp/demo", hook_event_name: "UserPromptSubmit", prompt: "jangan tanya pakai popup" }, store, none, hits).output);
-    const strong = ask("s1", [hit("memory:-tmp-demo/hooks-warn-not-ask", "memory", "-tmp-demo", 0.7 + gap + 0.01), ...crowd(0.7)]);
+    const mgap = config.semantic.memoryGap;
+    const strong = ask("s1", [hit("memory:-tmp-demo/hooks-warn-not-ask", "memory", "-tmp-demo", 0.7 + mgap + 0.01), ...crowd(0.7)]);
     expect(strong).toContain("### memory:-tmp-demo/hooks-warn-not-ask");
     expect(strong).not.toContain("filler");
     // the nearest neighbour of any prompt is always something; a top hit that does not stand out is noise
-    expect(ask("s2", [hit("memory:-tmp-demo/hooks-warn-not-ask", "memory", "-tmp-demo", 0.7 + gap - 0.01), ...crowd(0.7)])).toBe("{}");
+    expect(ask("s2", [hit("memory:-tmp-demo/hooks-warn-not-ask", "memory", "-tmp-demo", 0.7 + mgap - 0.01), ...crowd(0.7)])).toBe("{}");
+    // a memory has its own, lower gate: a rule at the same distance does not pass
+    expect(mgap).toBeLessThan(gap);
+    expect(ask("s2b", [hit("gotcha:B13", "rule", "global", 0.7 + mgap + 0.01), ...crowd(0.7)])).toBe("{}");
     // a standout rule is listed by id
     expect(ask("s3", [hit("gotcha:B13", "rule", "global", 0.8 + gap), ...crowd(0.8)])).toContain("- gotcha:B13");
     // another repo's project rule belongs to that repo's sessions
@@ -158,7 +168,7 @@ describe("hook", () => {
   });
 
   test("a late semantic match renders through the same gate, once", () => {
-    const gap = config.semantic.minGap;
+    const gap = config.semantic.memoryGap;
     const state = { injected: [], hinted: [], lastPrompt: [], muted: [], touched: [], started: Date.now(), bashStart: 0, spent: 0, pending: [] };
     const hit = (g: number, ref: number) =>
       ({ id: "memory:-tmp-demo/hooks-warn-not-ask", kind: "memory", scope: "-tmp-demo", title: "x", source: "x", score: 0.03, cos: { g, e: 0.85 }, ref }) as never;
@@ -176,6 +186,17 @@ describe("hook", () => {
     expect(w?.text).toContain("matches the file just written (backend/x.go)");
     expect(w?.text).toContain("### gotcha:B13");
     expect(w?.text).toContain("uuid5");
+  });
+
+  test("a memory's trigger word fires when batasd answers in time too, not only on a cold prompt", () => {
+    // a warm daemon used to replace the trigger path with the semantic gate: the right memory, said by name but not
+    // standing out by meaning, arrived only when batasd was too slow to answer
+    const s = new Store();
+    s.refresh("rules", allMemorySources());
+    const crowd = Array.from({ length: 10 }, (_, i) =>
+      ({ id: `ref:filler-${i}`, kind: "reference", scope: "global", title: "x", source: "x", score: 0.03, cos: { g: 0.7 - i * 0.001, e: 0.85 }, ref: 0.69 }) as never);
+    const prompt = { session_id: "warm1", cwd: "/tmp/sibling-repo", hook_event_name: "UserPromptSubmit", prompt: "udah, commit terus push aja" };
+    expect(evaluate(prompt, s, new Triggers({}), crowd).fired).toContain("memory:-tmp-demo/land-without-asking");
   });
 
   test("another project's memory reaches a repo that has none of its own, through its trigger words", () => {

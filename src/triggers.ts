@@ -12,6 +12,7 @@ export type TriggerSpec = {
   text?: string;
   origin?: string;
   recorded?: string;
+  repo?: string[];
   t_code?: string[];
   t_cmd?: string[];
   t_path?: string[];
@@ -25,6 +26,7 @@ export type Match = { id: string; via: Via; pattern: string };
 
 type Compiled = {
   id: string;
+  repo: string[];
   cmd: RegExp[];
   path: { glob: string; test: (p: string) => boolean }[];
   code: RegExp[];
@@ -121,6 +123,7 @@ export class Triggers {
       .filter(([id]) => !id.startsWith("_"))
       .map(([id, s]) => ({
         id,
+        repo: s.repo ?? [],
         cmd: (s.cmd ?? []).map((r) => new RegExp(r, "i")),
         path: (s.path ?? []).map((g) => ({ glob: g, test: picomatch(g, { dot: true, nocase: true }) })),
         code: (s.code ?? []).map((r) => new RegExp(r, "i")),
@@ -135,10 +138,13 @@ export class Triggers {
     return new Triggers(Bun.TOML.parse(readFileSync(file, "utf8")) as Record<string, TriggerSpec>);
   }
 
-  match(event: { cmd?: string; path?: string; code?: string; prompt?: string; reply?: string }): Match[] {
+  // `repo` limits a spec to sessions in those repos (by name, worktrees included): a memory recorded for one codebase
+  // whose mistake is visible only in code, where the same code elsewhere is fine.
+  match(event: { cmd?: string; path?: string; code?: string; prompt?: string; reply?: string; repo?: string }): Match[] {
     const out: Match[] = [];
     const spans = event.cmd ? dataSpans(event.cmd) : [];
     for (const c of this.compiled) {
+      if (c.repo.length && !(event.repo && c.repo.includes(event.repo))) continue;
       if (event.cmd) {
         const hit = c.cmd.find((r) => matchOutside(r, event.cmd as string, spans));
         if (hit) {

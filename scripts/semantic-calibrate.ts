@@ -67,4 +67,17 @@ for (const g of [0.04, 0.05, 0.06, 0.065, 0.07, 0.08, 0.1]) {
   const reached = trig.filter((t) => passes(t.r) && best(t.r.hits)?.id === t.id).length;
   console.log(`${g.toFixed(3)} | ${String(pos.filter((x) => x >= g).length).padStart(3)}/${pos.length}         | ${String(rows.filter(passes).length).padStart(4)}/${rows.length}       | ${reached}/${trig.length}`);
 }
-await Bun.write(join(import.meta.dir, "..", ".semantic-calibrate.json"), JSON.stringify({ pos, rows: rows.map((r) => ({ prompt: r.prompt, gap: gapOf(r.hits), top: best(r.hits)?.id, triggered: r.triggered })) }, null, 1));
+// Memories alone: the best memory's Gemma cosine over the same reference. Rules and lessons crowd memories out of the
+// single passing slot, so a memory that is clearly the closest MEMORY can sit under the shared gate.
+const memOf = (hits: SemanticHit[]) => best(hits.filter((h) => h.kind === "memory"));
+const memGap = (hits: SemanticHit[]) => (memOf(hits)?.cos.g ?? 0) - (hits[0]?.ref ?? 1);
+console.log("\nmemory gap | prompts passing | trigger matches that are the passing best memory");
+for (const g of [0.03, 0.035, 0.04, 0.045, 0.05, 0.06, 0.07]) {
+  const passes = (r: { hits: SemanticHit[] }) => memGap(r.hits) >= g;
+  const reached = trig.filter((t) => passes(t.r) && memOf(t.r.hits)?.id === t.id).length;
+  console.log(`${g.toFixed(3)}      | ${String(rows.filter(passes).length).padStart(4)}/${rows.length}       | ${reached}/${trig.length}`);
+}
+await Bun.write(
+  join(import.meta.dir, "..", ".semantic-calibrate.json"),
+  JSON.stringify({ pos, rows: rows.map((r) => ({ prompt: r.prompt, gap: gapOf(r.hits), top: best(r.hits)?.id, memGap: memGap(r.hits), topMemory: memOf(r.hits)?.id, triggered: r.triggered })) }, null, 1),
+);
