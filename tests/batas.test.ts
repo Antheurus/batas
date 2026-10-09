@@ -1,10 +1,11 @@
-import { describe, expect, test } from "bun:test";
+import { afterAll, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { ListRootsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { config } from "../src/config.ts";
@@ -22,7 +23,7 @@ import { appendHookLog, liveSessions, readHookLog } from "../src/log.ts";
 import { Store } from "../src/store.ts";
 import { Triggers } from "../src/triggers.ts";
 import { indexHook, INDEX_HOOK_MAX, logChangelog, logProgress, memoryDir, recordMemory } from "../src/write.ts";
-import { createServer, projectOf, type SessionContext } from "../src/mcp.ts";
+import { createServer, projectOf, serveHttp, type SessionContext } from "../src/mcp.ts";
 
 const root = process.env.BATAS_TEST_ROOT as string;
 const demo = join(root, "repos", "demo-app");
@@ -903,6 +904,90 @@ describe("session project", () => {
     expect(readFileSync(join(app, "docs", "progress.md"), "utf8")).toContain("Did a thing.");
     await client.close();
   }, 30000);
+
+  describe("over HTTP", () => {
+    const http = serveHttp(0, "127.0.0.1");
+    const url = new URL(`http://127.0.0.1:${http.port}/mcp`);
+    afterAll(() => http.stop(true));
+
+    async function httpClient(opts: { root?: string; never?: boolean; getDelayMs?: number } = {}): Promise<Client> {
+      const roots = opts.root !== undefined || opts.never;
+      const client = new Client({ name: "batas-test-http", version: "0" }, roots ? { capabilities: { roots: {} } } : {});
+      if (opts.never) client.setRequestHandler(ListRootsRequestSchema, () => new Promise<never>(() => {}));
+      else if (opts.root) {
+        const uri = pathToFileURL(opts.root).href;
+        client.setRequestHandler(ListRootsRequestSchema, async () => ({ roots: [{ uri, name: "r" }] }));
+      }
+      const delayGet = async (input: string | URL, init?: RequestInit) => {
+        if (init?.method === "GET" && opts.getDelayMs) await Bun.sleep(opts.getDelayMs);
+        return fetch(input, init);
+      };
+      await client.connect(new StreamableHTTPClientTransport(url, { fetch: delayGet }));
+      return client;
+    }
+
+    const memo = (name: string, body: string) => ({
+      name: "record",
+      arguments: { type: "project", name, title: "t", description: "d", body, origin: "agent-initiated" },
+    });
+
+    test("two clients with different roots on one server each see and write their own project", async () => {
+      const a = gitRepo("http-app-a");
+      const b = gitRepo("http-app-b");
+      const [ca, cb] = await Promise.all([httpClient({ root: a }), httpClient({ root: b })]);
+      const [sa, sb] = (await Promise.all([ca.callTool({ name: "status", arguments: {} }), cb.callTool({ name: "status", arguments: {} })])) as Reply[];
+      expect(sa?.content[0]?.text).toContain("session repo: http-app-a (source: roots)");
+      expect(sb?.content[0]?.text).toContain("session repo: http-app-b (source: roots)");
+      const [ra, rb] = (await Promise.all([ca.callTool(memo("http-shared", "from a")), cb.callTool(memo("http-shared", "from b"))])) as Reply[];
+      expect(ra?.isError).toBeFalsy();
+      expect(rb?.isError).toBeFalsy();
+      expect(memoryDir(a).startsWith(config.projectsDir)).toBe(true);
+      expect(memoryDir(a)).not.toBe(memoryDir(b));
+      const fa = readFileSync(join(memoryDir(a), "http-shared.md"), "utf8");
+      const fb = readFileSync(join(memoryDir(b), "http-shared.md"), "utf8");
+      expect(fa).toContain("from a");
+      expect(fa).not.toContain("from b");
+      expect(fb).toContain("from b");
+      expect(fb).not.toContain("from a");
+      await Promise.all([ca.close(), cb.close()]);
+    });
+
+    test("a client without roots gets no project: writes refuse naming project_dir and nothing is written", async () => {
+      const before = readdirSync(config.projectsDir).sort();
+      const client = await httpClient();
+      const status = (await client.callTool({ name: "status", arguments: {} })) as Reply;
+      expect(status.content[0]?.text).toContain("(source: none)");
+      for (const c of [memo("http-noroot", "b"), { name: "log_progress", arguments: { version: "0.1.0", title: "t", body: "b" } }]) {
+        const r = (await client.callTool(c)) as Reply;
+        expect(r.isError).toBe(true);
+        expect(r.content[0]?.text).toContain("project_dir");
+      }
+      expect(readdirSync(config.projectsDir).sort()).toEqual(before);
+      await client.close();
+    });
+
+    test("a client that never answers roots/list degrades to no project within the configured bound", async () => {
+      const client = await httpClient({ never: true });
+      const t0 = Date.now();
+      const r = (await client.callTool(memo("http-never", "b"))) as Reply;
+      expect(Date.now() - t0).toBeLessThan(config.http.rootsMs + 2000);
+      expect(r.isError).toBe(true);
+      expect(r.content[0]?.text).toContain("project_dir");
+      await client.close();
+    }, config.http.rootsMs + 10000);
+
+    test("a client whose GET stream opens after initialized still gets its root", async () => {
+      const app = gitRepo("http-late-get");
+      const client = await httpClient({ root: app, getDelayMs: 300 });
+      const status = (await client.callTool({ name: "status", arguments: {} })) as Reply;
+      expect(status.content[0]?.text).toContain("session repo: http-late-get (source: roots)");
+      await client.close();
+    });
+
+    test("any host other than loopback is refused before binding", () => {
+      expect(() => serveHttp(0, "0.0.0.0")).toThrow("refusing to bind 0.0.0.0");
+    });
+  });
 });
 
 describe("feedback and log", () => {

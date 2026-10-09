@@ -1,8 +1,10 @@
 import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseArgs } from "node:util";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { RootsListChangedNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
+import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
+import { isInitializeRequest, RootsListChangedNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { config } from "./config.ts";
 import type { Entry, Kind } from "./corpus.ts";
@@ -443,4 +445,91 @@ export function createServer(ctx: SessionContext): McpServer {
   return server;
 }
 
-if (import.meta.main) await createServer({ cwd: process.cwd() }).connect(new StdioServerTransport());
+type Session = { server: McpServer; transport: WebStandardStreamableHTTPServerTransport; ctx: SessionContext; streamOpened: () => void; idle?: Timer };
+
+function rpcError(status: number, message: string): Response {
+  return Response.json({ jsonrpc: "2.0", error: { code: -32000, message }, id: null }, { status });
+}
+
+export function serveHttp(port: number, host: string) {
+  if (host !== config.http.host) throw new Error(`refusing to bind ${host}: batas serves HTTP on ${config.http.host} only`);
+  const sessions = new Map<string, Session>();
+
+  function touch(s: Session) {
+    clearTimeout(s.idle);
+    s.idle = setTimeout(() => void s.transport.close(), config.http.idleMs);
+  }
+
+  function open(): Session {
+    const ctx: SessionContext = {};
+    const server = createServer(ctx);
+    let streamOpened = () => {};
+    const stream = new Promise<void>((r) => (streamOpened = r));
+    const transport = new WebStandardStreamableHTTPServerTransport({
+      sessionIdGenerator: () => crypto.randomUUID(),
+      onsessioninitialized: (sid) => {
+        sessions.set(sid, s);
+        touch(s);
+      },
+    });
+    const s: Session = { server, transport, ctx, streamOpened };
+    transport.onclose = () => {
+      clearTimeout(s.idle);
+      if (transport.sessionId) sessions.delete(transport.sessionId);
+    };
+    server.server.oninitialized = () => {
+      if (!server.server.getClientCapabilities()?.roots) return;
+      // Claude Code opens its GET stream ~25 ms after initialized; a roots/list sent before that stream exists is dropped.
+      ctx.root = Promise.race([stream.then(() => firstRoot(server)), Bun.sleep(config.http.rootsMs).then(() => undefined)]);
+    };
+    return s;
+  }
+
+  const http = Bun.serve({
+    port,
+    hostname: host,
+    idleTimeout: 0,
+    async fetch(req) {
+      if (new URL(req.url).pathname !== "/mcp") return new Response("not found", { status: 404 });
+      try {
+        const sid = req.headers.get("mcp-session-id");
+        if (sid) {
+          const s = sessions.get(sid);
+          if (!s) return rpcError(404, "Session not found");
+          touch(s);
+          const res = await s.transport.handleRequest(req);
+          if (req.method === "GET" && res.status === 200) s.streamOpened();
+          return res;
+        }
+        const body: unknown = req.method === "POST" ? await req.json().catch(() => undefined) : undefined;
+        if (!isInitializeRequest(body)) return rpcError(400, "Bad Request: no session, send initialize first");
+        const s = open();
+        await s.server.connect(s.transport);
+        return await s.transport.handleRequest(req, { parsedBody: body });
+      } catch (err) {
+        console.error(`batas mcp: ${req.method} ${req.headers.get("mcp-session-id") ?? "(no session)"} failed: ${String(err)}`);
+        return rpcError(500, "Internal error");
+      }
+    },
+  });
+  if (http.hostname !== config.http.host) {
+    void http.stop(true);
+    throw new Error(`listening on ${http.hostname}, not ${config.http.host}; stopped`);
+  }
+  console.error(`batas mcp: listening on http://${http.hostname}:${http.port}/mcp`);
+  return http;
+}
+
+if (import.meta.main) {
+  const { values } = parseArgs({ options: { http: { type: "boolean" }, port: { type: "string" }, host: { type: "string" } }, strict: false });
+  if (!values.http) await createServer({ cwd: process.cwd() }).connect(new StdioServerTransport());
+  else {
+    try {
+      if (!/^\d+$/.test(String(values.port))) throw new Error("--http needs --port <number>");
+      serveHttp(Number(values.port), String(values.host ?? config.http.host));
+    } catch (err) {
+      console.error(`batas mcp: ${err instanceof Error ? err.message : String(err)}`);
+      process.exit(1);
+    }
+  }
+}

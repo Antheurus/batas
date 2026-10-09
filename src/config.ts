@@ -47,6 +47,9 @@ export const config = {
     writeGap: 0.07,
     fullCos: 0.6,
   },
+  // The shared MCP server binds loopback only. Claude Code sends no DELETE on a hard kill, so idleMs is the only session
+  // cleanup; rootsMs bounds the wait for a client's GET stream plus its roots/list answer before a session goes projectless.
+  http: { host: "127.0.0.1", idleMs: 6 * 3600 * 1000, rootsMs: 5000 },
   inject: { maxItems: 3, maxChars: 9000, maxPromptHints: 5, maxMemories: 2, memoryChars: 1500, maxMoreMemories: 8, maxRepoList: 12, sessionBytes: 64000 },
 };
 
