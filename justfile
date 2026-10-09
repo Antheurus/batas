@@ -33,6 +33,35 @@ batasd-restart:
     fi
     bun -e 'import {ask} from "./src/semantic.ts"; for (let i = 0; i < 60; i++) { const r = await ask({op: "status"}, 1000); if (r) { console.log("running", r); break; } await Bun.sleep(1000); }'
 
+# run the MCP server as one launchd agent on loopback HTTP, for every session; it exits when src/*.ts changes and launchd starts it on the new code (log ~/.batas/<label minus dev.batas.>.out)
+mcp-install repo=justfile_directory() port="3481" label="dev.batas.mcp":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    bun="$(command -v bun)"
+    plist="$HOME/Library/LaunchAgents/{{label}}.plist"
+    log="$HOME/.batas/{{trim_start_match(label, "dev.batas.")}}.out"
+    mkdir -p "$HOME/.batas"
+    python3 -c 'import plistlib, sys; bun, repo, port, label, log, plist = sys.argv[1:]; plistlib.dump({"Label": label, "ProgramArguments": [bun, f"{repo}/src/mcp.ts", "--http", "--port", port], "EnvironmentVariables": {"PATH": "/opt/homebrew/bin:/Users/macbook/.bun/bin:/usr/bin:/bin:/usr/sbin:/sbin"}, "WorkingDirectory": repo, "RunAtLoad": True, "KeepAlive": True, "ThrottleInterval": 10, "StandardOutPath": log, "StandardErrorPath": log}, open(plist, "wb"))' "$bun" "{{repo}}" "{{port}}" "{{label}}" "$log" "$plist"
+    plutil -lint "$plist"
+    launchctl bootout "gui/$(id -u)/{{label}}" 2>/dev/null || true
+    launchctl bootstrap "gui/$(id -u)" "$plist"
+    for i in $(seq 1 30); do lsof -nP -iTCP:{{port}} -sTCP:LISTEN >/dev/null 2>&1 && break; sleep 0.5; done
+    lsof -nP -iTCP:{{port}} -sTCP:LISTEN || { echo "{{label}} is not listening on {{port}}, see $log"; exit 1; }
+
+# stop the MCP agent and start it again on the current code
+mcp-restart label="dev.batas.mcp":
+    launchctl kickstart -k "gui/$(id -u)/{{label}}"
+
+# MCP agent: launchd state and pid, then the last lines of its log
+mcp-status label="dev.batas.mcp" n="20":
+    @launchctl print "gui/$(id -u)/{{label}}" | /usr/bin/grep -E '^\s+(state|pid|last exit code|runs) ='
+    @tail -n {{n}} "$HOME/.batas/{{trim_start_match(label, "dev.batas.")}}.out"
+
+# remove the MCP agent and its plist, which frees its port
+mcp-uninstall label="dev.batas.mcp":
+    launchctl bootout "gui/$(id -u)/{{label}}" 2>/dev/null || true
+    rm -f "$HOME/Library/LaunchAgents/{{label}}.plist"
+
 # batasd: pid, vectors held, whether a sync is running (starts it when it is down)
 semantic-status:
     bun -e 'import {ask} from "./src/semantic.ts"; console.log((await ask({op: "status"}, 2000)) ?? "not answering: started it, models load in ~15 s")'

@@ -1,11 +1,19 @@
-import { statSync } from "node:fs";
+import { readdirSync, statSync } from "node:fs";
 import { basename, isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
-import { isInitializeRequest, RootsListChangedNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
+import {
+  isInitializeRequest,
+  isJSONRPCErrorResponse,
+  isJSONRPCNotification,
+  isJSONRPCRequest,
+  isJSONRPCResultResponse,
+  type RequestId,
+  RootsListChangedNotificationSchema,
+} from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { config } from "./config.ts";
 import type { Entry, Kind } from "./corpus.ts";
@@ -456,15 +464,35 @@ export function createServer(ctx: SessionContext): McpServer {
   return server;
 }
 
-type Session = { server: McpServer; transport: WebStandardStreamableHTTPServerTransport; ctx: SessionContext; streamOpened: () => void; idle?: Timer };
+type Session = {
+  server: McpServer;
+  transport: WebStandardStreamableHTTPServerTransport;
+  ctx: SessionContext;
+  streamOpened: () => void;
+  pending: Set<RequestId>;
+  idle?: Timer;
+};
 
 function rpcError(status: number, message: string): Response {
   return Response.json({ jsonrpc: "2.0", error: { code: -32000, message }, id: null }, { status });
 }
 
-export function serveHttp(port: number, host: string) {
+function sourceStamp(dir: string): string {
+  return readdirSync(dir)
+    .filter((f) => f.endsWith(".ts"))
+    .sort()
+    .map((f) => `${f}:${statSync(join(dir, f), { throwIfNoEntry: false })?.mtimeMs}`)
+    .join("|");
+}
+
+// One shared server outlives every edit to batas, so with restartOn set it exits(0) once its own source changed and
+// launchd (KeepAlive true) starts it on the new code. It waits until no session has a request without its response
+// and the last response is settleMs old, so a tool call is never cut off mid-answer.
+export function serveHttp(port: number, host: string, restartOn?: string) {
   if (host !== config.http.host) throw new Error(`refusing to bind ${host}: batas serves HTTP on ${config.http.host} only`);
   const sessions = new Map<string, Session>();
+  const opened = new Set<Session>();
+  let lastResponse = 0;
 
   function touch(s: Session) {
     clearTimeout(s.idle);
@@ -483,8 +511,28 @@ export function serveHttp(port: number, host: string) {
         touch(s);
       },
     });
-    const s: Session = { server, transport, ctx, streamOpened };
+    const s: Session = { server, transport, ctx, streamOpened, pending: new Set() };
+    opened.add(s);
+    transport.onmessage = (m) => {
+      if (isJSONRPCRequest(m)) s.pending.add(m.id);
+      else if (isJSONRPCNotification(m) && m.method === "notifications/cancelled") {
+        const id = m.params?.requestId;
+        if (typeof id === "string" || typeof id === "number") s.pending.delete(id);
+      }
+    };
+    const send = transport.send.bind(transport);
+    transport.send = async (m, opts) => {
+      try {
+        await send(m, opts);
+      } finally {
+        if (isJSONRPCResultResponse(m) || isJSONRPCErrorResponse(m)) {
+          if (m.id !== undefined) s.pending.delete(m.id);
+          lastResponse = Date.now();
+        }
+      }
+    };
     transport.onclose = () => {
+      opened.delete(s);
       clearTimeout(s.idle);
       if (transport.sessionId) sessions.delete(transport.sessionId);
     };
@@ -528,6 +576,16 @@ export function serveHttp(port: number, host: string) {
     throw new Error(`listening on ${http.hostname}, not ${config.http.host}; stopped`);
   }
   console.error(`batas mcp: listening on http://${http.hostname}:${http.port}/mcp`);
+  if (restartOn) {
+    const stamp = sourceStamp(restartOn);
+    setInterval(() => {
+      if (sourceStamp(restartOn) === stamp) return;
+      const busy = [...opened].reduce((n, s) => n + s.pending.size, 0);
+      if (busy || Date.now() - lastResponse < config.http.settleMs) return;
+      console.error(`batas mcp: ${restartOn} changed, exiting for launchd to start the new code`);
+      process.exit(0);
+    }, config.http.watchMs);
+  }
   return http;
 }
 
@@ -537,7 +595,7 @@ if (import.meta.main) {
   else {
     try {
       if (!/^\d+$/.test(String(values.port))) throw new Error("--http needs --port <number>");
-      serveHttp(Number(values.port), String(values.host ?? config.http.host));
+      serveHttp(Number(values.port), String(values.host ?? config.http.host), import.meta.dir);
     } catch (err) {
       console.error(`batas mcp: ${err instanceof Error ? err.message : String(err)}`);
       process.exit(1);
