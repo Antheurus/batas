@@ -1,5 +1,10 @@
 # batas Changelog
 
+## v0.18.2 — Repo Brighty sekarang ikut terbaca
+
+- Rules, lessons, progress dan changelog di repo `DATA_BRIGHTY_MISPAQUL_ATTORIQ` (Funnel, sales, supply chain, auto-scrape, dll.) sekarang ikut dibaca batas, sekitar 2.000 entri baru. Sebelumnya tidak satu pun ikut.
+- Worktree yang namanya bukan `-wt-` tidak diindeks lagi sebagai repo tersendiri. Dua salinan penuh mendadak-pos ikut terhapus, jadi hasil recall di mendadak-pos tidak muncul dobel-dobel lagi.
+
 ## v0.18.1 — Daftar keputusan per repo sekarang terisi di 25 repo
 
 - 46 memory yang ternyata mengatur repo lain sudah ditandai dengan repo-nya. Hasilnya, 25 repo (otofiliate, solusiagency-tools, mendadak-tools, payment-processor, repo-repo Hegemoni, dan lain-lain) sekarang menampilkan keputusan-keputusan itu di prompt pertama setiap sesi.
