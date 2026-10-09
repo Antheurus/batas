@@ -1,9 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { ListRootsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { config } from "../src/config.ts";
 import { evaluate, lateSemantic, logFlags, ownWords } from "../src/hook.ts";
 import { auditPrompts } from "../scripts/prompt-audit.ts";
@@ -18,7 +21,8 @@ import { mutedIds, readAcks, readFeedback, setMuted } from "../src/feedback.ts";
 import { appendHookLog, liveSessions, readHookLog } from "../src/log.ts";
 import { Store } from "../src/store.ts";
 import { Triggers } from "../src/triggers.ts";
-import { indexHook, INDEX_HOOK_MAX, logChangelog, logProgress, recordMemory } from "../src/write.ts";
+import { indexHook, INDEX_HOOK_MAX, logChangelog, logProgress, memoryDir, recordMemory } from "../src/write.ts";
+import { createServer, projectOf, type SessionContext } from "../src/mcp.ts";
 
 const root = process.env.BATAS_TEST_ROOT as string;
 const demo = join(root, "repos", "demo-app");
@@ -789,6 +793,116 @@ describe("mcp server", () => {
     expect(config.stateDir.startsWith(root)).toBe(true);
     expect(existsSync(join(config.claudeHome, "rules"))).toBe(true);
   });
+});
+
+describe("session project", () => {
+  type Reply = { content: { text: string }[]; isError?: boolean };
+
+  async function connect(ctx: SessionContext, client = new Client({ name: "batas-test-session", version: "0" })): Promise<Client> {
+    const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+    await createServer(ctx).connect(serverSide);
+    await client.connect(clientSide);
+    return client;
+  }
+
+  function gitRepo(name: string): string {
+    const dir = join(root, "elsewhere", name);
+    mkdirSync(join(dir, ".git"), { recursive: true });
+    return dir;
+  }
+
+  test("an explicit arg beats the MCP root, the root beats cwd, and nothing known is none", async () => {
+    const root = Promise.resolve("/r/root");
+    expect(await projectOf({ cwd: "/r/cwd", root }, "/r/arg")).toEqual({ dir: "/r/arg", source: "arg" });
+    expect(await projectOf({ cwd: "/r/cwd", root })).toEqual({ dir: "/r/root", source: "roots" });
+    expect(await projectOf({ cwd: "/r/cwd", root: Promise.resolve(undefined) })).toEqual({ dir: "/r/cwd", source: "cwd" });
+    expect(await projectOf({ cwd: "/r/cwd" })).toEqual({ dir: "/r/cwd", source: "cwd" });
+    expect(await projectOf({})).toEqual({ source: "none" });
+  });
+
+  test("a tool call waits for a root that is still being resolved instead of falling through to none", async () => {
+    let settle: (dir: string) => void = () => {};
+    const pending = projectOf({ root: new Promise<string>((r) => (settle = r)) });
+    setTimeout(() => settle("/r/late"), 20);
+    expect(await pending).toEqual({ dir: "/r/late", source: "roots" });
+  });
+
+  test("with no project the write tools refuse naming project_dir and write nothing", async () => {
+    const stray = join(root, "elsewhere", "stray-cwd");
+    mkdirSync(join(stray, "docs"), { recursive: true });
+    const progress = join(stray, "docs", "progress.md");
+    const changelog = join(stray, "docs", "changelog.md");
+    writeFileSync(progress, "# stray Progress\n");
+    writeFileSync(changelog, "# stray Changelog\n\n## v0.1.0 — first\n\n- one\n");
+    const before = [readFileSync(progress), readFileSync(changelog)];
+    const projectsBefore = readdirSync(config.projectsDir).sort();
+    const client = await connect({});
+    const back = process.cwd();
+    process.chdir(stray);
+    try {
+      const calls = [
+        { name: "record", arguments: { type: "project", name: "stray", title: "t", description: "d", body: "b", origin: "agent-initiated" } },
+        { name: "log_progress", arguments: { version: "0.2.0", title: "t", body: "b" } },
+        { name: "log_changelog", arguments: { version: "0.2.0", title: "t", bullets: ["b"] } },
+      ];
+      for (const c of calls) {
+        const r = (await client.callTool(c)) as Reply;
+        expect(r.isError).toBe(true);
+        expect(r.content[0]?.text).toContain("project_dir");
+      }
+    } finally {
+      process.chdir(back);
+    }
+    expect(readFileSync(progress).equals(before[0] as Buffer)).toBe(true);
+    expect(readFileSync(changelog).equals(before[1] as Buffer)).toBe(true);
+    expect(existsSync(memoryDir(stray))).toBe(false);
+    expect(readdirSync(config.projectsDir).sort()).toEqual(projectsBefore);
+
+    const recall = (await client.callTool({ name: "recall", arguments: { query: "anything" } })) as Reply;
+    expect(recall.content[0]?.text).toContain("scope: global only (no project known for this session; pass project)");
+    const status = (await client.callTool({ name: "status", arguments: {} })) as Reply;
+    expect(status.content[0]?.text).toContain("session repo: undefined (source: none)");
+
+    const given = (await client.callTool({
+      name: "record",
+      arguments: { type: "project", name: "stray", title: "t", description: "d", body: "b", origin: "agent-initiated", project_dir: stray },
+    })) as Reply;
+    expect(given.isError).toBeFalsy();
+    expect(existsSync(join(memoryDir(stray), "stray.md"))).toBe(true);
+    await client.close();
+  });
+
+  test("a session's MCP root scopes it once the client says its roots changed", async () => {
+    const app = gitRepo("roots-app");
+    const client = new Client({ name: "batas-test-roots", version: "0" }, { capabilities: { roots: { listChanged: true } } });
+    client.setRequestHandler(ListRootsRequestSchema, async () => ({ roots: [{ uri: pathToFileURL(app).href, name: "roots-app" }] }));
+    await connect({}, client);
+    await client.sendRootsListChanged();
+    const status = (await client.callTool({ name: "status", arguments: {} })) as Reply;
+    expect(status.content[0]?.text).toContain("session repo: roots-app (source: roots)");
+    await client.close();
+  });
+
+  test("over stdio the session is scoped to the launch cwd, and writes default there as before", async () => {
+    const app = gitRepo("stdio-app");
+    const client = new Client({ name: "batas-test-stdio-cwd", version: "0" });
+    await client.connect(
+      new StdioClientTransport({
+        command: "bun",
+        args: [join(import.meta.dir, "..", "src", "mcp.ts")],
+        env: { ...(process.env as Record<string, string>) },
+        cwd: app,
+      }),
+    );
+    const status = (await client.callTool({ name: "status", arguments: {} })) as Reply;
+    expect(status.content[0]?.text).toContain("session repo: stdio-app (source: cwd)");
+    const recall = (await client.callTool({ name: "recall", arguments: { query: "anything" } })) as Reply;
+    expect(recall.content[0]?.text).not.toContain("global only");
+    const w = (await client.callTool({ name: "log_progress", arguments: { version: "0.1.0", title: "t", body: "Did a thing." } })) as Reply;
+    expect(w.isError).toBeFalsy();
+    expect(readFileSync(join(app, "docs", "progress.md"), "utf8")).toContain("Did a thing.");
+    await client.close();
+  }, 30000);
 });
 
 describe("feedback and log", () => {
