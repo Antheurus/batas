@@ -194,6 +194,46 @@ function bashLessons(files: string[], input: HookInput, state: SessionState): { 
   return { text, ids };
 }
 
+// Code and path triggers for files a Bash command wrote: a heredoc, a redirect or a script never shows its content to the
+// PreToolUse hook, and headless agents create new files that way (a behavior-eval agent wrote an English errors.New
+// service through `cat > file`, and the lesson about it never fired). A new file is read whole; a tracked one only for
+// the lines this change added, so code that was already there does not fire again.
+const BASH_CODE = /\.(go|ts|tsx|js|mjs|cjs|jsx|vue|svelte|py|sql|html|css|rs|php|rb|java|kt|swift)$/;
+
+function bashCodeRules(files: string[], store: Store, triggers: Triggers, state: SessionState): { text: string; ids: string[] } | undefined {
+  const silenced = new Set([...state.muted, ...Object.keys(mutedIds())]);
+  const blocks: string[] = [];
+  const ids: string[] = [];
+  for (const f of files.filter((x) => BASH_CODE.test(x))) {
+    const repo = repoRoot(dirname(f));
+    if (!repo) continue;
+    let code = "";
+    const diff = Bun.spawnSync(["git", "-C", repo, "diff", "--no-color", "-U0", "HEAD", "--", f], { stdout: "pipe", stderr: "ignore" });
+    const added = diff.exitCode === 0 ? diff.stdout.toString() : "";
+    if (added.trim()) {
+      code = added.split("\n").filter((l) => l.startsWith("+") && !l.startsWith("+++")).map((l) => l.slice(1)).join("\n");
+    } else {
+      try {
+        if (statSync(f).size < 200_000) code = readFileSync(f, "utf8");
+      } catch {}
+    }
+    if (!code) continue;
+    for (const m of triggers.match({ path: f, code, repo: repoName(dirname(f)) })) {
+      if (ids.includes(m.id) || state.injected.includes(m.id) || silenced.has(m.id)) continue;
+      const e = resolve(store, m.id);
+      if (!e) continue;
+      const block = render(store, e, m, triggers.specs[m.id]?.origin);
+      if (state.spent + block.length > config.inject.sessionBytes || ids.length >= config.inject.maxItems) break;
+      blocks.push(`(${f.slice(repo.length + 1)})\n${block}`);
+      ids.push(m.id);
+      state.injected.push(m.id);
+      state.spent += block.length;
+    }
+  }
+  if (!blocks.length) return undefined;
+  return { text: ["batas: a recorded rule matches what this Bash command just wrote — check the file against it now:", "", ...blocks].join("\n\n"), ids };
+}
+
 // The session's real start is its transcript's creation time. Defaulting to "first seen by this hook" made every
 // session already open when the rule shipped treat its OWN earlier work as pre-existing and get blocked; without a
 // transcript the pre-session rule is skipped rather than guessed.
@@ -662,13 +702,14 @@ export function evaluate(input: HookInput, store: Store, triggers: Triggers, sem
     const st = loadSession(session);
     const changed = attributeBash(input, st);
     const lessons = changed.length ? bashLessons(changed, input, st) : undefined;
+    const coded = changed.length ? bashCodeRules(changed, store, triggers, st) : undefined;
     if (changed.length) saveSession(session, st);
     const upkeep = changed.some((f) => f.includes("/docs/lessons/")) ? lessonsUpkeep(input, {}) : undefined;
-    const text = [lessons?.text, upkeep?.text].filter(Boolean).join("\n\n");
+    const text = [coded?.text, lessons?.text, upkeep?.text].filter(Boolean).join("\n\n");
     if (!text) return { output: {}, fired: [] };
     return {
       output: { hookSpecificOutput: { hookEventName: event, additionalContext: text } },
-      fired: [...(lessons?.ids ?? []), ...(upkeep ? [upkeep.id] : [])],
+      fired: [...(coded?.ids ?? []), ...(lessons?.ids ?? []), ...(upkeep ? [upkeep.id] : [])],
     };
   }
 

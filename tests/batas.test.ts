@@ -163,6 +163,21 @@ describe("hook", () => {
     expect(ownWords(paste("RESUME batas: fix delivery items"))).toContain("RESUME batas");
   });
 
+  test("a code trigger fires on a file a Bash command wrote, and only on what it added", () => {
+    const repo = mkdtempSync(join(tmpdir(), "batas-bw-"));
+    Bun.spawnSync(["git", "init", "-q", repo]);
+    const t = new Triggers({ "gotcha:B13": { code: ["errors\\.New\\(\"[a-z ]+ expired"] } });
+    const step = (session_id: string, write: () => void) => {
+      const bash = { session_id, cwd: repo, tool_name: "Bash", tool_input: { command: "cat > svc.go <<'EOF'" } };
+      evaluate({ ...bash, hook_event_name: "PreToolUse" }, store, t);
+      write();
+      return evaluate({ ...bash, hook_event_name: "PostToolUse" }, store, t).fired;
+    };
+    expect(step("bw1", () => writeFileSync(join(repo, "svc.go"), 'var E = errors.New("card has expired")\n'))).toContain("gotcha:B13");
+    expect(step("bw2", () => writeFileSync(join(repo, "ok.go"), 'var E = errors.New("kartu kedaluwarsa")\n'))).not.toContain("gotcha:B13");
+    rmSync(repo, { recursive: true, force: true });
+  });
+
   test("sharing content words with a memory surfaces nothing without its trigger word or a meaning match", () => {
     // the word-overlap listing surfaced 273 trigger-less memories on 500 replayed real prompts, mostly unrelated
     const none = new Triggers({});
