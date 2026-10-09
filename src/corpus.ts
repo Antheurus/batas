@@ -236,6 +236,14 @@ export function parseMemory(file: string, project: string): Entry {
   };
 }
 
+function isLinkedWorktree(dir: string): boolean {
+  try {
+    return statSync(join(dir, ".git")).isFile();
+  } catch {
+    return false;
+  }
+}
+
 export function projectSources(): Source[] {
   const sources: Source[] = [];
   for (const root of config.projectRoots) {
@@ -248,6 +256,9 @@ export function projectSources(): Source[] {
       } catch {
         continue;
       }
+      // A linked worktree (.git is a file) repeats its main checkout, which is indexed already, and a session inside it
+      // resolves to the main repo's name; "-wt-" alone missed fe-ph-06, fe-mainv2-land, mendadak-pos-audit-fifo-02.
+      if (isLinkedWorktree(dir)) continue;
       for (const file of listMd(join(dir, ".claude", "rules"))) {
         sources.push({
           file,

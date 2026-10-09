@@ -41,6 +41,19 @@ describe("corpus", () => {
   });
 });
 
+describe("project roots", () => {
+  test("a linked worktree is not indexed beside its main checkout", () => {
+    const wt = join(root, "repos", "demo-app-audit-02");
+    mkdirSync(join(wt, ".claude", "rules"), { recursive: true });
+    writeFileSync(join(wt, ".git"), `gitdir: ${join(root, "repos", "demo-app", ".git", "worktrees", "demo-app-audit-02")}\n`);
+    writeFileSync(join(wt, ".claude", "rules", "all-copy.md"), "# Copy\n\n## Duplicated rule\nbody\n");
+    const s = new Store();
+    s.refresh("all");
+    expect(s.entries().some((e) => e.scope === "demo-app-audit-02")).toBe(false);
+    rmSync(wt, { recursive: true, force: true });
+  });
+});
+
 describe("parse cache", () => {
   test("a cached parse is reused only while the file's mtime holds", () => {
     const dir = mkdtempSync(join(tmpdir(), "batas-pc-"));
