@@ -98,5 +98,27 @@ raw dump into `docs/lessons/`.
 13. **Per-repo lesson map report** — Graphify's GRAPH_REPORT.md equivalent: files carrying the most lessons, lessons
     that route nowhere (264 in mendadak-pos), stale routes, delivery-eval history.
 
+## Priority 6 — from Command Code Taste (compared 2026-10-09)
+
+Taste (`commandcode.ai/docs/taste`) is the opposite half of the loop: it writes automatically (every accept, reject
+and edit is a signal, classified by a hosted `taste-1` model) and reads back a whole style profile on every turn.
+batas writes deliberately and reads only on a trigger. Two of its write-side ideas fit here.
+
+17. **Silent correction capture** — extends item 14, which only hears a correction the user says out loud. The more
+    common correction is unspoken: the user edits lines the agent just wrote. The PostToolUse hook already records the
+    files each session writes, so a later change to those lines by the user (or by a Bash command outside any
+    session) within N minutes is a cheap signal to suggest a `record`. It drafts, never writes a memory on its own.
+    Evidence: Taste treats "correction diffs from your commits" as its strongest signal; batas has no write path
+    that does not depend on someone noticing. Status: planned.
+18. **Conflict check when a memory is written** — `record` searches the closest entries only for `type: "lesson"`
+    (`src/mcp.ts`); a `user`/`feedback`/`project`/`reference` memory is written with no look at what already says the
+    same or the opposite, and refuses only on an identical name. Run the same semantic search for memories and return
+    the top matches with the write, so a duplicate or contradiction is visible at the moment it is made (Taste: "flags
+    the conflict" instead of overwriting). Status: planned.
+
+Not taken: confidence scores (batas memories are curated, not inferred, so there is nothing to score), a hosted
+classifier (everything here stays local), and a public share registry (the mirror is private by design). Taste also
+loads its profile on every turn, the always-on cost the 2026-10-07 tiering work exists to cut.
+
 Graphify itself was re-checked 2026-10-08 (v0.9.80): still "Not a vector index. No embeddings", a codebase graph
 that duplicates GitNexus; it does not replace batas, which carries lessons, rules and preferences, not code structure.
