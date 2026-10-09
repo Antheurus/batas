@@ -17,14 +17,45 @@ stdio, see research.md), with an explicit `project_dir` argument above it and a 
 
 Mode: **Lean** (od-execute). Plan: `plan.md`. Evidence: `research.md`.
 
-## Checklist (DAG: 0 → 1 → 2 → 3 → 4; 5 after 4)
+### Clarifications (2026-10-10, AskUserQuestion)
 
-- [ ] **Phase 0 — spike: do `roots` survive Streamable HTTP with real Claude Code?** Gate for the whole design.
-- [ ] **Phase 1 — per-session project context in `mcp.ts`, stdio behaviour unchanged.**
-- [ ] **Phase 2 — Streamable HTTP mode (`--http --port`), one McpServer per MCP session, shared Store.**
-- [ ] **Phase 3 — launchd agent `dev.batas.mcp`, `just` recipes, restart story.**
-- [ ] **Phase 4 — switch `~/.claude.json`, register the port, update memory/rules, progress + changelog.**
-- [ ] **Phase 5 — acceptance: cross-repo write isolation, fresh-session memory, two live sessions.**
+- Port for the shared server? → **3481** (Recommended).
+- Keep stdio as a supported mode? → **Ya, tetap** — default with no flag, the bypass if the shared server breaks.
+- OPEN #2 (fallback if roots fail over HTTP) — moot: Phase 00 proved roots work over HTTP (findings.md).
+
+## Execution DAG
+
+Linear chain, every block sequential. Phases 0–4 are executor dispatches; Phase 5 is driven by the orchestrator (needs real Claude sessions and the user's live config).
+
+### Block 1 — sequential
+- [x] Phase 00 — spike: `roots` over Streamable HTTP (gate)
+  - _Plan: plan.md §Phase 0_
+  - _Blocked by: none_
+
+### Block 2 — sequential
+- [ ] Phase 01 — per-session project context, stdio unchanged
+  - _Plan: plan.md §Phase 1_
+  - _Blocked by: Phase 00_
+
+### Block 3 — sequential
+- [ ] Phase 02 — Streamable HTTP mode
+  - _Plan: plan.md §Phase 2_
+  - _Blocked by: Phase 01_
+
+### Block 4 — sequential
+- [ ] Phase 03 — launchd agent and restart story
+  - _Plan: plan.md §Phase 3_
+  - _Blocked by: Phase 02_
+
+### Block 5 — sequential
+- [ ] Phase 04 — switch over and record it
+  - _Plan: plan.md §Phase 4_
+  - _Blocked by: Phase 03_
+
+### Block 6 — sequential
+- [ ] Phase 05 — acceptance (from where the user stands)
+  - _Plan: plan.md §Phase 5_
+  - _Blocked by: Phase 04_
 
 ## OPEN — decisions for the user before Phase 3
 
