@@ -98,3 +98,17 @@ the ones measured at the time, also recorded in each commit body and in `docs/pr
 - Lessons: an eval must log per run whether the thing under test was DELIVERED (hook log, real paths — /tmp vs
   /private/tmp hid it); a hook change that applies immediately (E10) mid-eval splits an arm, rerun it; read the hook
   log before claiming no live impact; a pipe to `head` killed `just install` before it wrote (B14).
+
+## Session 4 — 2026-10-09 (v0.18.0)
+
+- A warm batasd silently replaced the trigger-word path: the same prompt fired its memory cold and nothing warm.
+  Every earlier "semantic + triggers" claim held only for cold prompts.
+- Scores on cases whose sentences were read while choosing triggers do not generalise: held-out requests written by
+  an agent blind to triggers got 0/6 prompt-time delivery. A per-repo `repos:` title list is what reached them.
+- A fixed instruction suffix appended to every eval prompt dominated the semantic query (ceo-chart's memory fell out
+  of the top 12); send it as a system prompt.
+- Headless agents write new files with `cat > file`; any write-time check must also read Bash-written files, and
+  mtime attribution catches other sessions' files, so only content patterns may fire there.
+- A cache of parsed entries must be keyed by the parser's version too, not only by the source file's mtime.
+- Evals capped at 6 sessions per run by the user; a 30-session run took over an hour.
+

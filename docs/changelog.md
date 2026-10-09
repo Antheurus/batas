@@ -1,5 +1,16 @@
 # batas Changelog
 
+## v0.18.0 — Keputusan per repo selalu kelihatan, memory kepanggil walau batasd cepat
+
+- Memory yang kata pemicunya kamu ketik sekarang selalu muncul. Sebelumnya, kalau batasd sempat menjawab, kata pemicu malah dilewati.
+- Memory punya gerbang makna sendiri, jadi memory yang paling dekat maknanya nggak lagi kalah slot dari rule.
+- Daftar 'memory yang mirip kata-katanya' dihapus. Di 500 prompt nyata, daftar itu nampilin 273 memory nggak nyambung, kadang 8 sekaligus.
+- Memory baru bisa diberi `repos:`. Di prompt pertama tiap sesi di repo itu, judulnya langsung disebut. Enam keputusan Funnel (nama produk, tanpa live, grafik CEO, untrack, dll.) sekarang muncul di setiap sesi fe-v2.
+- Kesalahan yang cuma kelihatan di kode (error bahasa Inggris di service mendadak-pos, `$effect` tanpa untrack di Funnel FE) diingatkan pas file-nya ditulis, termasuk kalau file ditulis lewat terminal.
+- Path folder di prompt atau brief subagent nggak lagi memicu memory yang nggak nyambung.
+- Teks yang ditempel nggak lagi menyetir pencocokan kalau kamu juga ngetik kalimat sendiri.
+- Hook prompt lebih cepat: p95 142 → 106 ms.
+
 ## v0.17.2 — batasd mati sendiri setelah 180 menit nganggur
 
 - batasd sekarang berhenti sendiri kalau 180 menit nggak ada request, jadi RAM-nya (~2,2 GB) nggak ketahan berjam-jam waktu nggak ada sesi Claude yang jalan.

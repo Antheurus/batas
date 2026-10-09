@@ -66,8 +66,13 @@ rule check passed (B1, C18, B14 inject their full text). Remaining: roadmap 5 (d
 
 - [x] Funnel behaviour eval (`evals/results/2026-10-08-behavior-funnel.json`): A 4/15 = B 4/15, target delivered 2/15;
       the right memory in context drops Beacon from 6/6 to 0/3. Subagent briefs (v0.17.0) proven by what agents said.
-- [ ] Memory delivery coverage — memory-specific gate, trigger review, Funnel eval re-run showing A < B (handover-03 #1)
-- [ ] Word-overlap listing noise (handover-03 #2)
-- [ ] Prompt hook p95 <= 150 ms under load (handover-03 #3)
-- [ ] Behaviour proofs at 3 runs per arm (handover-03 #4)
-- [ ] Pasted text / task suffix shifting queries; extra memories on the SSE brief; dead `memorySources` (handover-03 #5-7)
+- [x] Memory delivery coverage (handover-03 #1) — v0.18.0: triggers run on warm prompts, memoryGap 0.045, repo-scoped
+      code triggers (also on Bash-written files), `repos:` lists. Funnel eval A 2/15 vs B 7/15 repeated; delivery 6/15,
+      so the 10/15 bar as written is NOT met; held-out wording reached 0/6 at prompt time until the repos list, then
+      A 1/3 vs B 2/3 (n=1/case). `evals/results/2026-10-09-behavior-funnel-v018.json`
+- [x] Word-overlap listing removed (handover-03 #2) — 273 -> 0 on 500 replayed prompts, trigger hits 109 -> 116, none lost
+- [x] Prompt hook p95 142 -> 106 ms at load 7.4 (handover-03 #3) — parsed-entry cache
+- [ ] Behaviour proofs (handover-03 #4) — the user capped evals at 6 sessions per run (memory eval-runs-max-six)
+- [x] Pasted blocks (#5, hook log `pasted:true` still has to show the tags reach the hook), path words on the SSE brief
+      (#6), `memorySources` deleted (#7)
+- [ ] User: does auto-refresh polling count as the 'live' Funnel forbids? (held-out live A built setInterval polling)
