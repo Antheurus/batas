@@ -560,10 +560,13 @@ function listForRepo(store: Store, repo: string | undefined, project: string, st
       return true;
     });
   if (!mems.length) return undefined;
-  const lines = mems.map((m) => `- ${m.id} — ${m.title.split(" · triggers: ")[0]}`);
+  // A repo many memories bind still gets a short list; the rest stay one recall away.
+  const shown = mems.slice(0, config.inject.maxRepoList);
+  const lines = shown.map((m) => `- ${m.id} — ${m.title.split(" · triggers: ")[0]}`);
+  if (mems.length > shown.length) lines.push(`- and ${mems.length - shown.length} more: mcp__batas__recall({query: "${repo}", kinds: ["memory"]})`);
   return {
     text: [`batas: decisions recorded for ${repo} in other projects — open one with mcp__batas__get <id> when the work touches it:`, ...lines].join("\n"),
-    ids: mems.map((m) => m.id),
+    ids: shown.map((m) => m.id),
   };
 }
 

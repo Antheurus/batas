@@ -1,4 +1,5 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { config } from "./config.ts";
 import { projectSlug } from "./corpus.ts";
@@ -164,5 +165,29 @@ export function recordMemory(a: {
     nextIndex = `${indexText.replace(/\s*$/, "")}\n${pointer}\n`;
   }
   writeFileSync(index, nextIndex);
-  return { file, note: `${exists ? "updated" : "created"} ${name}.md and ${has >= 0 ? "updated" : "added"} its MEMORY.md pointer` };
+  const note = `${exists ? "updated" : "created"} ${name}.md and ${has >= 0 ? "updated" : "added"} its MEMORY.md pointer`;
+  const others = repos.length ? [] : namedRepos(`${a.description}\n${a.body}`, basename(a.projectDir));
+  return {
+    file,
+    note: others.length
+      ? `${note}\nIt names another repo (${others.join(", ")}). If it binds work THERE, record it again with replace: true and repos: [...] so sessions in that repo are told; leave it if the repo is only mentioned.`
+      : note,
+  };
+}
+
+// Repos a memory's text names besides its own: the checkouts under the project roots and under each ~/Documents
+// folder (work repos live beside the personal ones). Only a suggestion; whether a memory binds a repo is a judgement.
+function namedRepos(text: string, own: string): string[] {
+  const parents = new Set([...config.projectRoots, ...safeList(join(homedir(), "Documents")).map((d) => join(homedir(), "Documents", d))]);
+  const repos = new Set<string>();
+  for (const parent of parents) for (const d of safeList(parent)) if (existsSync(join(parent, d, ".git")) && !d.includes("-wt-")) repos.add(d);
+  return [...repos].filter((r) => r !== own && new RegExp(`(?<![\\w-])${r.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\w-])`).test(text)).sort();
+}
+
+function safeList(dir: string): string[] {
+  try {
+    return readdirSync(dir);
+  } catch {
+    return [];
+  }
 }

@@ -685,6 +685,16 @@ describe("writers", () => {
     expect(text).toMatch(/## Session — \d{4}-\d{2}-\d{2} \(cont\) — v0\.3\.0 \(second\)[\s\S]*\(first\)/);
   });
 
+  test("a memory that names another repo without repos gets a suggestion, not a refusal", () => {
+    mkdirSync(join(root, "repos", "sibling-fe", ".git"), { recursive: true });
+    const base = { projectDir: demo, type: "project" as const, title: "t", description: "d", origin: "user-requested" as const };
+    const named = recordMemory({ ...base, name: "binds-sibling", body: "Decided for sibling-fe: no live streaming." });
+    expect(named.note).toContain("It names another repo (sibling-fe)");
+    const tagged = recordMemory({ ...base, name: "binds-sibling-tagged", body: "Decided for sibling-fe: no live streaming.", repos: ["sibling-fe"] });
+    expect(tagged.note).not.toContain("names another repo");
+    expect(recordMemory({ ...base, name: "plain", body: "Nothing about other repos." }).note).not.toContain("names another repo");
+  });
+
   test("a memory recorded with repos reads back with them", () => {
     const w = recordMemory({ projectDir: demo, type: "project", name: "fe-binding", title: "t", description: "d", body: "b", origin: "user-requested", repos: ["funnel-fe", " funnel-fe-v2 "] });
     expect(readFileSync(w.file, "utf8")).toContain('repos: "funnel-fe, funnel-fe-v2"\n');

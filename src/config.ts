@@ -41,7 +41,7 @@ export const config = {
     writeGap: 0.07,
     fullCos: 0.6,
   },
-  inject: { maxItems: 3, maxChars: 9000, maxPromptHints: 5, maxMemories: 2, memoryChars: 1500, maxMoreMemories: 8, sessionBytes: 64000 },
+  inject: { maxItems: 3, maxChars: 9000, maxPromptHints: 5, maxMemories: 2, memoryChars: 1500, maxMoreMemories: 8, maxRepoList: 12, sessionBytes: 64000 },
 };
 
 export type Config = typeof config;
