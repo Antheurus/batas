@@ -454,12 +454,18 @@ export function saysTrigger(promptLower: string, trigger: string): boolean {
 
 // Only the user's own words count: a quoted line or a side agent's note pasted into the prompt is someone else's
 // text, and matching it pulled unrelated memories in on the first live day.
+// Pasted blocks are the same: a log, a note or a draft the user brought in, so when the user also typed something
+// around them, only that counts. A prompt that is nothing but a paste (a prepared resume prompt) keeps the paste.
+const PASTED = /<pasted_content id="([^"]+)">([\s\S]*?)<\/pasted_content id="\1">/g;
+
 export function ownWords(prompt: string): string {
   const cut = prompt.search(/Here is a note offered by a side agent/i);
-  return (cut >= 0 ? prompt.slice(0, cut) : prompt)
+  const said = (cut >= 0 ? prompt.slice(0, cut) : prompt)
     .split("\n")
     .filter((l) => !/^\s*>/.test(l))
     .join("\n");
+  const typed = said.replace(PASTED, " ");
+  return typed.replace(/\s+/g, "").length >= 12 ? typed : said.replace(PASTED, "$2");
 }
 
 // A memory matches when the prompt says one of its trigger words, or, with a warm batasd, when it stands out by meaning
@@ -1035,6 +1041,8 @@ async function main() {
       bytes: injectedBytes(result.output),
       ...logFlags(input, process.env.CLAUDE_CODE_ENTRYPOINT),
       ...(semanticState ? { semantic: semanticState } : {}),
+      // whether a prompt reaches the hook with its pasted blocks still tagged, which ownWords relies on
+      ...(input.prompt?.includes("<pasted_content id=") ? { pasted: true } : {}),
       ...(error ? { error } : {}),
     });
   } catch {}

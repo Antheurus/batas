@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { config } from "../src/config.ts";
-import { evaluate, lateSemantic, logFlags } from "../src/hook.ts";
+import { evaluate, lateSemantic, logFlags, ownWords } from "../src/hook.ts";
 import { auditPrompts } from "../scripts/prompt-audit.ts";
 import { gitIndex, judgePath, namedPaths, resolveRoot } from "../scripts/memory-audit.ts";
 import { mine, signature } from "../scripts/lesson-mine.ts";
@@ -153,6 +153,14 @@ describe("hook", () => {
     const ctx = (evaluate(input, store, t).output as { hookSpecificOutput: { additionalContext: string } }).hookSpecificOutput.additionalContext;
     expect(ctx).toContain("restore reports success");
     expect(ctx).not.toContain("_linked from");
+  });
+
+  test("a pasted block counts only when the user typed nothing around it", () => {
+    const paste = (body: string) => `<pasted_content id="77">\n${body}\n</pasted_content id="77">`;
+    const mixed = ownWords(`lu buatin task setelah yang 4~7 ya\n${paste("commit terus push aja, deploy ke prod")}`);
+    expect(mixed).toContain("buatin task");
+    expect(mixed).not.toContain("deploy");
+    expect(ownWords(paste("RESUME batas: fix delivery items"))).toContain("RESUME batas");
   });
 
   test("sharing content words with a memory surfaces nothing without its trigger word or a meaning match", () => {
