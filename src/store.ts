@@ -2,7 +2,7 @@
 // ms (7,990 entries), so a per-call hook parses what it needs and the long-lived MCP server keeps it all, re-parsing only
 // files whose mtime moved. Search is semantic and lives in batasd; the SQLite + FTS5 index this replaced could only
 // match words, and a database file shared between live sessions was the source of the "disk I/O error" class.
-import { statSync } from "node:fs";
+import { readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { allSources, type Entry, type Kind, type Source } from "./corpus.ts";
 import { semanticSearch } from "./semantic.ts";
 
@@ -15,8 +15,17 @@ export class Store {
   private byId = new Map<string, Entry>();
   private bySource = new Map<string, { mtime: number; ids: string[] }>();
 
-  refresh(scope: "rules" | "all" = "all", extra: Source[] = []): { changed: number; removed: number } {
+  // `cacheFile` keeps parsed entries across processes, keyed by each file's mtime: the prompt hook is a fresh process
+  // per call and parsing every project's memories cost it ~25-35 ms of a 150 ms budget.
+  refresh(scope: "rules" | "all" = "all", extra: Source[] = [], cacheFile?: string): { changed: number; removed: number } {
     const sources = [...allSources(scope), ...extra];
+    let cache: Record<string, { mtime: number; entries: Entry[] }> = {};
+    let dirty = false;
+    if (cacheFile) {
+      try {
+        cache = JSON.parse(readFileSync(cacheFile, "utf8"));
+      } catch {}
+    }
     const seen = new Set<string>();
     let changed = 0;
     for (const src of sources) {
@@ -30,14 +39,30 @@ export class Store {
       if (this.bySource.get(src.file)?.mtime === mtime) continue;
       this.drop(src.file);
       let entries: Entry[] = [];
-      try {
-        entries = src.parse();
-      } catch (err) {
-        console.error(`batas: failed to parse ${src.file}: ${String(err)}`);
+      const cached = cache[src.file];
+      if (cached?.mtime === mtime) entries = cached.entries;
+      else {
+        try {
+          entries = src.parse();
+        } catch (err) {
+          console.error(`batas: failed to parse ${src.file}: ${String(err)}`);
+        }
+        if (cacheFile) {
+          cache[src.file] = { mtime, entries };
+          dirty = true;
+        }
       }
       for (const e of entries) this.byId.set(e.id, e);
       this.bySource.set(src.file, { mtime, ids: entries.map((e) => e.id) });
       changed++;
+    }
+    if (cacheFile && dirty) {
+      // Written aside and renamed in: concurrent hook processes each see a whole file, never a half-written one.
+      try {
+        const tmp = `${cacheFile}.${process.pid}`;
+        writeFileSync(tmp, JSON.stringify(cache));
+        renameSync(tmp, cacheFile);
+      } catch {}
     }
     let removed = 0;
     if (scope === "all") {

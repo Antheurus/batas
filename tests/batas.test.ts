@@ -41,6 +41,29 @@ describe("corpus", () => {
   });
 });
 
+describe("parse cache", () => {
+  test("a cached parse is reused only while the file's mtime holds", () => {
+    const dir = mkdtempSync(join(tmpdir(), "batas-pc-"));
+    const file = join(dir, "notes.md");
+    const cacheFile = join(dir, "parse-cache.json");
+    writeFileSync(file, "## First\nbody\n");
+    let parses = 0;
+    const src = { file, parse: () => (parses++, [{ id: "x:1", kind: "context", scope: "global", title: readFileSync(file, "utf8").split("\n")[0] ?? "", body: "", source: file, line: 1 }]) } as never;
+    new Store().refresh("rules", [src], cacheFile);
+    const second = new Store();
+    second.refresh("rules", [src], cacheFile);
+    expect(parses).toBe(1);
+    expect(second.get("x:1")?.title).toBe("## First");
+    writeFileSync(file, "## Second\nbody\n");
+    utimesSync(file, new Date(), new Date(Date.now() + 5000));
+    const third = new Store();
+    third.refresh("rules", [src], cacheFile);
+    expect(parses).toBe(2);
+    expect(third.get("x:1")?.title).toBe("## Second");
+    rmSync(dir, { recursive: true, force: true });
+  });
+});
+
 describe("triggers", () => {
   const specs = Triggers.load().specs;
   const ids = Object.keys(specs).filter((id) => !id.startsWith("_"));

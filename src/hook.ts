@@ -1010,7 +1010,7 @@ async function main() {
     // what actually competes here (an unscoped reference drowned the right lesson in every other repo's entries).
     const pending = own ? semanticSearch(own, { kinds: SEMANTIC_KINDS, scope: repoName(input.cwd), limit: 12, stash: input.session_id, timeoutMs: Math.max(20, config.latencyBudgetMs.prompt - (performance.now() - started) - 30) }) : undefined;
     const store = new Store();
-    store.refresh("rules", prompting ? allMemorySources() : []);
+    store.refresh("rules", prompting ? allMemorySources() : [], join(config.stateDir, "parse-cache.json"));
     if (pending) {
       semantic = await pending;
       semanticState = semantic ? "warm" : "cold";
