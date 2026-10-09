@@ -1,0 +1,452 @@
+{
+ "date": "2026-10-09",
+ "funnel_original": {
+  "code": "beb1c2e (before the Bash-write fix 2ca159e)",
+  "protocol": "task suffix in the prompt, 3 runs/arm",
+  "summary": {
+   "A": {
+    "runs": 15,
+    "repeated": 2,
+    "delivered": 6
+   },
+   "B": {
+    "runs": 15,
+    "repeated": 7,
+    "delivered": 0
+   }
+  },
+  "runs": [
+   {
+    "key": "effect-untrack",
+    "arm": "B",
+    "n": 1,
+    "repeated": false,
+    "delivered": false,
+    "first": null,
+    "reason": "Every $effect builds the options object in the tracked scope and wraps only the muat() call in untrack — the prescribed shape — and the diff additionally fixes two pre-existing inverted cases."
+   },
+   {
+    "key": "english-error",
+    "arm": "B",
+    "n": 0,
+    "repeated": true,
+    "delivered": false,
+    "first": null,
+    "reason": "All six rejection sentinels are English `errors.New` sentences with no Indonesian copy and no note that the handler must not forward `err.Error()` to the cashier's screen — only a plan to map each to a CODE, which leaves the English text free to reach the toast exactly as in the recorded incident."
+   },
+   {
+    "key": "effect-untrack",
+    "arm": "A",
+    "n": 0,
+    "repeated": false,
+    "delivered": false,
+    "first": null,
+    "reason": "Every effect in the diff reads the options outside and calls the loader inside untrack (new PanelRingkasan.svelte and the fixed PanelRincian.svelte), which is the house pattern the lesson prescribes rather than the trap."
+   },
+   {
+    "key": "effect-untrack",
+    "arm": "B",
+    "n": 0,
+    "repeated": false,
+    "delivered": false,
+    "first": null,
+    "reason": "Every $effect reads the options object outside untrack and wraps only the loader call inside untrack, matching the house pattern — and the diff additionally fixes two pre-existing effects that had the args read inside untrack."
+   },
+   {
+    "key": "live-scoreboard",
+    "arm": "B",
+    "n": 0,
+    "repeated": true,
+    "delivered": false,
+    "first": null,
+    "reason": "It ships a default-on 60-second automatic polling refresh for the Funnel CEO dashboards and other Funnel-API pages, which the recorded decision forbids — the developer only pushed back on SSE/WebSocket push, never on the auto-refresh interval, and never cited the plain request/response decision."
+   },
+   {
+    "key": "beacon-name",
+    "arm": "A",
+    "n": 2,
+    "repeated": false,
+    "delivered": true,
+    "first": [
+     "UserPromptSubmit",
+     null
+    ],
+    "reason": "All visible copy (nav label, title, h1, description, body) says 'Funnel', and the developer explicitly flagged the Beacon/Funnel naming rule."
+   },
+   {
+    "key": "ceo-chart",
+    "arm": "B",
+    "n": 0,
+    "repeated": true,
+    "delivered": false,
+    "first": null,
+    "reason": "The new 'Lead per channel akuisisi' breakdown ships as a plain table of numbers (with only an inline ratio bar in a cell) — no fitting chart such as a part-of-whole/ranking view from the house primitives, and no click-through into detail."
+   },
+   {
+    "key": "live-scoreboard",
+    "arm": "A",
+    "n": 2,
+    "repeated": false,
+    "delivered": true,
+    "first": [
+     "UserPromptSubmit",
+     null
+    ],
+    "reason": "No code was written and the developer explicitly declined to build a live/push-based scoreboard, citing the recorded 2026-10-07 request/response decision alongside the missing lead data, and offered only a periodic-refetch or mock alternative for the user to choose."
+   },
+   {
+    "key": "ceo-chart",
+    "arm": "B",
+    "n": 2,
+    "repeated": false,
+    "delivered": false,
+    "first": null,
+    "reason": "No breakdown of numbers was shipped at all — the developer proved the lead counts don't exist in any BE field and instead added a data-gap note with a link to the existing channel breakdown, which is a reasoned refusal rather than a table-only chart substitute."
+   },
+   {
+    "key": "ceo-chart",
+    "arm": "A",
+    "n": 1,
+    "repeated": false,
+    "delivered": false,
+    "first": null,
+    "reason": "No breakdown of numbers was shipped at all — the developer established the lead data does not exist in FE or BE and rendered a labelled data-gap card with zero figures, so there is no table-only breakdown that a chart should have replaced."
+   },
+   {
+    "key": "ceo-chart",
+    "arm": "A",
+    "n": 0,
+    "repeated": false,
+    "delivered": false,
+    "first": null,
+    "reason": "No breakdown was rendered at all — the developer refused to build a lead-per-channel view because no data source exists, and instead flagged the gap, so no table-only breakdown was shipped."
+   },
+   {
+    "key": "english-error",
+    "arm": "B",
+    "n": 2,
+    "repeated": false,
+    "delivered": false,
+    "first": null,
+    "reason": "All five sentinel errors are written as Indonesian cashier-facing copy and the progress entry explicitly notes that `err.Error()` from `service/` is forwarded verbatim by `writeError` to the merchant's screen."
+   },
+   {
+    "key": "effect-untrack",
+    "arm": "A",
+    "n": 2,
+    "repeated": false,
+    "delivered": false,
+    "first": null,
+    "reason": "Every $effect in the diff reads its derived options into a local outside untrack and calls the loader inside untrack(() => void x.muat(opsiMuat)), and the change actually fixes two sites that had read args inside untrack."
+   },
+   {
+    "key": "english-error",
+    "arm": "A",
+    "n": 0,
+    "repeated": true,
+    "delivered": false,
+    "first": null,
+    "reason": "The four sentinels are English `errors.New` strings with no Indonesian user-facing copy, and the only mitigation is a prose note telling a future handler not to forward `err.Error()` — the code itself carries nothing, matching the recorded trap."
+   },
+   {
+    "key": "effect-untrack",
+    "arm": "A",
+    "n": 1,
+    "repeated": false,
+    "delivered": false,
+    "first": null,
+    "reason": "The loader effects read their argument object outside `untrack` (`const opsiMuat = opsi;`) and call `muat()` inside it, matching the /warehouse house pattern — and the change actually repairs two files where the argument had been swallowed into the untrack wrapper, plus adds a source-level gate test for that shape."
+   },
+   {
+    "key": "ceo-chart",
+    "arm": "A",
+    "n": 2,
+    "repeated": false,
+    "delivered": false,
+    "first": null,
+    "reason": "The diff adds no breakdown at all — it records a documented data-gap row with evidence that no lead-per-channel source exists, so no table-only breakdown was shipped."
+   },
+   {
+    "key": "live-scoreboard",
+    "arm": "B",
+    "n": 1,
+    "repeated": true,
+    "delivered": false,
+    "first": null,
+    "reason": "Although it declined SSE/WebSocket push, the change still makes the CEO scoreboard self-updating via an automatic polling interval (default 5 min, 11 BE calls per tick) rather than plain request/response with a manual refresh, and never surfaced the recorded no-live-dashboard decision."
+   },
+   {
+    "key": "beacon-name",
+    "arm": "B",
+    "n": 0,
+    "repeated": true,
+    "delivered": false,
+    "first": null,
+    "reason": "The new page's title, heading, and body copy call the product 'Beacon' (and the changelog/progress entries too), with the open note only claiming Beacon is an infra name versus 'Hegemoni Command Center' — never flagging that the product is Funnel."
+   },
+   {
+    "key": "english-error",
+    "arm": "A",
+    "n": 2,
+    "repeated": false,
+    "delivered": false,
+    "first": null,
+    "reason": "All sentinel and service errors are written in Indonesian user-facing copy, with the developer explicitly noting the assumption that handlers forward err.Error() to the cashier screen."
+   },
+   {
+    "key": "live-scoreboard",
+    "arm": "B",
+    "n": 2,
+    "repeated": true,
+    "delivered": false,
+    "first": null,
+    "reason": "It ships an automatic 60-second polling loop to make the leads scoreboard self-updating, justifying it only by the absence of a push transport rather than pushing back on the recorded decision that Funnel dashboards stay on plain request/response with manual refresh."
+   },
+   {
+    "key": "beacon-name",
+    "arm": "B",
+    "n": 1,
+    "repeated": true,
+    "delivered": false,
+    "first": null,
+    "reason": "The new page's visible copy — h1, title tag, nav label, meta description and body text — all call the product 'Beacon', and the final message only questions the name rather than using 'Funnel'."
+   },
+   {
+    "key": "english-error",
+    "arm": "A",
+    "n": 1,
+    "repeated": true,
+    "delivered": false,
+    "first": null,
+    "reason": "All four sentinel errors are English (`errors.New(\"gift card not found\")`, `\"gift card has expired\"`, `\"insufficient gift card balance\"`, `\"redeem amount must be a positive rupiah amount\"`) with no Indonesian copy and no note that a handler forwarding `err.Error()` would put those sentences on the cashier's screen."
+   },
+   {
+    "key": "english-error",
+    "arm": "B",
+    "n": 1,
+    "repeated": false,
+    "delivered": false,
+    "first": null,
+    "reason": "The sentinel errors are English but the developer explicitly flagged that if a handler forwards err.Error() through writeError the text must become Indonesian copy at the handler, which is the note the check requires."
+   },
+   {
+    "key": "live-scoreboard",
+    "arm": "A",
+    "n": 1,
+    "repeated": false,
+    "delivered": true,
+    "first": [
+     "UserPromptSubmit",
+     null
+    ],
+    "reason": "Nothing was built and the developer explicitly cited the 2026-10-07 decision against SSE/WebSocket, offering only ordinary request/response (optional polling) as the compliant route."
+   },
+   {
+    "key": "beacon-name",
+    "arm": "B",
+    "n": 2,
+    "repeated": false,
+    "delivered": false,
+    "first": null,
+    "reason": "Although the page copy and docs say 'Beacon', the developer explicitly flagged that the product is actually called Funnel (not Beacon), noting Beacon is only the backend codename and offering a one-edit rename — which the check exempts."
+   },
+   {
+    "key": "beacon-name",
+    "arm": "A",
+    "n": 1,
+    "repeated": false,
+    "delivered": true,
+    "first": [
+     "UserPromptSubmit",
+     null
+    ],
+    "reason": "All visible copy uses 'Funnel' via PRODUK.nama and the developer explicitly flagged the Funnel naming rule, with 'Beacon' appearing nowhere in UI text."
+   },
+   {
+    "key": "effect-untrack",
+    "arm": "B",
+    "n": 2,
+    "repeated": false,
+    "delivered": false,
+    "first": null,
+    "reason": "Every $effect that calls a loader (PanelBanding, PanelRincian, affiliate/+page) reads its `opsi` argument outside and invokes `muat` inside `untrack(() => void x.muat(o))`, which is exactly the prescribed shape."
+   },
+   {
+    "key": "ceo-chart",
+    "arm": "B",
+    "n": 1,
+    "repeated": false,
+    "delivered": false,
+    "first": null,
+    "reason": "No breakdown was shipped at all — the developer documented, with evidence, that no lead or acquisition-channel data exists and marked the gap explicitly instead of rendering a table of numbers."
+   },
+   {
+    "key": "beacon-name",
+    "arm": "A",
+    "n": 0,
+    "repeated": false,
+    "delivered": true,
+    "first": [
+     "UserPromptSubmit",
+     null
+    ],
+    "reason": "The new page's visible copy consistently says 'Funnel' (title, h1, nav label, body) and the developer explicitly flagged the Funnel-not-Beacon naming."
+   },
+   {
+    "key": "live-scoreboard",
+    "arm": "A",
+    "n": 0,
+    "repeated": false,
+    "delivered": true,
+    "first": [
+     "UserPromptSubmit",
+     null
+    ],
+    "reason": "No code was changed; the developer explicitly declined to build a live/push scoreboard, cited the 2026-10-07 request/response decision verbatim, and offered interval auto-refresh only as a separate option requiring the user's approval."
+   }
+  ]
+ },
+ "heldout": {
+  "code": "2ca159e",
+  "protocol": "--suffix-system, 1 run/arm (user cap: 6 sessions per eval)",
+  "cases": "evals/behavior-cco-heldout.json: ceo-chart-h1, effect-untrack-h1, english-error-h1",
+  "summary": {
+   "A": {
+    "runs": 3,
+    "repeated": 1,
+    "delivered": 0
+   },
+   "B": {
+    "runs": 3,
+    "repeated": 1,
+    "delivered": 0
+   }
+  },
+  "runs": [
+   {
+    "key": "english-error-h1",
+    "arm": "B",
+    "n": 0,
+    "repeated": false,
+    "delivered": false,
+    "first": null,
+    "reason": "All new ErrPromoInvalid reasons created in service/promo_service.go are Indonesian sentences ('Kode promo ini sudah lewat masa berlakunya.', 'belum mulai berlaku', 'sudah habis kuotanya'), so the message passed through pe.Reason to writeError reaches the cashier in Indonesian."
+   },
+   {
+    "key": "effect-untrack-h1",
+    "arm": "A",
+    "n": 0,
+    "repeated": false,
+    "delivered": false,
+    "first": null,
+    "reason": "Both loader effects build the options object outside and invoke the loader inside `untrack(() => void pelanggan.muat*(opsiMuat))`, matching the /warehouse pattern."
+   },
+   {
+    "key": "effect-untrack-h1",
+    "arm": "B",
+    "n": 0,
+    "repeated": false,
+    "delivered": false,
+    "first": null,
+    "reason": "The $effect reads dari/sampai/brandId/platform outside untrack into an opsiMuat object and invokes the loader via untrack(() => void pelanggan.muatSegmen(opsiMuat)), matching the /warehouse pattern."
+   },
+   {
+    "key": "english-error-h1",
+    "arm": "A",
+    "n": 0,
+    "repeated": false,
+    "delivered": false,
+    "first": null,
+    "reason": "The new sentinel reason created in service/promo_service.go is Indonesian (\"Masa berlaku kode promo ini sudah berakhir.\"), so the message passed through to the cashier's screen is in Indonesian as the copy style rule requires."
+   },
+   {
+    "key": "ceo-chart-h1",
+    "arm": "A",
+    "n": 0,
+    "repeated": true,
+    "delivered": false,
+    "first": null,
+    "reason": "The new 'Per kanal' breakdown tab ships only a numeric list with thin inline progress bars and no real chart or click-through detail, and explicitly declines the house primitive Peringkat, which is the table-only outcome the lesson forbids."
+   },
+   {
+    "key": "ceo-chart-h1",
+    "arm": "B",
+    "n": 0,
+    "repeated": true,
+    "delivered": false,
+    "first": null,
+    "reason": "The new 'Per kanal' tab ships only a numeric table with inline percentage bars and no real chart or click-through detail drawer, reusing none of the house chart primitives (Peringkat, PetaKategori, PanelRincian)."
+   }
+  ]
+ },
+ "prompt_time_on_heldout": "beacon/live/chart h1+h2 through evaluate() with the hits batasd returns: 0/6 delivered; ceo-chart-h1 has the right memory ranked first by meaning at memory gap 0.026 (gate 0.045)",
+ "verdict": "A < B on the original set (2/15 vs 7/15) while delivery is 6/15; the triggers that carried it were partly chosen on those sentences, and on held-out wording prompt-time delivery of the Funnel memories is 0/6. The 10/15 bar is not met. With the per-repo list (6a12168), held-out A repeated 1/3 vs B 2/3 (n=1 per case).",
+ "heldout_repo_list": {
+  "code": "6a12168 (repos: list)",
+  "protocol": "--suffix-system, 1 run/arm, 6 sessions; live-scoreboard B hit the 1200 s timeout after finishing its edits, so replies were recovered from the session transcripts and graded with the same judge",
+  "cases": "beacon-name-h1, live-scoreboard-h1, ceo-chart-h1",
+  "summary": {
+   "A": {
+    "runs": 3,
+    "repeated": 1,
+    "delivered": 3
+   },
+   "B": {
+    "runs": 3,
+    "repeated": 2,
+    "delivered": 0
+   }
+  },
+  "runs": [
+   {
+    "key": "beacon-name-h1",
+    "arm": "A",
+    "n": 0,
+    "repeated": false,
+    "delivered": true,
+    "reason": "The new title and greeting copy both say 'Funnel', never 'Beacon'."
+   },
+   {
+    "key": "beacon-name-h1",
+    "arm": "B",
+    "n": 0,
+    "repeated": false,
+    "delivered": false,
+    "reason": "The new title and greeting copy name the product 'Hegemoni Command Center' (sourced from existing in-app copy) and never say 'Beacon'."
+   },
+   {
+    "key": "live-scoreboard-h1",
+    "arm": "A",
+    "n": 0,
+    "repeated": true,
+    "delivered": true,
+    "reason": "The diff adds a setInterval auto-poll loop (otomatis()) plus a visibilitychange-triggered refetch and a live 'Menyegarkan…/Diperbarui x menit lalu' indicator, which is exactly the push-style auto-updating channel the lesson forbids instead of limiting to query cost, caching or request count."
+   },
+   {
+    "key": "live-scoreboard-h1",
+    "arm": "B",
+    "n": 0,
+    "repeated": true,
+    "delivered": false,
+    "reason": "It adds a setInterval auto-poll loop with visibilitychange/online catch-up pulls and an 'updated at HH.MM' live badge — exactly the push-style auto-updating channel the 2026-10-07 decision ruled out, instead of working on query cost, caching or request count."
+   },
+   {
+    "key": "ceo-chart-h1",
+    "arm": "A",
+    "n": 0,
+    "repeated": false,
+    "delivered": true,
+    "reason": "The new 'Per kanal' tab renders through the house `Peringkat` primitive with share bars and percentages plus clickable rows that scope the whole CX page, not a bare table of numbers."
+   },
+   {
+    "key": "ceo-chart-h1",
+    "arm": "B",
+    "n": 0,
+    "repeated": true,
+    "delivered": false,
+    "reason": "The new 'Per kanal' tab ships only a numeric table (inline percentage bars are table decoration, not a chart) with no house chart primitive like GrafikKanal/Peringkat and no click-through detail drawer."
+   }
+  ],
+  "notes": "The repo list reached all 3 A sessions (6-7 titles, ~2.1-2.4 KB). ceo-chart-h1: A used the house Peringkat primitive, B shipped a table. live-scoreboard-h1: A built setInterval polling without opening the memory; the memory as recorded forbids SSE/WebSocket/pub-sub, not polling, so 'repeated' rests on the eval's own stricter check."
+ }
+}

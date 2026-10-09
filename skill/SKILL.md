@@ -65,10 +65,18 @@ ToolSearch({query: "select:mcp__batas__check,mcp__batas__recall,mcp__batas__get,
   Feedback and project bodies carry `**Why:**` and `**How to apply:**` lines; convert relative dates to absolute.
 - **Every memory carries `triggers`** — pass 4–10 words or short phrases the user would actually TYPE when it
   applies, Indonesian AND English, colloquial included (`"mac panas, kipas kenceng, overheat"`). A memory written by
-  hand gets the same as one frontmatter line, `triggers: "a, b, c"`. A trigger hit is the ONLY thing that injects a
-  memory in full, so a memory without triggers is effectively invisible to the hook. Never a bare generic word that
+  hand gets the same as one frontmatter line, `triggers: "a, b, c"`. A trigger hit, or a meaning match that stands
+  out (memory gap ≥ 0.045 with a warm batasd), is what injects a memory in full; on fresh wording neither is reliable
+  (held-out Funnel requests: 0/6), so a decision that binds a whole repo also needs `repos`. Never a bare generic word that
   would fire on unrelated prompts (`fix`, `deploy`, `landing`, or the platform name inside that platform's own repo);
   pair it with its subject instead (`deploy lms`). After adding triggers, run `just trigger-audit` in the batas repo.
+- **A memory that binds another repo carries `repos`** — repo directory names (`repos: ["module-cco-command-center-service-fe-v2"]`,
+  or the frontmatter line `repos: "a, b"`). The first prompt of every session in those repos, worktrees and subagent
+  briefs included, lists its title and id once. Use it for standing decisions recorded under one project that govern
+  a sibling (a backend's product name, no-live, chart rules for its frontend); a repo's own memories need none,
+  since Claude Code loads that project's `MEMORY.md`.
+- **A memory whose mistake shows only in code** gets a `code` pattern in `triggers.toml` under its `memory:` id,
+  scoped with `repo = ['<repo>']` — it fires on Write/Edit and on files a Bash command wrote.
 - **Rules are never written by batas.** A global rule reaches every repo on the machine, so it goes through
   `rules-writer` (draft, prove absent, pick one owner, edit against a snapshot). `record(type: "lesson")` does the
   duplicate search that step needs.
@@ -84,7 +92,9 @@ command. **If the user says "batas nyasar" (or salah/ngaco/keliru), the hook mut
 the phrase counts only in the user's own words, not inside a quoted note** — nothing to do unless they want it gone for good, which is `mute`. A fired `gotcha:`/`lessons:` item arrives as its verbatim FULL text (from `~/.claude/references/{gotcha,
 lessons}-full.md`), not the condensed line already in context — that is where the recipe and the incident live. On a
 prompt, `batas: project memories that may bear on this request` carries up to two memories whose triggers the prompt
-said; use one only if it actually applies, and open a listed id with `get` when it bears on the work. When the Stop hook blocks with `batas: your last reply matches a known mistake pattern`, either correct
+said or that stand out by meaning; use one only if it actually applies, and open a listed id with `get` when it bears
+on the work. `batas: decisions recorded for <repo> in other projects` (first prompt only) names the memories whose
+`repos` include this repo — open the ones the task touches before building. When the Stop hook blocks with `batas: your last reply matches a known mistake pattern`, either correct
 the reply or the work, or state in one line why the reply complies — it blocks once per stop, never twice.
 
 ## Adding a trigger
