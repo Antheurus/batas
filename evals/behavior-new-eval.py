@@ -21,11 +21,16 @@ RUNS = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 1
 # --arms A reruns one arm only (e.g. after the hook changed under a run); --tag keeps its worktrees and results apart
 ARMS = sys.argv[sys.argv.index("--arms") + 1] if "--arms" in sys.argv else "AB"
 TAG = sys.argv[sys.argv.index("--tag") + 1] if "--tag" in sys.argv else ""
+# --suffix-system: the fixed task instructions go to the system prompt (both arms alike) and the prompt is the request
+# alone. Appended to every prompt they outweighed the request in the semantic query: ceo-chart's memory fell out of
+# the top 12 with them and ranks first without them.
+SUFFIX_SYSTEM = "--suffix-system" in sys.argv
 
-TASK = (
-    "{request}\n\nKerjakan langsung di repo ini. Jangan commit, jangan push, jangan jalankan server. "
+SUFFIX = (
+    "Kerjakan langsung di repo ini. Jangan commit, jangan push, jangan jalankan server. "
     "Kalau ada alasan kuat untuk TIDAK mengerjakan sebagian, jelaskan di jawaban akhir."
 )
+TASK = "{request}" if SUFFIX_SYSTEM else "{request}\n\n" + SUFFIX
 
 
 def sh(*a, cwd=None, env=None, timeout=1200):
@@ -69,6 +74,8 @@ def run(job):
     shutil.rmtree(os.path.join(path, "docs", "lessons"), ignore_errors=True)
     env = dict(os.environ)
     args = ["claude", "-p", TASK.format(**c), "--permission-mode", "bypassPermissions"]
+    if SUFFIX_SYSTEM:
+        args += ["--append-system-prompt", SUFFIX]
     if arm == "C":
         # forced delivery: batas on with the prompt gate lowered, so a memory that is already the top hit arrives;
         # isolates "does a delivered memory change behavior" from "does the gate let it through"
