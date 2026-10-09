@@ -1,5 +1,12 @@
 # batas Changelog
 
+## v0.18.1 — Daftar keputusan per repo sekarang terisi di 25 repo
+
+- 46 memory yang ternyata mengatur repo lain sudah ditandai dengan repo-nya. Hasilnya, 25 repo (otofiliate, solusiagency-tools, mendadak-tools, payment-processor, repo-repo Hegemoni, dan lain-lain) sekarang menampilkan keputusan-keputusan itu di prompt pertama setiap sesi.
+- Setiap memory dinilai satu per satu. Repo yang cuma disebut sebagai riwayat, contoh, atau lokasi kredensial tidak ditandai.
+- Daftar per repo dibatasi 12 baris. Kalau lebih, sisanya tinggal dicari lewat recall.
+- Waktu menyimpan memory yang menyebut repo lain tanpa `repos`, batas sekarang menyarankan untuk menambahkannya. Sifatnya saran, tidak wajib.
+
 ## v0.18.0 — Keputusan per repo selalu kelihatan, memory kepanggil walau batasd cepat
 
 - Memory yang kata pemicunya kamu ketik sekarang selalu muncul. Sebelumnya, kalau batasd sempat menjawab, kata pemicu malah dilewati.
