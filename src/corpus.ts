@@ -250,7 +250,9 @@ export function projectSources(): Source[] {
     if (!existsSync(root)) continue;
     for (const repo of readdirSync(root)) {
       const dir = join(root, repo);
-      if (repo.startsWith(".") || repo.includes("-wt-")) continue;
+      // "-old" folders are superseded clones kept for reference (module-*-v1-old); their rules would answer for the repo
+      // that replaced them.
+      if (repo.startsWith(".") || repo.includes("-wt-") || repo.endsWith("-old")) continue;
       try {
         if (!statSync(dir).isDirectory()) continue;
       } catch {

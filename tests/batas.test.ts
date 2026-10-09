@@ -52,6 +52,17 @@ describe("project roots", () => {
     expect(s.entries().some((e) => e.scope === "demo-app-audit-02")).toBe(false);
     rmSync(wt, { recursive: true, force: true });
   });
+
+  test("a superseded '-old' clone is not indexed", () => {
+    const old = join(root, "repos", "demo-app-v1-old");
+    mkdirSync(join(old, ".git"), { recursive: true });
+    mkdirSync(join(old, ".claude", "rules"), { recursive: true });
+    writeFileSync(join(old, ".claude", "rules", "all-old.md"), "# Old\n\n## Superseded rule\nbody\n");
+    const s = new Store();
+    s.refresh("all");
+    expect(s.entries().some((e) => e.scope === "demo-app-v1-old")).toBe(false);
+    rmSync(old, { recursive: true, force: true });
+  });
 });
 
 describe("parse cache", () => {
