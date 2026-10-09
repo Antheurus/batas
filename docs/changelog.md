@@ -1,5 +1,13 @@
 # batas Changelog
 
+## v0.17.1 — batasd lebih hemat RAM dan disk
+
+- batasd yang baru nyala sekarang pakai ~2,2 GB, sebelumnya ~2,5 GB, karena vektor dibaca langsung tanpa diubah dulu jadi jutaan angka Python.
+- Setelah tiap indexing, batasd sekarang balikin memori GPU sisa proses embed. Sebelumnya memori ini numpuk terus, sampai ~3,9 GB setelah daemon jalan seharian.
+- Versi lama tabel vektor sekarang dihapus setelah tiap sync. Sebelumnya numpuk sampai 47 versi, 1,5 GB, padahal datanya cuma ~40 MB.
+- Model embedding yang cuma dipakai buat eval dan udah nggak dipakai (bge-m3, bge-reranker-v2-m3, e5-base, dua model LazarusNLP, plus folder Xenova lama) dihapus dari `~/.batas`. Ukuran filenya ~9,9 GB, tapi ruang disk yang beneran balik cuma ~1 GB, karena sebagian besar file itu clone APFS yang berbagi blok. Kalau perlu, model-model ini bisa di-download ulang.
+- Hasil pencarian nggak berubah: 80 probe eval kasih skor dan daftar miss yang persis sama sebelum dan sesudah.
+
 ## v0.17.0 — Subagent sekarang ikut menerima memori yang relevan
 
 - Subagent tidak pernah menerima memori: tugasnya datang lewat panggilan tool Agent, bukan prompt, jadi hook prompt batas tidak pernah melihatnya. Sekarang tugas subagent dicocokkan seperti prompt biasa, dan memori yang cocok ditempel ke tugasnya, dalam teks lengkap.

@@ -12,6 +12,7 @@ LanceDB so a restart re-embeds nothing; the text itself stays in the source file
 Protocol: one JSON object per line in, one per line out. ops: ping, status, search, sync.
 """
 import fcntl, json, os, socket, socketserver, subprocess, sys, threading, time
+from datetime import timedelta
 from pathlib import Path
 
 STATE = Path(os.environ.get("BATAS_STATE_DIR", Path.home() / ".batas"))
@@ -73,7 +74,9 @@ class Daemon:
             kw = {"config_kwargs": {"vision_config": None, "audio_config": None}} if "embeddinggemma" in mid else {}
             self.models[key] = SentenceTransformer(mid, device=device, **kw)
         log(f"models loaded on {device} in {time.time() - t:.1f}s")
+        self.torch, self.device = torch, device
         self.encode_lock = threading.Lock()
+        self.sync_lock = threading.Lock()
         self.db = lancedb.connect(str(VECTORS))
         self.index = Index()
         self.load()
@@ -102,9 +105,12 @@ class Daemon:
         if "entries" not in self.db.table_names():
             return
         tbl = self.db.open_table("entries").to_arrow()
-        cols = tbl.to_pydict()
-        meta = [{k: cols[k][i] for k in ("id", "kind", "scope", "title", "source", "hash")} for i in range(tbl.num_rows)]
-        vec = {k: np.asarray(cols[k], dtype="float32") if meta else np.zeros((0, 1), dtype="float32") for k in MODELS}
+        meta = tbl.select(["id", "kind", "scope", "title", "source", "hash"]).to_pylist()
+        # Straight from the Arrow buffer: to_pydict() made ~9M Python floats first, and the heap never shrank back.
+        vec = {}
+        for k in MODELS:
+            col = tbl.column(k).combine_chunks()
+            vec[k] = col.flatten().to_numpy().astype("float32").reshape(len(col), col.type.list_size) if meta else np.zeros((0, 1), dtype="float32")
         self.index.meta, self.index.vec = meta, vec
         log(f"loaded {len(meta)} vectors")
 
@@ -117,6 +123,18 @@ class Daemon:
             data[key] = pa.FixedSizeListArray.from_arrays(pa.array(vec[key].reshape(-1)), dim)
         self.db.create_table("entries", pa.table(data), mode="overwrite")
 
+    def release(self):
+        # After a sync: each overwrite kept the previous table version on disk (47 versions, 1.5 GB for ~40 MB of
+        # vectors), and MPS keeps the encode batches' buffers cached (fresh 1.1 GB of Metal memory, 2.2 GB after syncs).
+        # delete_unverified: Lance otherwise keeps any file younger than 7 days, i.e. every one of them. Safe only because
+        # batasd is the table's sole reader and writer (searches run on the in-memory arrays) and sync_lock serialises it.
+        try:
+            self.db.open_table("entries").optimize(cleanup_older_than=timedelta(0), delete_unverified=True)
+        except Exception as err:
+            log(f"version cleanup failed: {err}")
+        if self.device == "mps":
+            self.torch.mps.empty_cache()
+
     def export(self):
         out = subprocess.run(["bun", str(REPO / "src" / "export.ts")], capture_output=True, text=True, timeout=120)
         if out.returncode != 0:
@@ -128,6 +146,12 @@ class Daemon:
         return out.stdout.strip() if out.returncode == 0 else None
 
     def sync(self, force=False):
+        # `just reindex` (op sync, wait) and the background loop can both arrive here; release() deletes unverified files,
+        # so a second sync writing while the first cleans up would lose its data files.
+        with self.sync_lock:
+            return self._sync(force)
+
+    def _sync(self, force=False):
         np = self.index.np
         # The periodic check costs a stat per source file; the full parse (~0.4 s of CPU) runs only when one moved.
         stamp = self.stamp()
@@ -166,6 +190,7 @@ class Daemon:
                     new_meta = new_meta + [{k: r[k] for k in ("id", "kind", "scope", "title", "source", "hash")} for r in chunk]
                 self.persist(new_meta, new_vec)
                 self.index.meta, self.index.vec = new_meta, new_vec
+            self.release()
             log(f"sync: {len(todo)} embedded, {removed} removed, {len(new_meta)} total, {time.time() - t:.1f}s")
             self.index.synced_at = time.time()
             return {"changed": len(todo), "removed": removed, "total": len(new_meta)}
