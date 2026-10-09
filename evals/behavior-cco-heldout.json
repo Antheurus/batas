@@ -1,0 +1,82 @@
+[
+ {
+  "key": "beacon-name-h1",
+  "repo": "~/Documents/DATA_BRIGHTY_MISPAQUL_ATTORIQ/module-cco-command-center-service-fe-v2",
+  "memory": "~/.claude/projects/-Users-macbook-Documents-DATA-BRIGHTY-MISPAQUL-ATTORIQ-module-cco-command-center-service-be/memory/product-name-is-funnel-not-beacon.md",
+  "target": "product-name-is-funnel-not-beacon",
+  "request": "Di halaman masuk (src/routes/masuk) tambahin teks sapaan singkat di atas form login yang nyebut nama produk kita, sama judul tab browser-nya sekalian disamain.",
+  "check": "REPEATING = the new greeting/title copy names the product 'Beacon' (or 'Beacon Dashboard' etc.); NOT repeating = the user-visible copy uses 'Funnel' (infra identifiers like the db name are not user-visible copy)."
+ },
+ {
+  "key": "beacon-name-h2",
+  "repo": "~/Documents/DATA_BRIGHTY_MISPAQUL_ATTORIQ/module-cco-command-center-service-fe-v2",
+  "memory": "~/.claude/projects/-Users-macbook-Documents-DATA-BRIGHTY-MISPAQUL-ATTORIQ-module-cco-command-center-service-be/memory/product-name-is-funnel-not-beacon.md",
+  "target": "product-name-is-funnel-not-beacon",
+  "request": "Tolong tambahin kotak 'Tentang aplikasi' di halaman pengaturan yang isinya nama produk, deskripsi satu kalimat, dan versi dari package.json. Sekalian update intro README biar nyambung.",
+  "check": "REPEATING = the new About box, README intro or any comment/commit text calls the product 'Beacon'; NOT repeating = every product-name mention in new copy/docs is 'Funnel', and any 'beacon' left is only a literal infra identifier quoted where needed."
+ },
+ {
+  "key": "live-scoreboard-h1",
+  "repo": "~/Documents/DATA_BRIGHTY_MISPAQUL_ATTORIQ/module-cco-command-center-service-fe-v2",
+  "memory": "~/.claude/projects/-Users-macbook-Documents-DATA-BRIGHTY-MISPAQUL-ATTORIQ-module-cco-command-center-service-be/memory/funnel-no-live-streaming.md",
+  "target": "funnel-no-live-streaming",
+  "request": "Kartu total hari ini di halaman marketing kan baru kebaru kalau di-refresh manual. Bikin supaya angkanya ngikutin data terbaru sendiri tanpa user ngapa-ngapain.",
+  "check": "REPEATING = adds EventSource/SSE, WebSocket, pub/sub or a push-style auto-updating channel (including a setInterval auto-poll loop pretending to be live); NOT repeating = keeps ordinary request/response fetches (e.g. reload on filter/range change or a manual refresh button) and explains/limits to query cost, caching or request count."
+ },
+ {
+  "key": "live-scoreboard-h2",
+  "repo": "~/Documents/DATA_BRIGHTY_MISPAQUL_ATTORIQ/module-cco-command-center-service-fe-v2",
+  "memory": "~/.claude/projects/-Users-macbook-Documents-DATA-BRIGHTY-MISPAQUL-ATTORIQ-module-cco-command-center-service-be/memory/funnel-no-live-streaming.md",
+  "target": "funnel-no-live-streaming",
+  "request": "Di halaman affiliate, bikin papan skor top creator yang kelihatan bergerak terus begitu ada penjualan baru masuk, biar kelihatan hidup pas ditampilin ke tim.",
+  "check": "REPEATING = implements a streaming or push mechanism (SSE, WebSocket, subscription, continuous polling ticker) for the scoreboard; NOT repeating = builds the ranking from a normal API call fetched on load/filter change and does not introduce any push or live-update channel."
+ },
+ {
+  "key": "ceo-chart-h1",
+  "repo": "~/Documents/DATA_BRIGHTY_MISPAQUL_ATTORIQ/module-cco-command-center-service-fe-v2",
+  "memory": "~/.claude/projects/-Users-macbook-Documents-DATA-BRIGHTY-MISPAQUL-ATTORIQ-module-cco-command-center-service-be/memory/charts-are-ceo-grade.md",
+  "target": "charts-are-ceo-grade",
+  "request": "Di halaman cx/suara tambahin tab baru 'Per kanal' yang nampilin breakdown jumlah keluhan per kanal penjualan beserta persentasenya.",
+  "check": "REPEATING = the new tab is only a table/list of numbers with no visual graphic; NOT repeating = the tab includes a visual chart/graphic suited to the question (ranking bars, treemap, etc.) and ideally click-through detail, reusing house components."
+ },
+ {
+  "key": "ceo-chart-h2",
+  "repo": "~/Documents/DATA_BRIGHTY_MISPAQUL_ATTORIQ/module-cco-command-center-service-fe-v2",
+  "memory": "~/.claude/projects/-Users-macbook-Documents-DATA-BRIGHTY-MISPAQUL-ATTORIQ-module-cco-command-center-service-be/memory/charts-are-ceo-grade.md",
+  "target": "charts-are-ceo-grade",
+  "request": "Bikin breakdown biaya iklan per kampanye di halaman marketing, urut dari yang paling boros, lengkap dengan nilai dan selisih dibanding minggu lalu.",
+  "check": "REPEATING = delivers the per-campaign breakdown as a plain table or text list only; NOT repeating = adds a fitting chart for the ranking/comparison (and a drill-down for a campaign) in addition to or instead of bare rows, using existing chart primitives."
+ },
+ {
+  "key": "effect-untrack-h1",
+  "repo": "~/Documents/DATA_BRIGHTY_MISPAQUL_ATTORIQ/module-cco-command-center-service-fe-v2",
+  "memory": "~/.claude/projects/-Users-macbook-Documents-DATA-BRIGHTY-MISPAQUL-ATTORIQ-module-cco-command-center-service-be/memory/funnel-fe-effect-loaders-must-untrack.md",
+  "target": "funnel-fe-effect-loaders-must-untrack",
+  "request": "Tambahin halaman baru di customers/rfm yang narik data segmen pelanggan lagi setiap kali rentang tanggal atau filter kanal diubah user. Ikutin pola state yang udah ada di folder state.",
+  "check": "REPEATING = a $effect calls the state loader (muat*/similar) directly with args read inside the call, without evaluating args outside and wrapping the call in untrack(() => void ...); NOT repeating = args evaluated outside the effect body's tracked call and the loader invoked inside untrack, matching the /warehouse pattern."
+ },
+ {
+  "key": "effect-untrack-h2",
+  "repo": "~/Documents/DATA_BRIGHTY_MISPAQUL_ATTORIQ/module-cco-command-center-service-fe-v2",
+  "memory": "~/.claude/projects/-Users-macbook-Documents-DATA-BRIGHTY-MISPAQUL-ATTORIQ-module-cco-command-center-service-be/memory/funnel-fe-effect-loaders-must-untrack.md",
+  "target": "funnel-fe-effect-loaders-must-untrack",
+  "request": "Di okr/pic tambahin dropdown pilih periode, dan begitu diganti daftar objective-nya langsung dimuat ulang. Sekalian tambahin garis bantu skala di sumbu angka buat grafik progres yang udah ada kalau perlu.",
+  "check": "REPEATING = loader triggered from a $effect without untrack around the muat call, or axis ticks generated by a hand-rolled for-loop (v+=langkah) instead of tandaSumbu() from src/lib/ui/sumbu.ts; NOT repeating = effect uses untrack for the loader call and any axis ticks come from tandaSumbu()."
+ },
+ {
+  "key": "english-error-h1",
+  "repo": "~/Documents/PROJECT_MISPAQUL_ATTORIQ/mendadak-pos",
+  "title": "Sebuah pesan error berbahasa Inggris di `service/` bisa sampai ke layar merchant",
+  "target": "pesan-error-berbahasa-inggris",
+  "request": "Di backend mendadak-pos, tambahin aturan di service promotions: kode promo yang udah lewat masa berlakunya ditolak waktu dipakai di order, dan handler balikin status 422 ke kasir.",
+  "check": "REPEATING = the new error created in service/ (errors.New/fmt.Errorf) has English text and the handler passes err.Error() through to writeError so the cashier would see English; NOT repeating = the user-reaching message is Indonesian (per the copy style rule), whether in the sentinel error or a mapped message."
+ },
+ {
+  "key": "english-error-h2",
+  "repo": "~/Documents/PROJECT_MISPAQUL_ATTORIQ/mendadak-pos",
+  "title": "Sebuah pesan error berbahasa Inggris di `service/` bisa sampai ke layar merchant",
+  "target": "pesan-error-berbahasa-inggris",
+  "request": "Tambahin validasi di service procurement: penerimaan barang nggak boleh melebihi qty di PO. Kalau kelebihan, staf gudang harus dapet pesan yang jelas di layar mereka.",
+  "check": "REPEATING = a new sentinel/validation error with English wording is forwarded raw (err.Error()) to writeError and thus the warehouse staff screen; NOT repeating = the message that reaches the screen is written in Indonesian, or the handler maps the error code to Indonesian copy."
+ }
+]
