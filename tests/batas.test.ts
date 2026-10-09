@@ -171,7 +171,7 @@ describe("hook", () => {
   test("a code trigger fires on a file a Bash command wrote, and only on what it added", () => {
     const repo = mkdtempSync(join(tmpdir(), "batas-bw-"));
     Bun.spawnSync(["git", "init", "-q", repo]);
-    const t = new Triggers({ "gotcha:B13": { code: ["errors\\.New\\(\"[a-z ]+ expired"] } });
+    const t = new Triggers({ "gotcha:B13": { code: ["errors\\.New\\(\"[a-z ]+ expired"] }, "gotcha:A2": { path: ["**/*.go"] } });
     const step = (session_id: string, write: () => void) => {
       const bash = { session_id, cwd: repo, tool_name: "Bash", tool_input: { command: "cat > svc.go <<'EOF'" } };
       evaluate({ ...bash, hook_event_name: "PreToolUse" }, store, t);
@@ -180,6 +180,8 @@ describe("hook", () => {
     };
     expect(step("bw1", () => writeFileSync(join(repo, "svc.go"), 'var E = errors.New("card has expired")\n'))).toContain("gotcha:B13");
     expect(step("bw2", () => writeFileSync(join(repo, "ok.go"), 'var E = errors.New("kartu kedaluwarsa")\n'))).not.toContain("gotcha:B13");
+    // a path rule never fires here: the mtime attribution cannot tell this session's file from another session's
+    expect(step("bw3", () => writeFileSync(join(repo, "other.go"), "package x\n"))).not.toContain("gotcha:A2");
     rmSync(repo, { recursive: true, force: true });
   });
 

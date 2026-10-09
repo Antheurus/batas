@@ -196,7 +196,7 @@ function bashLessons(files: string[], input: HookInput, state: SessionState): { 
   return { text, ids };
 }
 
-// Code and path triggers for files a Bash command wrote: a heredoc, a redirect or a script never shows its content to the
+// Code triggers for files a Bash command wrote: a heredoc, a redirect or a script never shows its content to the
 // PreToolUse hook, and headless agents create new files that way (a behavior-eval agent wrote an English errors.New
 // service through `cat > file`, and the lesson about it never fired). A new file is read whole; a tracked one only for
 // the lines this change added, so code that was already there does not fire again.
@@ -220,7 +220,9 @@ function bashCodeRules(files: string[], store: Store, triggers: Triggers, state:
       } catch {}
     }
     if (!code) continue;
-    for (const m of triggers.match({ path: f, code, repo: repoName(dirname(f)) })) {
+    // Code patterns only: attribution by mtime also catches a file another session wrote during the same call, and a
+    // path rule fired on that file's name (lessons:G2 on a .tsx in cc-toriq the command never touched, 2026-10-09).
+    for (const m of triggers.match({ code, repo: repoName(dirname(f)) }).filter((x) => x.via === "code")) {
       if (ids.includes(m.id) || state.injected.includes(m.id) || silenced.has(m.id)) continue;
       const e = resolve(store, m.id);
       if (!e) continue;
