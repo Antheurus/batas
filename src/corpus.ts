@@ -293,12 +293,6 @@ function familyFullTextSources(): Source[] {
     }));
 }
 
-export function memorySources(project: string): Source[] {
-  return listMd(join(config.projectsDir, project, "memory"))
-    .filter((file) => basename(file) !== "MEMORY.md")
-    .map((file) => ({ file, parse: () => [parseMemory(file, project)] }));
-}
-
 export function allSources(scope: "rules" | "all"): Source[] {
   if (scope === "rules") {
     return [...familyFullTextSources(), ...listMd(config.rulesDir).map((file) => {

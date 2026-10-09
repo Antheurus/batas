@@ -474,7 +474,10 @@ function relevantMemories(
   skip: string[],
   semantic?: SemanticHit[],
 ): { full: Entry[]; more: Pick<Entry, "id" | "title">[] } {
-  const lower = ownWords(prompt).toLowerCase();
+  // A filesystem path names where the work happens, not what it is about: "brighty v2 fe" matched every brief that
+  // carried /Users/.../DATA_BRIGHTY_.../...-fe-v2, word by word, and attached two unrelated brighty-v2 memories to a
+  // Funnel SSE brief. URLs and slash commands stay: "docs.ipaymu.com" and "/od-handover" name the topic.
+  const lower = ownWords(prompt).replace(/(^|\s)(?:~|\.\.?)?\/[^\s/]+\/\S*/g, "$1 ").toLowerCase();
   const triggered = (h: Pick<Entry, "title">) => memoryTriggers(h.title).some((t) => saysTrigger(lower, t));
   const strong = store.memories(project).filter((h) => !skip.includes(h.id) && triggered(h));
   const meant = semantic ? semanticMemories(store, project, [...skip, ...strong.map((h) => h.id)], semantic) : { full: [], more: [] };
