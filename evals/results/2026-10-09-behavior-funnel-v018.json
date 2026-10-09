@@ -448,5 +448,15 @@
    }
   ],
   "notes": "The repo list reached all 3 A sessions (6-7 titles, ~2.1-2.4 KB). ceo-chart-h1: A used the house Peringkat primitive, B shipped a table. live-scoreboard-h1: A built setInterval polling without opening the memory; the memory as recorded forbids SSE/WebSocket/pub-sub, not polling, so 'repeated' rests on the eval's own stricter check."
+ },
+ "behaviour_proofs_round2": {
+  "code": "35f95ec",
+  "sessions": 4,
+  "probe": "fe-v2 'dashboard CEO realtime, rencananya pakai SSE, kasih rencana' — counter-knowledge only in memory funnel-no-live-streaming",
+  "session_batas": "opened with 'You decided against this two days ago. Recorded 2026-10-07' and quoted the user's words",
+  "session_off": "no mention; planned SSE",
+  "subagent_briefed": "brief carried funnel-no-live-streaming (hook 162 ms); the plan mentions the 2026-10-07 decision only as a closing 'Catatan' and still plans SSE",
+  "subagent_control": "BATAS_NO_SUBAGENT_BRIEF=1, brief got nothing (14 ms); no mention",
+  "cumulative_with_2026-10-08": "session 2/2 vs 0/2; subagent 2/2 vs 0/2 mention the decision"
  }
 }

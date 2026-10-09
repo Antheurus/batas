@@ -72,7 +72,7 @@ rule check passed (B1, C18, B14 inject their full text). Remaining: roadmap 5 (d
       A 1/3 vs B 2/3 (n=1/case). `evals/results/2026-10-09-behavior-funnel-v018.json`
 - [x] Word-overlap listing removed (handover-03 #2) — 273 -> 0 on 500 replayed prompts, trigger hits 109 -> 116, none lost
 - [x] Prompt hook p95 142 -> 106 ms at load 7.4 (handover-03 #3) — parsed-entry cache
-- [ ] Behaviour proofs (handover-03 #4) — the user capped evals at 6 sessions per run (memory eval-runs-max-six)
+- [x] Behaviour proofs (handover-03 #4) — one more round of 4 sessions (cap 6): cumulative 2/2 vs 0/2 for full sessions and for subagents; the briefed subagent this time named the decision only as a closing note
 - [x] Pasted blocks (#5, hook log `pasted:true` still has to show the tags reach the hook), path words on the SSE brief
       (#6), `memorySources` deleted (#7)
 - [ ] User: does auto-refresh polling count as the 'live' Funnel forbids? (held-out live A built setInterval polling)
