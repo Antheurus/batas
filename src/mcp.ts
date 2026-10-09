@@ -1,4 +1,5 @@
-import { basename, join } from "node:path";
+import { statSync } from "node:fs";
+import { basename, isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -54,18 +55,28 @@ export type SessionContext = { cwd?: string; root?: Promise<string | undefined> 
 const GLOBAL_KINDS: Kind[] = ["rule", "rule-section", "reference"];
 const GLOBAL_ONLY = "scope: global only (no project known for this session; pass project)";
 const NO_PROJECT = "no project for this session — pass project_dir (absolute repo path)";
+const PROJECT_DIR =
+  "Absolute path of the repo this write belongs to. Defaults to the session's project (its MCP root, or the launch " +
+  "directory over stdio); required when the session has none.";
+
+function isDir(p: string): boolean {
+  return statSync(p, { throwIfNoEntry: false })?.isDirectory() ?? false;
+}
 
 export async function projectOf(ctx: SessionContext, explicit?: string): Promise<{ dir?: string; source: ProjectSource }> {
-  if (explicit) return { dir: explicit, source: "arg" };
+  if (explicit) {
+    if (!isAbsolute(explicit) || !isDir(explicit)) throw new Error(`project_dir must be an absolute path to an existing directory: ${explicit}`);
+    return { dir: explicit, source: "arg" };
+  }
   const root = await ctx.root;
-  if (root) return { dir: root, source: "roots" };
+  if (root && isDir(root)) return { dir: root, source: "roots" };
   if (ctx.cwd) return { dir: ctx.cwd, source: "cwd" };
   return { source: "none" };
 }
 
 export async function firstRoot(server: McpServer): Promise<string | undefined> {
   try {
-    const { roots } = await server.server.listRoots();
+    const { roots } = await server.server.listRoots(undefined, { timeout: config.http.rootsMs });
     const uri = roots.find((r) => r.uri.startsWith("file://"))?.uri;
     return uri ? fileURLToPath(uri) : undefined;
   } catch {
@@ -235,7 +246,7 @@ export function createServer(ctx: SessionContext): McpServer {
               "decision that binds its frontend repo. Every session in those repos is told its title on the first prompt.",
           ),
         body: z.string().describe("The fact/rule. For feedback/project follow with **Why:** and **How to apply:** lines"),
-        project_dir: z.string().optional().describe("Defaults to the session's working directory"),
+        project_dir: z.string().optional().describe(PROJECT_DIR),
         replace: z.boolean().optional().describe("Overwrite an existing memory with the same name"),
         origin: z
           .enum(ORIGINS)
@@ -305,7 +316,7 @@ export function createServer(ctx: SessionContext): McpServer {
         title: z.string().describe("Short title"),
         body: z.string().describe("One dense prose paragraph, not bullets"),
         app: z.string().optional().describe("Monorepo app name, e.g. 'web'"),
-        project_dir: z.string().optional(),
+        project_dir: z.string().optional().describe(PROJECT_DIR),
       },
     },
     async (a) => {
@@ -331,7 +342,7 @@ export function createServer(ctx: SessionContext): McpServer {
         version: z.string().describe("X.Y.Z; agent bumps Z (fix) or Y (feature), never X"),
         title: z.string().describe("Short customer-facing title"),
         bullets: z.array(z.string()).min(1).describe("What changed from the user's point of view, plus any action required"),
-        project_dir: z.string().optional(),
+        project_dir: z.string().optional().describe(PROJECT_DIR),
       },
     },
     async (a) => {

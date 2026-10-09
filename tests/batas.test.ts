@@ -813,19 +813,55 @@ describe("session project", () => {
   }
 
   test("an explicit arg beats the MCP root, the root beats cwd, and nothing known is none", async () => {
-    const root = Promise.resolve("/r/root");
-    expect(await projectOf({ cwd: "/r/cwd", root }, "/r/arg")).toEqual({ dir: "/r/arg", source: "arg" });
-    expect(await projectOf({ cwd: "/r/cwd", root })).toEqual({ dir: "/r/root", source: "roots" });
-    expect(await projectOf({ cwd: "/r/cwd", root: Promise.resolve(undefined) })).toEqual({ dir: "/r/cwd", source: "cwd" });
-    expect(await projectOf({ cwd: "/r/cwd" })).toEqual({ dir: "/r/cwd", source: "cwd" });
+    const [arg, rootDir, cwd] = [gitRepo("prec-arg"), gitRepo("prec-root"), gitRepo("prec-cwd")];
+    const root = Promise.resolve(rootDir);
+    expect(await projectOf({ cwd, root }, arg)).toEqual({ dir: arg, source: "arg" });
+    expect(await projectOf({ cwd, root })).toEqual({ dir: rootDir, source: "roots" });
+    expect(await projectOf({ cwd, root: Promise.resolve(undefined) })).toEqual({ dir: cwd, source: "cwd" });
+    expect(await projectOf({ cwd })).toEqual({ dir: cwd, source: "cwd" });
     expect(await projectOf({})).toEqual({ source: "none" });
   });
 
+  test("a root that points at a missing directory is no project", async () => {
+    expect(await projectOf({ root: Promise.resolve(join(root, "elsewhere", "ghost-root")) })).toEqual({ source: "none" });
+  });
+
   test("a tool call waits for a root that is still being resolved instead of falling through to none", async () => {
+    const late = gitRepo("late-root");
     let settle: (dir: string) => void = () => {};
     const pending = projectOf({ root: new Promise<string>((r) => (settle = r)) });
-    setTimeout(() => settle("/r/late"), 20);
-    expect(await pending).toEqual({ dir: "/r/late", source: "roots" });
+    setTimeout(() => settle(late), 20);
+    expect(await pending).toEqual({ dir: late, source: "roots" });
+  });
+
+  test("a relative or non-existent project_dir is refused by every write tool and nothing is created", async () => {
+    const scratch = join(root, "elsewhere", "proc-cwd");
+    mkdirSync(scratch, { recursive: true });
+    const ghost = join(root, "elsewhere", "explicit-ghost");
+    const projectsBefore = readdirSync(config.projectsDir).sort();
+    const client = await connect({});
+    const back = process.cwd();
+    process.chdir(scratch);
+    try {
+      for (const dir of ["rel-project", ghost]) {
+        const calls = [
+          { name: "record", arguments: { type: "project", name: "bad-dir", title: "t", description: "d", body: "b", origin: "agent-initiated", project_dir: dir } },
+          { name: "log_progress", arguments: { version: "0.1.0", title: "t", body: "b", project_dir: dir } },
+          { name: "log_changelog", arguments: { version: "0.1.0", title: "t", bullets: ["b"], project_dir: dir } },
+        ];
+        for (const c of calls) {
+          const r = (await client.callTool(c)) as Reply;
+          expect(r.isError).toBe(true);
+          expect(r.content[0]?.text).toContain("project_dir must be an absolute path to an existing directory");
+        }
+      }
+    } finally {
+      process.chdir(back);
+    }
+    expect(existsSync(join(scratch, "rel-project"))).toBe(false);
+    expect(existsSync(ghost)).toBe(false);
+    expect(readdirSync(config.projectsDir).sort()).toEqual(projectsBefore);
+    await client.close();
   });
 
   test("with no project the write tools refuse naming project_dir and write nothing", async () => {
@@ -882,6 +918,50 @@ describe("session project", () => {
     const status = (await client.callTool({ name: "status", arguments: {} })) as Reply;
     expect(status.content[0]?.text).toContain("session repo: roots-app (source: roots)");
     await client.close();
+  });
+
+  function rootsClient(list: () => Promise<{ uri: string }[]>): Client {
+    const client = new Client({ name: "batas-test-roots", version: "0" }, { capabilities: { roots: { listChanged: true } } });
+    client.setRequestHandler(ListRootsRequestSchema, async () => ({ roots: await list() }));
+    return client;
+  }
+
+  test("a root uri with a percent-encoded space resolves to its directory", async () => {
+    const spaced = gitRepo("with space");
+    const client = await connect({}, rootsClient(async () => [{ uri: pathToFileURL(spaced).href }]));
+    await client.sendRootsListChanged();
+    const status = (await client.callTool({ name: "status", arguments: {} })) as Reply;
+    expect(status.content[0]?.text).toContain("session repo: with space (source: roots)");
+    await client.close();
+  });
+
+  test("a root that points at a missing directory leaves the session without a project and writes refuse", async () => {
+    const ghost = join(root, "elsewhere", "ghost-root-dir");
+    const client = await connect({}, rootsClient(async () => [{ uri: pathToFileURL(ghost).href }]));
+    await client.sendRootsListChanged();
+    const status = (await client.callTool({ name: "status", arguments: {} })) as Reply;
+    expect(status.content[0]?.text).toContain("(source: none)");
+    const w = (await client.callTool({ name: "log_progress", arguments: { version: "0.1.0", title: "t", body: "b" } })) as Reply;
+    expect(w.isError).toBe(true);
+    expect(w.content[0]?.text).toContain("project_dir");
+    expect(existsSync(ghost)).toBe(false);
+    await client.close();
+  });
+
+  test("after roots/list_changed, a client that never answers roots/list delays a tool call only by the configured bound", async () => {
+    const bound = config.http.rootsMs;
+    config.http.rootsMs = 300;
+    try {
+      const client = await connect({}, rootsClient(() => new Promise<never>(() => {})));
+      await client.sendRootsListChanged();
+      const t0 = Date.now();
+      const status = (await client.callTool({ name: "status", arguments: {} })) as Reply;
+      expect(Date.now() - t0).toBeLessThan(2000);
+      expect(status.content[0]?.text).toContain("(source: none)");
+      await client.close();
+    } finally {
+      config.http.rootsMs = bound;
+    }
   });
 
   test("over stdio the session is scoped to the launch cwd, and writes default there as before", async () => {
