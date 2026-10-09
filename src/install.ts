@@ -73,8 +73,8 @@ function installSkill(): string {
   }
 }
 
-// batasd runs from login and is never idled out (the user's choice, 2026-10-08: semantic matching always available,
-// ~3.5 GB held, near-zero CPU idle). launchd restarts it only after a crash: a second copy exits 0 when another holds
+// batasd starts at login and exits after 180 idle minutes (BATASD_IDLE_MIN in batasd.py; the user's choice 2026-10-09,
+// reversing 2026-10-08's always-on); the next hook call starts it again. launchd restarts it only after a crash: a second copy exits 0 when another holds
 // the lock, and KeepAlive=true would respawn that copy every 10 s forever.
 const AGENT = "dev.batas.batasd";
 function installAgent(): string {

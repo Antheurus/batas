@@ -21,8 +21,9 @@ LOCK = STATE / "batasd.lock"
 VECTORS = STATE / "vectors.lance"
 LOG = STATE / "batasd.log"
 REPO = Path(__file__).resolve().parent.parent
-# 0 = never exit on idle (the default: the user chose always-on, started at login by the launchd agent from `just install`)
-IDLE_S = float(os.environ.get("BATASD_IDLE_MIN", "0")) * 60
+# Exit after 180 idle minutes (the user's choice, 2026-10-09, reversing always-on); 0 = never. The default lives here, not
+# in the launchd plist: after an idle exit the next hook call respawns batasd through start(), whose env has no plist.
+IDLE_S = float(os.environ.get("BATASD_IDLE_MIN", "180")) * 60
 RESYNC_S = 120
 RRF_K = 60
 STASH_S = 300

@@ -92,8 +92,10 @@ parse the markdown files directly (the rules in ~8 ms, all ~8,000 entries in ~26
   go through `batasd/batasd.py`: EmbeddingGemma 2 (text only) and multilingual-e5-small, fused by reciprocal rank. On 80
   blind English and Indonesian queries against 40 lessons it found the right one in the top 3 for 35/40 and 36/40,
   where the SQLite BM25 it replaced managed 18/40 and 33/40 (`evals/semantic-compare.py`, `just semantic-eval`).
-- **One warm process, always on.** `just install` adds a launchd agent (`dev.batas.batasd`) that starts batasd at login
-  and restarts it only after a crash; it never exits on idle (`BATASD_IDLE_MIN` > 0 restores that). Measured
+- **One warm process, idled out after 180 minutes.** `just install` adds a launchd agent (`dev.batas.batasd`) that starts
+  batasd at login and restarts it only after a crash. After 180 minutes with no request it exits (`BATASD_IDLE_MIN`, `0` =
+  never; the user's choice 2026-10-09, reversing always-on) and the next hook call starts it again, so the first prompt
+  after a long break goes on with trigger words only while the models load (~10 s). Measured
   2026-10-08: ~3.5 GB footprint on the GPU (`BATASD_DEVICE=cpu`: ~1.05 GB, but 0.2-2 s per query under load), 0.03 s
   of CPU per 150 s idle, 11% of one core at 3.5 queries a second.
 - **A prompt never waits.** The hook gives batasd what is left of its 150 ms budget. An idle Apple GPU answers its first
@@ -153,7 +155,7 @@ it overlaps GitNexus, not batas.
 | What it knows | where code doing X lives, across 28+ file types | rules, incidents, memories, lessons, progress |
 | Chunking | AST nodes (functions, classes) | markdown items and sections, one memory per file |
 | Embeddings | one model; asymmetric query/document params | two local models fused by RRF; e5 `query:`/`passage:` prompts already used |
-| Daemon | starts on first use, exits after 180 min idle | always on via launchd, on the GPU |
+| Daemon | starts on first use, exits after 180 min idle | starts at login via launchd, exits after 180 min idle, on the GPU |
 | When it reaches the agent | when the agent calls `search`; its hooks only re-index | on its own: rule on command or file, memory on prompt, Stop check on the reply |
 | Scope | one repo | every repo under the project roots |
 | Evidence | "token saving by 70%", no method given | the recall test, plus 80 blind EN/ID probes |
@@ -168,4 +170,4 @@ Why it is not used:
   exactly that reason, and an MCP-only `search` would share the problem.
 
 Nothing was taken from it: incremental re-indexing, asymmetric query/document prompts and a warm model-holding
-daemon are all already in batas, and AST-level code search belongs to GitNexus.
+daemon that idles out are all already in batas, and AST-level code search belongs to GitNexus.

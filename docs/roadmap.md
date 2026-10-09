@@ -120,5 +120,27 @@ Not taken: confidence scores (batas memories are curated, not inferred, so there
 classifier (everything here stays local), and a public share registry (the mirror is private by design). Taste also
 loads its profile on every turn, the always-on cost the 2026-10-07 tiering work exists to cut.
 
+## Priority 7 — transcript blind spots (agreed 2026-10-09)
+
+The doc/rules/task Stop hooks in `~/.claude/hooks/` judge a session by scanning its transcript, and four recorded
+blind spots come from that: E21 (an edit made through Bash or `python -c` is invisible, only Edit/Write is seen), E23
+(its generated-file variant, cleared today with a byte-identical rewrite), E22 (a long session's calls span several
+transcript files, so one file is a partial record and a hook can block forever) and E25 (the wrong session picked by
+mtime, usage over-counted). Checked against the Claude Code mods API on 2026-10-09: a mod's `tool.call` sees every call
+live, subagents included (`agentId`), but for Bash it sees the command, not which files changed, so it fixes E22/E25
+and not E21/E23.
+
+19. **Hooks read batas's file attribution before the transcript** — batas already records every file a session
+    changes, through Edit/Write and through Bash commands and scripts (`~/.batas/sessions/`, the PostToolUse
+    attribution behind the git collision guard), from the filesystem rather than the transcript.
+    `progress-changelog-reminder` and `rules-memory-reminder` read that record first and fall back to the transcript
+    scan when it is absent. Closes E21 and E23 in every session, `claude -p` included, with no mod. Status: planned.
+20. **Optional mod ledger for E22/E25** — a thin function-hooks mod appends every `tool.call` (main and subagent) to a
+    per-session file the hooks read, with the transcript as fallback. It follows the split recorded on 2026-10-07
+    (memory `mods-deferred-until-stable`): enforcement stays in the Python hooks, and a mod that is not loaded only
+    brings the blind spots back for that session. Regenerate the types with `/plugin-types` first; the ones read on
+    2026-10-09 date from 2026-10-07. Reuses the task-store reader of the shelved `task-band`. Status: deferred until
+    item 19 lands and a blind spot is still seen.
+
 Graphify itself was re-checked 2026-10-08 (v0.9.80): still "Not a vector index. No embeddings", a codebase graph
 that duplicates GitNexus; it does not replace batas, which carries lessons, rules and preferences, not code structure.

@@ -1,5 +1,12 @@
 # batas Changelog
 
+## v0.17.2 — batasd mati sendiri setelah 180 menit nganggur
+
+- batasd sekarang berhenti sendiri kalau 180 menit nggak ada request, jadi RAM-nya (~2,2 GB) nggak ketahan berjam-jam waktu nggak ada sesi Claude yang jalan.
+- Begitu ada sesi lagi, batasd nyala sendiri dari panggilan hook berikutnya. Prompt pertama setelah jeda panjang cuma dapet pencocokan kata pemicu selama model loading (~5–10 detik), prompt berikutnya udah dapet pencarian semantik lagi.
+- Selama masih ada sesi Claude yang jalan, batasd nggak bakal mati.
+- Mau balik ke selalu nyala: set `BATASD_IDLE_MIN=0`.
+
 ## v0.17.1 — batasd lebih hemat RAM dan disk
 
 - batasd yang baru nyala sekarang pakai ~2,2 GB, sebelumnya ~2,5 GB, karena vektor dibaca langsung tanpa diubah dulu jadi jutaan angka Python.
