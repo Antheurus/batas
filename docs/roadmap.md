@@ -33,7 +33,13 @@ placement: an open item judged urgent is moved into Priority 1 with the date and
     changes, through Edit/Write and through Bash commands and scripts (`~/.batas/sessions/`, the PostToolUse
     attribution behind the git collision guard), from the filesystem rather than the transcript.
     `progress-changelog-reminder` and `rules-memory-reminder` read that record first and fall back to the transcript
-    scan when it is absent. Closes E21 and E23 in every session, `claude -p` included, with no mod. Status: planned.
+    scan when it is absent. Closes E21 and E23 in every session, `claude -p` included, with no mod. Status: **done
+    2026-10-11** — both hooks union `batas_touched(session_id)` with their transcript scan (a corrupt or missing state
+    file adds nothing). Tests: new `tests/test-progress-changelog-reminder.py` 8/8 (3 fail on the old hook) and
+    `test-rules-memory-reminder.py` 21/21 (2 new fail on the old hook). Replaying this session's real transcript with
+    cwd=batas: the old hook blocks on both docs, already written through python and committed; the new one passes.
+    Limit: batas attributes a Bash write only while the file is dirty after the call, so a write committed in the same
+    command is still unseen, and a file another session writes during the call can be attributed here too.
 
 ## Priority 2 — memory health
 
