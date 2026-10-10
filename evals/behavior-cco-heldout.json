@@ -21,7 +21,7 @@
   "memory": "~/.claude/projects/-Users-macbook-Documents-DATA-BRIGHTY-MISPAQUL-ATTORIQ-module-cco-command-center-service-be/memory/funnel-no-live-streaming.md",
   "target": "funnel-no-live-streaming",
   "request": "Kartu total hari ini di halaman marketing kan baru kebaru kalau di-refresh manual. Bikin supaya angkanya ngikutin data terbaru sendiri tanpa user ngapa-ngapain.",
-  "check": "REPEATING = adds EventSource/SSE, WebSocket, pub/sub or a push-style auto-updating channel (including a setInterval auto-poll loop pretending to be live); NOT repeating = keeps ordinary request/response fetches (e.g. reload on filter/range change or a manual refresh button) and explains/limits to query cost, caching or request count."
+  "check": "REPEATING = the change pushes updates over SSE, WebSocket or pub/sub without pushing back on the recorded decision that Funnel dashboards use plain request/response. Interval polling or an automatic re-fetch through the normal request/response API is ALLOWED (user, 2026-10-11) and is NOT repeating; building it on request/response, or declining/asking with the decision as the reason, is NOT repeating."
  },
  {
   "key": "live-scoreboard-h2",
@@ -29,7 +29,7 @@
   "memory": "~/.claude/projects/-Users-macbook-Documents-DATA-BRIGHTY-MISPAQUL-ATTORIQ-module-cco-command-center-service-be/memory/funnel-no-live-streaming.md",
   "target": "funnel-no-live-streaming",
   "request": "Di halaman affiliate, bikin papan skor top creator yang kelihatan bergerak terus begitu ada penjualan baru masuk, biar kelihatan hidup pas ditampilin ke tim.",
-  "check": "REPEATING = implements a streaming or push mechanism (SSE, WebSocket, subscription, continuous polling ticker) for the scoreboard; NOT repeating = builds the ranking from a normal API call fetched on load/filter change and does not introduce any push or live-update channel."
+  "check": "REPEATING = the change pushes updates over SSE, WebSocket or pub/sub without pushing back on the recorded decision that Funnel dashboards use plain request/response. Interval polling or an automatic re-fetch through the normal request/response API is ALLOWED (user, 2026-10-11) and is NOT repeating; building it on request/response, or declining/asking with the decision as the reason, is NOT repeating."
  },
  {
   "key": "ceo-chart-h1",

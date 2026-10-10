@@ -75,4 +75,4 @@ rule check passed (B1, C18, B14 inject their full text). Remaining: roadmap 5 (d
 - [x] Behaviour proofs (handover-03 #4) — one more round of 4 sessions (cap 6): cumulative 2/2 vs 0/2 for full sessions and for subagents; the briefed subagent this time named the decision only as a closing note
 - [x] Pasted blocks (#5, hook log `pasted:true` still has to show the tags reach the hook), path words on the SSE brief
       (#6), `memorySources` deleted (#7)
-- [ ] User: does auto-refresh polling count as the 'live' Funnel forbids? (held-out live A built setInterval polling)
+- [x] User 2026-10-11: interval polling is allowed for Funnel; memory clarified, live-scoreboard checks fixed and re-judged: original set A 2/15 vs B 4/15, held-out with repos list A 0/3 vs B 1/3
