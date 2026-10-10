@@ -22,6 +22,7 @@ Mode: **Lean** (od-execute). Plan: `plan.md`. Evidence: `research.md`.
 - Port for the shared server? → **3481** (Recommended).
 - Keep stdio as a supported mode? → **Ya, tetap** — default with no flag, the bypass if the shared server breaks.
 - OPEN #2 (fallback if roots fail over HTTP) — moot: Phase 00 proved roots work over HTTP (findings.md).
+- **PENDING (asked 2026-10-10, no answer yet):** grant `/Users/macbook/.bun/bin/bun` macOS Documents access (Full Disk Access or Files and Folders) so the launchd agent can read `~/Documents`? Phase 04 install waits on it (findings.md Phase 03, Discovered 1).
 
 ## Execution DAG
 
@@ -33,12 +34,12 @@ Linear chain, every block sequential. Phases 0–4 are executor dispatches; Phas
   - _Blocked by: none_
 
 ### Block 2 — sequential
-- [ ] Phase 01 — per-session project context, stdio unchanged
+- [x] Phase 01 — per-session project context, stdio unchanged
   - _Plan: plan.md §Phase 1_
   - _Blocked by: Phase 00_
 
 ### Block 3 — sequential
-- [ ] Phase 02 — Streamable HTTP mode
+- [x] Phase 02 — Streamable HTTP mode
   - _Plan: plan.md §Phase 2_
   - _Blocked by: Phase 01_
 

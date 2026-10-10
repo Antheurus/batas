@@ -1,5 +1,13 @@
 # batas Changelog
 
+## v0.19.0 — batas siap jadi satu server bersama (belum diaktifkan)
+
+- batas MCP sekarang bisa jalan sebagai satu server HTTP di 127.0.0.1 yang dipakai semua sesi Claude sekaligus, bukan satu proses per sesi. Mode lama (stdio) tetap default — sesi kamu sekarang belum berubah apa-apa.
+- Tiap sesi tetap menulis memory, progress.md dan changelog.md ke repo-nya sendiri: proyek dibaca dari folder tempat sesi dibuka. Kalau proyeknya tidak diketahui, penulisan ditolak dengan pesan yang menyebut project_dir — tidak pernah nyasar ke repo lain.
+- project_dir yang relatif atau folder yang tidak ada sekarang ditolak, bukan dibuatkan diam-diam.
+- Baru: `just mcp-install`, `just mcp-restart`, `just mcp-status`, `just mcp-uninstall` untuk menjalankan server itu lewat launchd di port 3481. Server restart sendiri tiap src/*.ts berubah, setelah request yang sedang jalan selesai.
+- Perlu aksi: sebelum dipasang, beri izin Documents ke /Users/macbook/.bun/bin/bun (System Settings → Privacy & Security → Full Disk Access). Tanpa itu server di launchd macet saat membaca ~/Documents.
+
 ## v0.18.2 — Repo Brighty sekarang ikut terbaca
 
 - Rules, lessons, progress dan changelog di repo `DATA_BRIGHTY_MISPAQUL_ATTORIQ` (Funnel, sales, supply chain, auto-scrape, dll.) sekarang ikut dibaca batas, sekitar 2.000 entri baru. Sebelumnya tidak satu pun ikut.
