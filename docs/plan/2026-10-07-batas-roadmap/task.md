@@ -73,6 +73,6 @@ rule check passed (B1, C18, B14 inject their full text). Remaining: roadmap 5 (d
 - [x] Word-overlap listing removed (handover-03 #2) — 273 -> 0 on 500 replayed prompts, trigger hits 109 -> 116, none lost
 - [x] Prompt hook p95 142 -> 106 ms at load 7.4 (handover-03 #3) — parsed-entry cache
 - [x] Behaviour proofs (handover-03 #4) — one more round of 4 sessions (cap 6): cumulative 2/2 vs 0/2 for full sessions and for subagents; the briefed subagent this time named the decision only as a closing note
-- [x] Pasted blocks (#5, hook log `pasted:true` still has to show the tags reach the hook), path words on the SSE brief
+- [x] Pasted blocks (#5; proven live: 2 of 297 real prompts since the merge logged `pasted:true`, so the tags reach the hook), path words on the SSE brief
       (#6), `memorySources` deleted (#7)
 - [x] User 2026-10-11: interval polling is allowed for Funnel; memory clarified, live-scoreboard checks fixed and re-judged: original set A 2/15 vs B 4/15, held-out with repos list A 0/3 vs B 1/3
