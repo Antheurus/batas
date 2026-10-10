@@ -2,6 +2,10 @@
 
 Agreed with the user on 2026-10-07. Each item names the evidence that put it here; status is updated as items land.
 
+**The `Priority N` headings are batches in the order they were agreed, not a ranking**: Priority 5 sits above 4 because
+it was approved later, and 6 and 7 are simply the next batches. Item numbers are permanent addresses. Rank comes from
+placement: an open item judged urgent is moved into Priority 1 with the date and reason, as item 19 was.
+
 ## Priority 1
 
 1. **Live-session collision guard** — before a state-changing git command, warn when another session is active in the
@@ -23,6 +27,13 @@ Agreed with the user on 2026-10-07. Each item names the evidence that put it her
    Evidence: today lessons:B14 fired after the `| head && echo` mistake had already been made once. Status: **done
    2026-10-07** — `just effect-audit`: B14 repeat rate 50% -> 19%, B20 82% -> 41%, B10 32% -> 9%, while situational
    controls (B8, C2, C4) stayed flat.
+
+19. **Hooks read batas's file attribution before the transcript** (raised from Priority 7 on 2026-10-11: a live defect,
+    hooks blocking on work that exists, and cheap since batas already holds the data; background in Priority 7) — batas already records every file a session
+    changes, through Edit/Write and through Bash commands and scripts (`~/.batas/sessions/`, the PostToolUse
+    attribution behind the git collision guard), from the filesystem rather than the transcript.
+    `progress-changelog-reminder` and `rules-memory-reminder` read that record first and fall back to the transcript
+    scan when it is absent. Closes E21 and E23 in every session, `claude -p` included, with no mod. Status: planned.
 
 ## Priority 2 — memory health
 
@@ -120,7 +131,7 @@ Not taken: confidence scores (batas memories are curated, not inferred, so there
 classifier (everything here stays local), and a public share registry (the mirror is private by design). Taste also
 loads its profile on every turn, the always-on cost the 2026-10-07 tiering work exists to cut.
 
-## Priority 7 — transcript blind spots (agreed 2026-10-09)
+## Priority 7 — transcript blind spots (agreed 2026-10-09; item 19 moved to Priority 1)
 
 The doc/rules/task Stop hooks in `~/.claude/hooks/` judge a session by scanning its transcript, and four recorded
 blind spots come from that: E21 (an edit made through Bash or `python -c` is invisible, only Edit/Write is seen), E23
@@ -130,11 +141,6 @@ mtime, usage over-counted). Checked against the Claude Code mods API on 2026-10-
 live, subagents included (`agentId`), but for Bash it sees the command, not which files changed, so it fixes E22/E25
 and not E21/E23.
 
-19. **Hooks read batas's file attribution before the transcript** — batas already records every file a session
-    changes, through Edit/Write and through Bash commands and scripts (`~/.batas/sessions/`, the PostToolUse
-    attribution behind the git collision guard), from the filesystem rather than the transcript.
-    `progress-changelog-reminder` and `rules-memory-reminder` read that record first and fall back to the transcript
-    scan when it is absent. Closes E21 and E23 in every session, `claude -p` included, with no mod. Status: planned.
 20. **Optional mod ledger for E22/E25** — a thin function-hooks mod appends every `tool.call` (main and subagent) to a
     per-session file the hooks read, with the transcript as fallback. It follows the split recorded on 2026-10-07
     (memory `mods-deferred-until-stable`): enforcement stays in the Python hooks, and a mod that is not loaded only
