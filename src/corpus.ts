@@ -147,7 +147,7 @@ export function projectSlug(dir: string): string {
   return dir.replace(/[^A-Za-z0-9]/g, "-");
 }
 
-function listMd(dir: string): string[] {
+export function listMd(dir: string): string[] {
   if (!existsSync(dir)) return [];
   return readdirSync(dir)
     .filter((f) => f.endsWith(".md"))

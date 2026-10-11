@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { config } from "./config.ts";
-import { allMemorySources, memoryTriggers, parseMemory, parseSections, projectSlug, type Entry, type Kind } from "./corpus.ts";
+import { allMemorySources, listMd, memoryTriggers, parseMemory, parseSections, projectSlug, type Entry, type Kind } from "./corpus.ts";
 import { mutedIds, recordAck, reportWrong } from "./feedback.ts";
 import { filesInCommand, lessonsDir, regenAll, regenIfLessonsChanged, routedLessons } from "./lessons.ts";
 import { appendHookLog, liveSessions } from "./log.ts";
@@ -50,6 +50,8 @@ type SessionState = {
   pending: Pending[];
   // repos whose memory list (listForRepo) this session has already been given
   listed: string[];
+  // a correction the user made in this turn's prompt, held until Stop has checked it once (captureCorrection)
+  correction?: { at: number; strong: boolean };
 };
 
 type Pending = { key: string; kind: "prompt" | "write"; at: number; file?: string };
@@ -402,6 +404,14 @@ function step5bNote(input: HookInput, state: SessionState): { id: string; text: 
 }
 
 const MUTE_PROMPT = /\bbatas\s+(nyasar|salah|ngaco|keliru|wrong|irrelevant)\b/i;
+// A correction in the user's own words, tuned on 15,761 real prompts (docs/plan/2026-10-08-learning-loop/plan.md):
+// STRONG was a true correction in 41 of 50 hand-labelled hits and arms the Stop check; "kan harusnya" on its own was
+// 12 true to 9 false (bug reports, questions), so it only reminds. Only the first 300 characters are read, since the
+// deeper hits were all pasted text.
+const CORRECTION_STRONG =
+  /\b(?:kok|udah|sudah|kan|tadi|padahal)\s+(?:gua|gue|gw|aku|saya)\s+(?:udah\s+|sudah\s+|kan\s+|pernah\s+)?(?:bilang|ngomong|minta|suruh|kasih\s+tau)\b|\b(?:bilang|ngomong)\s+(?:mulu|terus|berkali|dari\s+tadi)\b|\b(?:bukan\s+gitu|bukan\s+itu\s+maksud|bukan\s+itu\s+yang\s+gua|salah\s+paham|lu\s+salah|kamu\s+salah)\b|\bjangan\s+sampe?a?i?\s+(?:ilang|hilang|lupa|kelewat|keulang|kejadian\s+lagi|ngulang)\b|\bjangan\s+[^.?!\n]{1,40}\s+lagi\b|\bI\s+(?:already\s+)?(?:told|asked)\s+you\b|\bwhy\s+(?:do|did)\s+you\s+(?:keep|still)\b|\bstop\s+doing\b|\bthat'?s\s+not\s+what\s+I\s+(?:asked|meant|said)\b/i;
+const CORRECTION_SOFT = /\bkan\s+(?:harusnya|seharusnya)\b/i;
+const CORRECTION_WINDOW = 300;
 const FILE_TOOLS = new Set(["Read", "Edit", "Write", "MultiEdit", "NotebookEdit"]);
 const WRITE_TOOLS = new Set(["Edit", "Write", "MultiEdit", "NotebookEdit"]);
 const SESSION_TTL_MS = 7 * 24 * 3600 * 1000;
@@ -424,6 +434,7 @@ function loadSession(id: string): SessionState {
       spent: s.spent ?? 0,
       pending: s.pending ?? [],
       listed: s.listed ?? [],
+      correction: s.correction,
     };
   } catch {
     return { injected: [], hinted: [], lastPrompt: [], muted: [], touched: [], started: Date.now(), bashStart: 0, spent: 0, pending: [], listed: [] };
@@ -1017,6 +1028,68 @@ async function settleSemantic(
   };
 }
 
+// A memory, rule or lesson file changed at or after `at`: what a correction turned into a record looks like on disk,
+// whether mcp__batas__record, a Write or a script wrote it. Read from the filesystem for the same reason the Stop hooks
+// in ~/.claude/hooks read batas's attribution: a transcript scan misses every write that is not a file tool.
+function recordedSince(at: number, cwd: string | undefined): boolean {
+  const files = [...allMemorySources().map((s) => s.file), ...listMd(config.sharedMemoryDir), ...listMd(config.rulesDir)];
+  const root = repoRoot(cwd);
+  if (root) files.push(...listMd(join(root, ".claude", "rules")), ...listMd(join(root, "docs", "lessons")));
+  return files.some((f) => (mtime(f) ?? 0) >= at);
+}
+
+const CORRECTION_NOTE = [
+  "batas: the user just corrected you, in their own words above. Restate the correction in one line, fix the work, and",
+  "record it before going on: mcp__batas__record({type: \"feedback\", triggers: [...], origin}) with origin from what",
+  "actually happened, or extend the memory or rule that already covers it. Stop checks once for a record written after",
+  "this prompt.",
+].join("\n");
+const CORRECTION_HINT =
+  "batas: this prompt may be correcting earlier work (\"kan harusnya\"). If it is, record the correction as feedback with mcp__batas__record before going on; if it is a bug report or a question, carry on.";
+const CORRECTION_STOP = [
+  "batas: the user corrected you this turn and nothing was recorded since (no memory, rule or lesson file changed).",
+  "Record it now with mcp__batas__record (type feedback, triggers required), or extend the entry that already covers it.",
+  "If the prompt was not a correction of your work (a status question, a quoted message), say so in one line and stop.",
+].join("\n");
+
+// Correction capture (roadmap item 14): a correction in the prompt asks for a record at once, and a strong one is
+// checked at Stop, once. Applied after evaluate so it rides alongside whatever else the hook injected.
+export function captureCorrection(input: HookInput, result: { output: object; fired: string[] }): { output: object; fired: string[] } {
+  const event = input.hook_event_name;
+  const session = input.session_id;
+  if (!session) return result;
+  const o = result.output as { decision?: string; reason?: string; hookSpecificOutput?: { hookEventName?: string; additionalContext?: string } };
+  if (event === "UserPromptSubmit") {
+    if (!input.prompt || SYSTEM_PROMPT.test(input.prompt)) return result;
+    const said = ownWords(input.prompt).slice(0, CORRECTION_WINDOW);
+    const strong = CORRECTION_STRONG.test(said);
+    const soft = !strong && CORRECTION_SOFT.test(said);
+    const state = loadSession(session);
+    const had = state.correction;
+    state.correction = strong || soft ? { at: Date.now(), strong } : undefined;
+    if (had || state.correction) saveSession(session, state);
+    if (!state.correction) return result;
+    const note = strong ? CORRECTION_NOTE : CORRECTION_HINT;
+    const prior = o.hookSpecificOutput?.additionalContext;
+    return {
+      output: { ...o, hookSpecificOutput: { ...o.hookSpecificOutput, hookEventName: event, additionalContext: prior ? `${prior}\n\n${note}` : note } },
+      fired: [...result.fired, strong ? "correction:strong" : "correction:soft"],
+    };
+  }
+  if (event === "Stop") {
+    if (input.stop_hook_active) return result;
+    const state = loadSession(session);
+    const c = state.correction;
+    if (!c?.strong) return result;
+    state.correction = undefined;
+    saveSession(session, state);
+    if (recordedSince(c.at, input.cwd)) return result;
+    const reason = o.decision === "block" && o.reason ? `${o.reason}\n\n${CORRECTION_STOP}` : CORRECTION_STOP;
+    return { output: { ...o, decision: "block", reason }, fired: [...result.fired, "correction:unrecorded"] };
+  }
+  return result;
+}
+
 // A subagent never sends a UserPromptSubmit: its task arrives as the parent's Agent/Task tool call, so prompt-time
 // memories never reached one (measured: a native subagent planning SSE for Funnel did not know the user's recorded
 // no-live decision that a full session quoted). The brief goes through the same matching as a user prompt, under a
@@ -1100,6 +1173,7 @@ async function main() {
     }
     result = dispatching ? await briefSubagent(input, store, semantic) : evaluate(input, store, Triggers.load(), semantic);
     if (input.session_id) result = await settleSemantic(input, store, result, semanticState);
+    result = captureCorrection(input, result);
     pruneSessions();
   } catch (err) {
     error = err instanceof Error ? `${err.message} @ ${err.stack?.split("\n")[1]?.trim() ?? "?"}` : String(err);

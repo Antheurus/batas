@@ -9,7 +9,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { ListRootsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { config } from "../src/config.ts";
-import { evaluate, lateSemantic, logFlags, ownWords } from "../src/hook.ts";
+import { captureCorrection, evaluate, lateSemantic, logFlags, ownWords } from "../src/hook.ts";
 import { auditPrompts } from "../scripts/prompt-audit.ts";
 import { gitIndex, judgePath, namedPaths, resolveRoot } from "../scripts/memory-audit.ts";
 import { mine, signature } from "../scripts/lesson-mine.ts";
@@ -629,6 +629,62 @@ describe("hook", () => {
     expect(bad.reason).toContain("lessons:C7");
     expect(evaluate({ ...base, last_assistant_message: "I would run git reset --hard only if you say so." }, store, t).output).toEqual({});
     expect(evaluate({ ...base, stop_hook_active: true, last_assistant_message: "git reset --hard" }, store, t).output).toEqual({});
+  });
+
+  describe("correction capture", () => {
+    const none = { output: {}, fired: [] as string[] };
+    const prompt = (session_id: string, text: string) =>
+      captureCorrection({ session_id, hook_event_name: "UserPromptSubmit", prompt: text, cwd: demo }, none);
+    const stop = (session_id: string, extra: object = {}) =>
+      captureCorrection({ session_id, hook_event_name: "Stop", cwd: demo, last_assistant_message: "done", ...extra }, none);
+    const ctx = (r: { output: object }) => (r.output as { hookSpecificOutput?: { additionalContext?: string } }).hookSpecificOutput?.additionalContext ?? "";
+
+    test("a strong correction asks for a record, and Stop blocks once when none was written", () => {
+      const r = prompt("cc1", "kok mysql, kan gua minta postgres bukan mysql");
+      expect(r.fired).toContain("correction:strong");
+      expect(ctx(r)).toContain("the user just corrected you");
+      const s = stop("cc1").output as { decision?: string; reason?: string };
+      expect(s.decision).toBe("block");
+      expect(s.reason).toContain("nothing was recorded since");
+      expect(stop("cc1").output).toEqual({});
+    });
+
+    test("a memory written after the correction lets Stop through", () => {
+      prompt("cc2", "padahal udah gua bilang jangan pakai script");
+      writeFileSync(join(config.projectsDir, "-tmp-demo", "memory", "no-scripts-cc2.md"), "---\nname: no-scripts-cc2\ndescription: x\n---\n\nbody\n");
+      expect(stop("cc2").output).toEqual({});
+    });
+
+    test("kan harusnya alone only reminds, and never blocks", () => {
+      const r = prompt("cc3", "ini kenapa jawaban di halaman kedua? kan harusnya masuk halaman pertama");
+      expect(r.fired).toContain("correction:soft");
+      expect(ctx(r)).toContain("may be correcting earlier work");
+      expect(stop("cc3").output).toEqual({});
+    });
+
+    test("an ordinary prompt clears an earlier correction, so a later Stop is not blocked", () => {
+      prompt("cc4", "I already told you to use worktrees");
+      expect(prompt("cc4", "ok lanjut ke fase berikutnya").fired).toEqual([]);
+      expect(stop("cc4").output).toEqual({});
+    });
+
+    test("stop_hook_active passes through, and a hit deep in pasted text is not a correction", () => {
+      prompt("cc5", "lu salah edit itu");
+      expect(stop("cc5", { stop_hook_active: true }).output).toEqual({});
+      const long = `${"log line ok ".repeat(40)} kan gua minta postgres`;
+      expect(prompt("cc6", long).fired).toEqual([]);
+      expect(prompt("cc8", "pokoknya jangan sampai ilang, simpen ke batas").fired).toContain("correction:strong");
+    });
+
+    test("an existing Stop block keeps its reason and gains the correction one", () => {
+      prompt("cc7", "bukan gitu maksudnya");
+      const prior = { output: { decision: "block", reason: "batas: your last reply matches a known mistake pattern." }, fired: ["lessons:C7"] };
+      const r = captureCorrection({ session_id: "cc7", hook_event_name: "Stop", cwd: demo }, prior);
+      const o = r.output as { decision: string; reason: string };
+      expect(o.reason).toContain("known mistake pattern");
+      expect(o.reason).toContain("nothing was recorded since");
+      expect(r.fired).toEqual(["lessons:C7", "correction:unrecorded"]);
+    });
   });
 
   test("a reply that only QUOTES the mistake is not blocked", () => {

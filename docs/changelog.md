@@ -1,5 +1,12 @@
 # batas Changelog
 
+## v0.20.0 — Koreksi dari kamu sekarang diminta dicatat
+
+- Kalau kamu mengoreksi agent dengan kata-katamu sendiri ("udah gua bilang", "bukan gitu", "jangan … lagi", "I told you"), batas langsung minta agent mengulang koreksinya, membetulkan kerjaannya, lalu mencatatnya ke memory.
+- Kalau sampai akhir giliran belum ada yang dicatat, agent ditahan sekali dan diminta mencatat. Kalau ternyata itu bukan koreksi (misalnya pertanyaan status), agent cukup bilang satu kalimat lalu berhenti.
+- "kan harusnya" saja cuma jadi pengingat ringan, tanpa menahan, karena kalimat itu sering juga dipakai buat lapor bug atau bertanya.
+- Hook pengingat progress/changelog dan rules/memory di `~/.claude/hooks` sekarang ikut membaca catatan file batas. Jadi dokumen yang ditulis lewat script tidak lagi bikin agent ditahan terus padahal sudah ditulis.
+
 ## v0.19.1 — batas sekarang satu server untuk semua sesi
 
 - Sesi Claude baru tidak lagi menjalankan batas sendiri-sendiri: semuanya tersambung ke satu server di 127.0.0.1:3481. Sesi idle yang baru turun dari 319 MB ke 258 MB; servernya sendiri sekitar 150 MB, sekali untuk semua sesi.
