@@ -193,3 +193,47 @@ The Python driver's own 90 s timeout never fired, so the driver was frozen too. 
 in `Maintenance Sleep` for ~912–927 s at a time with ~45 s DarkWakes since at least 08:12 (the user is away). Every
 slow run, the 181 s/694 s/932 s runs and the two ~15 min silent windows in the Phase 02 / audit transcripts line up
 with that. The failing test is pre-existing (latency budget), not part of this plan. Closed.
+
+## 2026-10-11 — bun Documents grant present; Phase 03 receipt retested by the orchestrator — cleared, Phase 03 closed
+
+- TCC.db now holds `kTCCServiceSystemPolicyDocumentsFolder | /Users/macbook/.bun/bin/bun | 2` (the user granted it).
+- Throwaway `just mcp-install <main checkout> 47495 dev.batas.mcp-recon` (from the MAIN checkout, under launchd):
+  running, 127.0.0.1 only. **Receipt #1 cleared:** SDK client calls `status` 451 ms, `get lessons:B10` 7 ms,
+  `recall` 750 ms — the store walk no longer freezes.
+- **Receipt #2 cleared:** `audit03-vanished-client.probe.ts 47495 src/config.ts` → aborted client `RESTARTED` in
+  6723 ms; held (never-answered) request `RESTARTED` in 7311 ms (roots bound 5 s + settle). It was the TCC freeze.
+- **Reconnect across a self-restart, real Claude Code 2.1.296** (the open question from Phase 03 Discovered 2): one
+  long-lived `claude -p --input-format stream-json` process (haiku, `--strict-mcp-config`, cwd cc-toriq) asked
+  `status` 3×. Turn 1 → `session repo: cc-toriq (source: roots)`; `utime src/config.ts` → launchd pid 88992 → 95932 in
+  2.0 s; turn 2 → same line, no error, 3.3 s; turn 3 (no restart) → same. TCP evidence: before restart the client held
+  local ports 63755/63764/63765; after the restart those were gone and the client had opened 63846/63847/63849 by
+  itself; turn 3 reused exactly 63846/63847/63849 — the client keeps one persistent MCP connection and does not
+  reconnect per turn, so turn 2's success is a genuine reconnect. (An interactive TUI drive over tmux was abandoned
+  after the typed prompt failed to submit twice — not guessed a third time.)
+- Throwaway uninstalled: label gone, plist gone, port free, log removed.
+
+## Phase 04 — switch over — VERIFIED-LIVE (orchestrator)
+
+`just mcp-install` on main → `dev.batas.mcp` running, `127.0.0.1:3481` only (pid 15131), SDK `status` 445 ms;
+`~/.claude.json` → `.bak.1791655046`, `claude mcp add --transport http -s user batas http://127.0.0.1:3481/mcp` →
+`batas: http://127.0.0.1:3481/mcp (HTTP) - ✔ Connected`; watchdog plist gained `--target dev.batas.mcp:3481`
+(reloaded, ran exit 0, no restart); infra.md row 3481; memory `batas-mcp-shared-http-3481` + gitnexus memory
+corrected; `batas-first.md` section via rules-writer (corpus-lint 0); cc-toriq `just sync` → verify 3842/3842,
+mirror commit `78977d8`. **Deviation:** that mirror commit also swept in five files another live cc-toriq session
+had staged in the shared index (toriq-mods.md, docs/changelog.md, docs/progress.md, two glamour-dark files) —
+pushed; not rewritten (shared live branch); reported to the user.
+
+## Phase 05 — acceptance — VERIFIED-LIVE (orchestrator)
+
+1. Fresh idle session, full user config, tmux in cc-toriq, no prompt, 40 s: **258 MB** (`claude` only, no
+   `bun mcp.ts` child) — was 319 MB (research.md §4); shared server **150 MB**.
+2. Real Claude 2.1.296 per repo on production (stream-json driver, `status` only): batas →
+   `session repo: batas (source: roots)`; cc-toriq → `session repo: cc-toriq (source: roots)`.
+3. Negative path on production (SDK client, no roots capability): `status` → `(source: none)`; `log_progress` and
+   `record` → `isError … no project for this session — pass project_dir`; both repos' progress.md sha unchanged;
+   no memory file created.
+4. Reconnect across a real self-restart: see the 2026-10-11 entry above.
+5. **Not achieved as planned:** a real-client `record` from two repos. Two headless Haiku attempts both answered by
+   writing an orchestration script instead of calling the tool (second attempt with Bash/Agent/Task/Write/Edit
+   disallowed) — no file written either time; stopped at two per the no-third-guess rule. Write isolation rests on
+   the Phase 02 audit (60 concurrent SDK writes from two roots, zero crossover) plus item 2.

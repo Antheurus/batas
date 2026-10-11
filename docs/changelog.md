@@ -1,5 +1,13 @@
 # batas Changelog
 
+## v0.19.1 — batas sekarang satu server untuk semua sesi
+
+- Sesi Claude baru tidak lagi menjalankan batas sendiri-sendiri: semuanya tersambung ke satu server di 127.0.0.1:3481. Sesi idle yang baru turun dari 319 MB ke 258 MB; servernya sendiri sekitar 150 MB, sekali untuk semua sesi.
+- Sesi yang sudah terbuka sebelum perubahan ini masih memakai cara lama sampai ditutup.
+- Kalau batas diedit, server restart sendiri dalam 1–2 detik dan sesi yang terbuka menyambung lagi tanpa perlu apa-apa (sudah dites dengan sesi Claude sungguhan).
+- Kalau tool batas error atau macet: jalankan `just mcp-status` di repo batas, lalu `just mcp-restart`. Setelah upgrade bun, cek lagi izin Documents untuk bun di System Settings.
+- Jalan balik ke cara lama (per sesi) tetap ada: satu perintah `claude mcp`, tercatat di memory batas-mcp-shared-http-3481.
+
 ## v0.19.0 — batas siap jadi satu server bersama (belum diaktifkan)
 
 - batas MCP sekarang bisa jalan sebagai satu server HTTP di 127.0.0.1 yang dipakai semua sesi Claude sekaligus, bukan satu proses per sesi. Mode lama (stdio) tetap default — sesi kamu sekarang belum berubah apa-apa.

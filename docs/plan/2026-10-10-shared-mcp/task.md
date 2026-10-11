@@ -22,7 +22,7 @@ Mode: **Lean** (od-execute). Plan: `plan.md`. Evidence: `research.md`.
 - Port for the shared server? → **3481** (Recommended).
 - Keep stdio as a supported mode? → **Ya, tetap** — default with no flag, the bypass if the shared server breaks.
 - OPEN #2 (fallback if roots fail over HTTP) — moot: Phase 00 proved roots work over HTTP (findings.md).
-- **PENDING (asked 2026-10-10, no answer yet):** grant `/Users/macbook/.bun/bin/bun` macOS Documents access (Full Disk Access or Files and Folders) so the launchd agent can read `~/Documents`? Phase 04 install waits on it (findings.md Phase 03, Discovered 1).
+- **RESOLVED 2026-10-11 (grant present in TCC.db):** grant `/Users/macbook/.bun/bin/bun` macOS Documents access (Full Disk Access or Files and Folders) so the launchd agent can read `~/Documents`? Phase 04 install waits on it (findings.md Phase 03, Discovered 1).
 
 ## Execution DAG
 
@@ -44,17 +44,17 @@ Linear chain, every block sequential. Phases 0–4 are executor dispatches; Phas
   - _Blocked by: Phase 01_
 
 ### Block 4 — sequential
-- [ ] Phase 03 — launchd agent and restart story
+- [x] Phase 03 — launchd agent and restart story
   - _Plan: plan.md §Phase 3_
   - _Blocked by: Phase 02_
 
 ### Block 5 — sequential
-- [ ] Phase 04 — switch over and record it
+- [x] Phase 04 — switch over and record it
   - _Plan: plan.md §Phase 4_
   - _Blocked by: Phase 03_
 
 ### Block 6 — sequential
-- [ ] Phase 05 — acceptance (from where the user stands)
+- [x] Phase 05 — acceptance (from where the user stands)
   - _Plan: plan.md §Phase 5_
   - _Blocked by: Phase 04_
 
