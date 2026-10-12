@@ -26,6 +26,8 @@ type HookInput = {
     edits?: { new_string?: string }[];
     // the Agent/Task tool: the subagent's whole brief
     prompt?: string;
+    // mcp__batas__record: memory kinds write a file, "lesson" only drafts
+    type?: string;
   };
   prompt?: string;
   last_assistant_message?: string;
@@ -52,6 +54,8 @@ type SessionState = {
   listed: string[];
   // a correction the user made in this turn's prompt, held until Stop has checked it once (captureCorrection)
   correction?: { at: number; strong: boolean };
+  // when this session last called mcp__batas__record (not a lesson draft), seen by the PostToolUse hook
+  recordedAt?: number;
 };
 
 type Pending = { key: string; kind: "prompt" | "write"; at: number; file?: string };
@@ -155,6 +159,13 @@ function attributeBash(input: HookInput, state: SessionState): string[] {
     [repoRoot(commandDir(input.tool_input?.command, input.cwd)), repoRoot(input.cwd)].filter((r): r is string => !!r),
   );
   const added: string[] = [];
+  for (const f of recordFiles([...repos])) {
+    const m = mtime(f);
+    if (m !== undefined && m >= state.bashStart - 5 && !state.touched.includes(f)) {
+      state.touched.push(f);
+      added.push(f);
+    }
+  }
   for (const repo of repos) {
     for (const f of dirtyFiles(repo)) {
       const m = mtime(f);
@@ -435,6 +446,7 @@ function loadSession(id: string): SessionState {
       pending: s.pending ?? [],
       listed: s.listed ?? [],
       correction: s.correction,
+      recordedAt: s.recordedAt,
     };
   } catch {
     return { injected: [], hinted: [], lastPrompt: [], muted: [], touched: [], started: Date.now(), bashStart: 0, spent: 0, pending: [], listed: [] };
@@ -742,6 +754,14 @@ export function evaluate(input: HookInput, store: Store, triggers: Triggers, sem
   }
 
   if (event === "PostToolUse") {
+    if (input.tool_name === "mcp__batas__record") {
+      // A lesson is only drafted, nothing is written; the rule edit that applies it is attributed on its own.
+      if (input.tool_input?.type === "lesson") return { output: {}, fired: [] };
+      const st = loadSession(session);
+      st.recordedAt = Date.now();
+      saveSession(session, st);
+      return { output: {}, fired: [] };
+    }
     if (input.tool_name !== "Bash") return { output: {}, fired: [] };
     const st = loadSession(session);
     const changed = attributeBash(input, st);
@@ -1028,14 +1048,33 @@ async function settleSemantic(
   };
 }
 
-// A memory, rule or lesson file changed at or after `at`: what a correction turned into a record looks like on disk,
-// whether mcp__batas__record, a Write or a script wrote it. Read from the filesystem for the same reason the Stop hooks
-// in ~/.claude/hooks read batas's attribution: a transcript scan misses every write that is not a file tool.
-function recordedSince(at: number, cwd: string | undefined): boolean {
+// Where a correction becomes a record: memories, the global rules, and each repo's project rules and lessons.
+function recordFiles(repos: string[]): string[] {
   const files = [...allMemorySources().map((s) => s.file), ...listMd(config.sharedMemoryDir), ...listMd(config.rulesDir)];
-  const root = repoRoot(cwd);
-  if (root) files.push(...listMd(join(root, ".claude", "rules")), ...listMd(join(root, "docs", "lessons")));
-  return files.some((f) => (mtime(f) ?? 0) >= at);
+  for (const r of repos) files.push(...listMd(join(r, ".claude", "rules")), ...listMd(join(r, "docs", "lessons")));
+  return files;
+}
+
+// Read off config rather than a literal ".claude", so a BATAS_CLAUDE_HOME elsewhere (the tests) is matched the same way.
+function isRecordPath(f: string): boolean {
+  if (!f.endsWith(".md")) return false;
+  const under = (dir: string) => f.startsWith(`${dir}/`);
+  return (
+    (under(config.projectsDir) && basename(dirname(f)) === "memory") ||
+    under(config.sharedMemoryDir) ||
+    under(config.rulesDir) ||
+    /\/\.claude\/rules\/[^/]+\.md$/.test(f) ||
+    /\/docs\/lessons\/[^/]+\.md$/.test(f)
+  );
+}
+
+// Recorded by THIS session after `at`: an mcp__batas__record call it made, or a memory, rule or lesson file it wrote
+// (Edit/Write, or a script during one of its Bash calls) that has not been rewritten before `at` since. Any file on the
+// machine changing was the first version of this check, and with several sessions open another session's memory write
+// let an unrecorded correction through.
+function recordedSince(state: SessionState, at: number): boolean {
+  if ((state.recordedAt ?? 0) >= at) return true;
+  return state.touched.some((f) => isRecordPath(f) && (mtime(f) ?? 0) >= at);
 }
 
 const CORRECTION_NOTE = [
@@ -1083,7 +1122,7 @@ export function captureCorrection(input: HookInput, result: { output: object; fi
     if (!c?.strong) return result;
     state.correction = undefined;
     saveSession(session, state);
-    if (recordedSince(c.at, input.cwd)) return result;
+    if (recordedSince(state, c.at)) return result;
     const reason = o.decision === "block" && o.reason ? `${o.reason}\n\n${CORRECTION_STOP}` : CORRECTION_STOP;
     return { output: { ...o, decision: "block", reason }, fired: [...result.fired, "correction:unrecorded"] };
   }

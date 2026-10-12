@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -24,6 +24,7 @@ import { Store } from "../src/store.ts";
 import { Triggers } from "../src/triggers.ts";
 import { indexHook, INDEX_HOOK_MAX, logChangelog, logProgress, memoryDir, recordMemory } from "../src/write.ts";
 import { createServer, projectOf, serveHttp, type SessionContext } from "../src/mcp.ts";
+import { installHooks } from "../src/install.ts";
 
 const root = process.env.BATAS_TEST_ROOT as string;
 const demo = join(root, "repos", "demo-app");
@@ -649,10 +650,37 @@ describe("hook", () => {
       expect(stop("cc1").output).toEqual({});
     });
 
-    test("a memory written after the correction lets Stop through", () => {
+    const memFile = (name: string) => join(config.projectsDir, "-tmp-demo", "memory", `${name}.md`);
+    const memBody = "---\nname: x\ndescription: x\n---\n\nbody\n";
+
+    test("a memory THIS session wrote with the Write tool after the correction lets Stop through", () => {
       prompt("cc2", "padahal udah gua bilang jangan pakai script");
-      writeFileSync(join(config.projectsDir, "-tmp-demo", "memory", "no-scripts-cc2.md"), "---\nname: no-scripts-cc2\ndescription: x\n---\n\nbody\n");
+      const f = memFile("no-scripts-cc2");
+      evaluate({ session_id: "cc2", hook_event_name: "PreToolUse", tool_name: "Write", cwd: demo, tool_input: { file_path: f, content: memBody } }, store, t);
+      writeFileSync(f, memBody);
       expect(stop("cc2").output).toEqual({});
+    });
+
+    test("a memory ANOTHER session wrote after the correction does not count", () => {
+      prompt("cc9", "kan gua udah bilang jangan pakai branch");
+      evaluate({ session_id: "someone-else", hook_event_name: "PreToolUse", tool_name: "Write", cwd: demo, tool_input: { file_path: memFile("other-cc9"), content: memBody } }, store, t);
+      writeFileSync(memFile("other-cc9"), memBody);
+      expect((stop("cc9").output as { decision?: string }).decision).toBe("block");
+    });
+
+    test("an mcp__batas__record call by this session after the correction lets Stop through", () => {
+      prompt("cc10", "I already told you to use worktrees");
+      evaluate({ session_id: "cc10", hook_event_name: "PostToolUse", tool_name: "mcp__batas__record", cwd: demo, tool_input: { type: "feedback" } }, store, t);
+      expect(stop("cc10").output).toEqual({});
+    });
+
+    test("a memory this session wrote through a Bash script during the call lets Stop through", () => {
+      prompt("cc11", "bukan gitu maksudnya, jangan pakai branch lagi");
+      const bash = { session_id: "cc11", tool_name: "Bash", cwd: demo, tool_input: { command: "python3 -c 'open(\"m.md\",\"w\")'" } };
+      evaluate({ ...bash, hook_event_name: "PreToolUse" }, store, t);
+      writeFileSync(memFile("script-cc11"), memBody);
+      evaluate({ ...bash, hook_event_name: "PostToolUse" }, store, t);
+      expect(stop("cc11").output).toEqual({});
     });
 
     test("kan harusnya alone only reminds, and never blocks", () => {
@@ -750,6 +778,40 @@ describe("hook", () => {
   test("a Read of an unrelated file stays silent", () => {
     const r = evaluate({ session_id: "h4", hook_event_name: "PreToolUse", tool_name: "Read", tool_input: { file_path: "/x/README.md" } }, store, t);
     expect(r.output).toEqual({});
+  });
+});
+
+describe("install", () => {
+  test("installHooks keeps one batas hook per event whatever its spelling, and leaves other hooks alone", () => {
+    const hook = join(import.meta.dir, "..", "src", "hook.ts");
+    const tilde = `bun ${hook.replace(homedir(), "~")}`;
+    const canonical = `bun "${hook}"`;
+    const file = join(config.claudeHome, "settings.json");
+    const before = existsSync(file) ? readFileSync(file, "utf8") : undefined;
+    writeFileSync(file, JSON.stringify({
+      hooks: {
+        Stop: [
+          { hooks: [{ type: "command", command: tilde }, { type: "command", command: "python3 other-guard.py" }] },
+          { hooks: [{ type: "command", command: canonical }] },
+        ],
+        PostToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: tilde }] }],
+      },
+    }));
+    try {
+      const changes = installHooks();
+      expect(changes).toContain("Stop (duplicate removed)");
+      const hooks = (JSON.parse(readFileSync(file, "utf8")) as { hooks: Record<string, { matcher?: string; hooks: { command: string }[] }[]> }).hooks;
+      for (const ev of ["Stop", "PostToolUse", "PreToolUse", "UserPromptSubmit"]) {
+        const ours = (hooks[ev] ?? []).flatMap((g) => g.hooks).filter((h) => h.command.includes("src/hook.ts"));
+        expect(ours.map((h) => h.command)).toEqual([canonical]);
+      }
+      expect(hooks.Stop?.flatMap((g) => g.hooks).map((h) => h.command)).toContain("python3 other-guard.py");
+      expect(hooks.PostToolUse?.[0]?.matcher).toBe("Bash|mcp__batas__record");
+      expect(installHooks()).toEqual([]);
+    } finally {
+      if (before === undefined) rmSync(file, { force: true });
+      else writeFileSync(file, before);
+    }
   });
 });
 

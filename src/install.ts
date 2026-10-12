@@ -9,19 +9,29 @@ type HookGroup = { matcher?: string; hooks: HookCmd[] };
 type Settings = { hooks?: Record<string, HookGroup[]> } & Record<string, unknown>;
 
 const repo = resolve(import.meta.dir, "..");
-const hookCmd = `bun "${join(repo, "src", "hook.ts")}"`;
+const hookPath = join(repo, "src", "hook.ts");
+const hookCmd = `bun "${hookPath}"`;
+
+// Any spelling of this repo's hook command: quoted or not, through ~ or the absolute path. An exact-string match missed
+// an older `bun ~/Documents/…/hook.ts` Stop entry and registered a second one (2026-10-13), so every Stop ran twice.
+function isOurHook(command: string): boolean {
+  const m = command.trim().match(/^bun\s+"?([^"]+?)"?$/);
+  const path = m?.[1];
+  return !!path && resolve(path.replace(/^~(?=\/)/, homedir())) === hookPath;
+}
 const mcpEntry = join(repo, "src", "mcp.ts");
 
 const WANT: { event: string; matcher?: string }[] = [
   // Agent|Task: a subagent's brief is matched like a prompt and gets the memories appended (see briefSubagent)
   { event: "PreToolUse", matcher: "Bash|Read|Edit|Write|MultiEdit|NotebookEdit|Agent|Task" },
   // Attributes files a Bash command changed (scripts, redirects, sed) to the session, for the collision guard.
-  { event: "PostToolUse", matcher: "Bash" },
+  // mcp__batas__record: the correction check reads which session recorded (src/hook.ts captureCorrection)
+  { event: "PostToolUse", matcher: "Bash|mcp__batas__record" },
   { event: "UserPromptSubmit" },
   { event: "Stop" },
 ];
 
-function installHooks(): string[] {
+export function installHooks(): string[] {
   const file = join(config.claudeHome, "settings.json");
   const raw = readFileSync(file, "utf8");
   const settings = JSON.parse(raw) as Settings;
@@ -29,8 +39,19 @@ function installHooks(): string[] {
   const added: string[] = [];
   for (const w of WANT) {
     const groups = (settings.hooks[w.event] ??= []);
-    const present = groups.find((g) => g.hooks.some((h) => h.command === hookCmd));
+    const [present, ...extra] = groups.filter((g) => g.hooks.some((h) => isOurHook(h.command)));
+    for (const g of extra) {
+      g.hooks = g.hooks.filter((h) => !isOurHook(h.command));
+      added.push(`${w.event} (duplicate removed)`);
+    }
+    if (extra.length) settings.hooks[w.event] = groups.filter((g) => g.hooks.length);
     if (present) {
+      for (const h of present.hooks) {
+        if (isOurHook(h.command) && h.command !== hookCmd) {
+          h.command = hookCmd;
+          added.push(`${w.event} (path normalised)`);
+        }
+      }
       // an older install registered a narrower matcher; widen it in place rather than adding a second group
       if (w.matcher && present.matcher !== w.matcher) {
         present.matcher = w.matcher;
@@ -40,7 +61,7 @@ function installHooks(): string[] {
     }
     const group: HookGroup = { hooks: [{ type: "command", command: hookCmd, timeout: 5 }] };
     if (w.matcher) group.matcher = w.matcher;
-    groups.push(group);
+    settings.hooks[w.event]?.push(group);
     added.push(w.event);
   }
   if (added.length) {
@@ -116,14 +137,16 @@ if (!existsSync(config.triggersFile)) {
   mkdirSync(dirname(config.triggersFile), { recursive: true });
   writeFileSync(config.triggersFile, "# batas triggers — see the batas repo README for the format\n");
 }
-const added = installHooks();
-console.log(`hooks: ${added.length ? `added ${added.join(", ")}` : "already present"}`);
-console.log(`mcp: ${installMcp()}`);
-console.log(`skill: ${installSkill()}`);
-console.log(`batasd agent: ${installAgent()}`);
-const t = performance.now();
-const store = new Store();
-const r = store.refresh("all");
-console.log(`corpus: ${r.changed} files parsed in ${Math.round(performance.now() - t)}ms`);
-console.log(`entries: ${store.stats().map((s) => `${s.kind} ${s.n}`).join(", ")}`);
-console.log("batasd: the first full embedding pass runs in the background after it starts (`just semantic-status`)");
+if (import.meta.main) {
+  const added = installHooks();
+  console.log(`hooks: ${added.length ? `added ${added.join(", ")}` : "already present"}`);
+  console.log(`mcp: ${installMcp()}`);
+  console.log(`skill: ${installSkill()}`);
+  console.log(`batasd agent: ${installAgent()}`);
+  const t = performance.now();
+  const store = new Store();
+  const r = store.refresh("all");
+  console.log(`corpus: ${r.changed} files parsed in ${Math.round(performance.now() - t)}ms`);
+  console.log(`entries: ${store.stats().map((s) => `${s.kind} ${s.n}`).join(", ")}`);
+  console.log("batasd: the first full embedding pass runs in the background after it starts (`just semantic-status`)");
+}

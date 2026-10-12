@@ -1,5 +1,10 @@
 # batas Changelog
 
+## v0.20.1 — Cek koreksi nggak lagi bisa lolos karena sesi lain
+
+- Di v0.20.0, agent yang kamu koreksi bisa lolos dari penahanan di akhir giliran kalau ada sesi Claude **lain** yang kebetulan nulis memory. Sekarang yang dihitung cuma catatan dari sesi itu sendiri: panggilan `record` dari sesi itu, atau file memory/rule/lesson yang ditulis sesi itu (lewat tool atau script).
+- Hook akhir giliran batas sempat terdaftar dua kali di `~/.claude/settings.json`, jadi jalan dua kali tiap akhir giliran. Sudah dibersihkan, dan `just install` sekarang mengenali hook batas dalam penulisan apa pun, jadi duplikat seperti ini nggak bisa muncul lagi.
+
 ## v0.20.0 — Koreksi dari kamu sekarang diminta dicatat
 
 - Kalau kamu mengoreksi agent dengan kata-katamu sendiri ("udah gua bilang", "bukan gitu", "jangan … lagi", "I told you"), batas langsung minta agent mengulang koreksinya, membetulkan kerjaannya, lalu mencatatnya ke memory.

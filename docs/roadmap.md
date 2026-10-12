@@ -96,8 +96,10 @@ raw dump into `docs/lessons/`.
     `evaluate`. Tuned on 15,761 real prompts, first 300 characters only (deeper hits were pasted text): the strong tier
     (`udah gua bilang`, `bukan gitu`, `jangan … lagi`, `jangan sampai ilang`, `I told you`, ...) hit 69 prompts and was a
     true correction in 41 of 50 hand-labelled; it injects the ask and arms Stop. `kan harusnya` alone (84 more prompts,
-    12 true / 9 false) only reminds. Stop asks once, and passes when any memory, rule or lesson file changed after the
-    prompt (filesystem, so a record through MCP, Write or a script all count). Of the four corrections in the plan's
+    12 true / 9 false) only reminds. Stop asks once, and passes only on a record by THIS session after the prompt: an
+    `mcp__batas__record` call (PostToolUse, matcher widened), or a memory, rule or lesson file it wrote by Edit/Write or by
+    a script during one of its Bash calls. **Fixed 2026-10-13 (v0.20.1):** the first version passed when any such file on
+    the machine changed, so another live session's memory write let an unrecorded correction through. Of the four corrections in the plan's
     evidence session, two are caught ("kok gua bilang mulu", "jangan sampai ilang"); "simpan ke batas" is a request to
     save, not a correction, and "bukan arsip mentah" is too generic to match without flooding. Not yet measured: whether
     an agent given the ask actually records (a `claude -p` behaviour eval).
