@@ -1,5 +1,9 @@
 # batas Changelog
 
+## v0.20.2 — batasd tetap fp32 setelah diukur
+- Internal, tidak ada perubahan yang terasa. Presisi fp16 dan bf16 sudah diuji: memori batasd tidak turun (tetap ~2.2 GB) dan recall bahasa Indonesia sedikit turun, jadi batasd tetap fp32.
+- Kalau mau lebih kecil, jalannya ganti runtime (MLX, ONNX), belum dikerjakan.
+
 ## v0.20.1 — Cek koreksi nggak lagi bisa lolos karena sesi lain
 
 - Di v0.20.0, agent yang kamu koreksi bisa lolos dari penahanan di akhir giliran kalau ada sesi Claude **lain** yang kebetulan nulis memory. Sekarang yang dihitung cuma catatan dari sesi itu sendiri: panggilan `record` dari sesi itu, atau file memory/rule/lesson yang ditulis sesi itu (lewat tool atau script).
