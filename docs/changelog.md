@@ -1,5 +1,8 @@
 # batas Changelog
 
+## v0.20.3 — Ganti runtime ke MLX sudah dicoba, nggak worth
+- Internal, tidak ada perubahan yang terasa. batasd versi MLX cuma ~150 MB lebih hemat (2.1 GB vs 2.27 GB) dengan akurasi sama, jadi batasd tetap di PyTorch.
+
 ## v0.20.2 — batasd tetap fp32 setelah diukur
 - Internal, tidak ada perubahan yang terasa. Presisi fp16 dan bf16 sudah diuji: memori batasd tidak turun (tetap ~2.2 GB) dan recall bahasa Indonesia sedikit turun, jadi batasd tetap fp32.
 - Kalau mau lebih kecil, jalannya ganti runtime (MLX, ONNX), belum dikerjakan.
