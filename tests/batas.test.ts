@@ -270,7 +270,9 @@ describe("corpus", () => {
     const edit = (dir: string, name: string) => ({ file_path: join(dir, name), old_string: "a", new_string: "b" });
 
     test("the Step 5b rule note fires on a converted or lettered family file, never on an unconverted one", async () => {
-      const unconverted = await hookCtx(process.env, "Edit", edit(config.rulesDir, "coding-standard.md"));
+      // a real family file still without the marker; conversion moves through the corpus file by file
+      const still = Object.entries(config.families).find(([name, fam]) => !config.familyLettered[fam] && existsSync(join(config.rulesDir, name)) && !readFileSync(join(config.rulesDir, name), "utf8").includes("<!-- batas:numbered -->"))?.[0];
+      const unconverted = still ? await hookCtx(process.env, "Edit", edit(config.rulesDir, still)) : "";
       const converted = await hookCtx(env, "Edit", edit(rules, "coding-standard.md"));
       const lettered = await hookCtx(env, "Edit", edit(rules, "p-gotcha-db.md"));
       console.log("step5b unconverted/converted/lettered:", unconverted.includes(STEP5B), converted.includes(STEP5B), lettered.includes(STEP5B));
