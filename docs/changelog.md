@@ -6,6 +6,7 @@
 - 10 aturan sengaja tetap tanpa pemicu karena berlaku tiap giliran atau momennya tidak terlihat oleh hook (dispatch subagent, WebFetch, pesan error di output); daftarnya ada di progress.
 - 8 aturan yang jarang muncul dan tidak destruktif pindah dari file always-on ke slice yang disuntikkan batas (gotcha A1 A2 A7 A10 E36 E37, lessons C10 C14); lessons H6 dipendekkan jadi kalimat destruktifnya saja. Aturan destruktif (email, kamera, prisma shadow DB, git checkout bertanda bintang, dll) tetap always-on.
 - Tidak ada aturan yang hilang: 157 gotcha dan 135 lessons, nomor dan id tetap. Korpus always-on turun dari 72.644 ke 70.789 byte.
+- Perbaikan susulan: pemicu C8 kini juga menangkap `git worktree add` dan `remove`; C10, C14 dan E36 kembali always-on karena pemicunya tidak menjangkau momen berisikonya. Korpus always-on jadi 71.637 byte.
 - Tindakan: tidak ada. Perubahan aturan berlaku di sesi baru.
 
 ## v0.20.6 — Nomor aturan yang sudah dihapus tidak bisa dipakai ulang diam-diam
