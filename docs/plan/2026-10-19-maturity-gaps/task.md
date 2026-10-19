@@ -43,3 +43,24 @@ every model request); batas injection is cheap. Shrink the always-on half withou
 - OPEN 2: exempt and kept whole always-on: `00-index.md`, `01-request-fidelity.md`, `persona.md`. All other files are in scope.
 - OPEN 3: 4 cases plus 2 controls per run (6 `claude -p` sessions), run by hand through `just` after a rule move, never on a timer.
 - New from the user mid-resume: roadmap item 29 (per-rule fire ledger in a mod, then prune). Not in this plan; after items 21-24.
+
+## Execution DAG
+
+Sequential throughout: Phases 2 and 3 both write `~/.claude/batas/triggers.toml` and the rule files, and Phase 4 measures
+what 2 and 3 moved. Working directory: the batas repo root (no isolation).
+
+## Block 1
+- [ ] Phase 01 — orphan gate + derived counts (item 23)
+  _Plan: plan.md §Phase 1_ · _Blocked by: none_
+
+## Block 2
+- [ ] Phase 02 — triggers for the 28, move rare non-destructive items (item 22)
+  _Plan: plan.md §Phase 2_ · _Blocked by: Phase 01_
+
+## Block 3
+- [ ] Phase 03 — a line in the rules, the content in batas (item 21)
+  _Plan: plan.md §Phase 3_ · _Blocked by: Phase 02_
+
+## Block 4
+- [ ] Phase 04 — recurring delivery-eval recipe, one run (item 24)
+  _Plan: plan.md §Phase 4_ · _Blocked by: Phase 03_
