@@ -218,7 +218,7 @@ always-on, what is not enforced, and what has stopped being measured.
     `tool.call` and `prompt.submit` live, main and subagent, and can keep a per-rule ledger in `$.store`: fires, sessions
     reached, last fired, and whether the next action followed the rule. Output: a `just rule-ledger` report ranking
     rules by fires and by effect, with three verdicts: keep always-on, move inject-only (feeds item 22), or a candidate
-    to delete (zero fires over 30 days and not destructive). Deleting stays the user's call, made from that list.
+    to delete (zero fires over 30 days and not destructive). Deleting stays the user's call, made from that list. **A zero is only a delete candidate when every gate holds** (the side-agent note of 2026-10-19: a zero can mean no trigger, a broken trigger, or a rule too dangerous to drop): the id has a trigger in `triggers.toml` (no trigger -> "not judgeable"), its `t_*` fixture still fires in `just check` (a failing fixture -> "broken trigger"), it is not marked destructive (never a candidate), and it saw zero SITUATIONS in 30 days. The ledger counts the situation arising (the command or path matched), not the mistake happening, so a rule that works still accrues fires. A deleted rule's id goes into `~/.claude/batas/retired-ids.txt` and is never reused, so the ledger never mixes two rules under one id.
     Split per memory `mods-deferred-until-stable`: the mod only counts, enforcement stays in the existing hooks, and a
     session without the mod only loses its counts. Builds on item 20's ledger. Status: planned, after items 21-24.
 
