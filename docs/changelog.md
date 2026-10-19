@@ -1,5 +1,14 @@
 # batas Changelog
 
+## v0.25.0 — `just delivery-check`: cek ulang apakah aturan global yang dipindah masih sampai ke agen
+
+- Satu perintah, `just delivery-check`, menjalankan 6 sesi `claude -p` (4 aturan global yang dipindah atau dikonversi di Fase 2-3, ditambah 2 kontrol). Tiap sesi hanya membuka satu file tak berbahaya di folder sementara pada path fixture aturan itu, lalu harus mengutip aturan yang masuk ke konteksnya.
+- Hasil disimpan ke `.delivery-eval-rules.json`. Run berikutnya dengan set kasus yang sama keluar dengan kode 1 dan menyebut kasus yang turun, atau kontrol yang ikut mengutip aturan. Run pertama hanya menyimpan baseline.
+- Run pertama (2026-10-19): 2 dari 4 aturan sampai, kontrol bersih 2 dari 2. `cs:20` dan `ver:3` belum sampai dan dicatat sebagai temuan, pemicunya tidak diubah.
+- Dijalankan manual setelah memindah aturan, bukan terjadwal, dan tidak ada di `just check`.
+
+---
+
 ## v0.24.0 — Enam file aturan always-on terakhir kini bernomor, teks lengkapnya datang dari batas
 
 - `gitnexus-first.md`, `batas-first.md`, `primitive.md`, `progress-changelog.md`, `commit-message.md` dan `python-c-over-bash.md` kini bernomor permanen (`gnx:N`, `bf:N`, `prim:N`, `pc:N`, `cm:N`, `py:N`). Teks lengkap tiap butir ada di `~/.claude/references/rules-full/` dan disuntikkan batas saat pemicunya menyala, misalnya `npx gitnexus clean` memunculkan `gnx:9`, `just mcp-status` memunculkan `bf:11`.

@@ -204,7 +204,10 @@ always-on, what is not enforced, and what has stopped being measured.
 24. **Delivery-eval as a recurring regression** — the `.delivery-eval-*.json` results date from 2026-10-08, before the
     shared HTTP server, correction capture, the A1 move and every trigger change since. Nothing re-runs it, so
     "the rule arrives when needed" is a week-old claim. Run it on a schedule (or from `just check` with a small case
-    count) and fail on a drop. Status: planned.
+    count) and fail on a drop. Status: **done 2026-10-19** — `just delivery-check` (`delivery-eval.ts --rules`) runs 4 cases
+    + 2 controls over the global rules Phases 2-3 moved, by path fixture only, and exits 1 against
+    `.delivery-eval-rules.json`. Run by hand after a rule move, not on a timer, and not in `just check`. First run
+    delivered 2/4, controls 2/2 (cs:20 and ver:3 missed, open findings), saved as the baseline.
 25. **Memories that state a config value go stale silently** — item 4 checks paths only. On 2026-10-19 the hard stop
     moved 800000 -> 600000 -> 500000 in one day and two memories still stated the old number until edited by hand.
     Check memories that quote a `settings.json` env key or value against the live file. Status: planned.

@@ -112,6 +112,7 @@ when a converted item has no `## N` section; the hook falls back to the condense
 | `just recall "restore a dump into an empty database"` | search by meaning from the terminal |
 | `just semantic-status` / `just batasd-restart` | is batasd up, how many vectors; restart it on the current code |
 | `just semantic-eval [--lessons\|--repo\|--all]` / `just semantic-calibrate` | recall quality on the 80 blind probes; where the prompt gate sits |
+| `just delivery-check` | after a rule move: 6 fresh `claude -p` sessions (4 moved/converted global rules, 2 controls) each Read a harmless file at a rule's path fixture; exits 1 when delivery drops against the saved `.delivery-eval-rules.json` (the first run saves the baseline). `bun scripts/delivery-eval.ts --compare <previous.json> <current.json>` runs only the comparison |
 | `just fire "git stash pop"` | which rules a command or phrase fires |
 | `just log` | recent hook calls: what fired, and how many ms it took |
 | `just reindex` | re-embed whatever changed, and wait for it |

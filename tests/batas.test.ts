@@ -10,6 +10,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { ListRootsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { config } from "../src/config.ts";
 import { captureCorrection, evaluate, lateSemantic, logFlags, ownWords } from "../src/hook.ts";
+import { compareRules, type RuleResult, type RulesRun } from "../scripts/delivery-eval.ts";
 import { auditPrompts } from "../scripts/prompt-audit.ts";
 import { gitIndex, judgePath, namedPaths, resolveRoot } from "../scripts/memory-audit.ts";
 import { mine, signature } from "../scripts/lesson-mine.ts";
@@ -1812,3 +1813,38 @@ describe("latency budget", () => {
   });
 });
 
+
+describe("delivery-check comparison", () => {
+  const run = (cases: boolean[], controls: boolean[] = [true, true]): RulesRun => ({
+    date: "2026-10-19",
+    seed: 11,
+    key: "same",
+    results: [
+      ...cases.map((ok, i): RuleResult => ({ id: `cs:${i + 1}`, kind: "case", file: `f${i}.ts`, ok, answer: "" })),
+      ...controls.map((ok, i): RuleResult => ({ id: "control", kind: "control", file: `c${i}.txt`, ok, answer: "" })),
+    ],
+  });
+
+  test("four passes before and three now is a drop that names the case", () => {
+    const { drops } = compareRules(run([true, true, true, true]), run([true, true, false, true]));
+    expect(drops).toHaveLength(1);
+    expect(drops[0]).toContain("cs:3");
+  });
+
+  test("a control that quotes a rule is a drop even when every case passes", () => {
+    const { drops } = compareRules(run([true, true, true, true]), run([true, true, true, true], [true, false]));
+    expect(drops).toHaveLength(1);
+    expect(drops[0]).toContain("c1.txt");
+  });
+
+  test("equal results are no drop, and a case that already failed is not blamed again", () => {
+    expect(compareRules(run([true, true, true, true]), run([true, true, true, true])).drops).toEqual([]);
+    expect(compareRules(run([true, true, false, true]), run([true, true, false, true])).drops).toEqual([]);
+  });
+
+  test("a different case set is a new baseline, not a comparison", () => {
+    const { drops, note } = compareRules({ ...run([true]), key: "old" }, run([false]));
+    expect(drops).toEqual([]);
+    expect(note).toContain("baseline");
+  });
+});

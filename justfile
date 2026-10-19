@@ -106,6 +106,10 @@ lessons-route repo *args:
 delivery-eval repo mode="read" cases="15" controls="5" seed="11":
     bun scripts/delivery-eval.ts {{repo}} {{cases}} {{controls}} {{seed}} {{mode}}
 
+# after a rule move: do the moved/converted GLOBAL rules still arrive when a file at their path is Read? 4 cases + 2 controls = 6 claude -p sessions; exits 1 on a drop against .delivery-eval-rules.json (first run saves the baseline)
+delivery-check cases="4" controls="2" seed="11":
+    bun scripts/delivery-eval.ts --rules {{cases}} {{controls}} {{seed}}
+
 # memories naming a file that no longer exists: stale only when git once tracked it, with the rename target (report only)
 memory-audit:
     bun scripts/memory-audit.ts
