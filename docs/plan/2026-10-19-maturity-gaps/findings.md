@@ -207,3 +207,23 @@ requires every every-turn/prompt-only item to keep its named tools, paths, numbe
   lines (444 B, the only in-file path to rules-full — kept). Net cost ~1 KB always-on, bought per-item addresses.
 - Phase 03 totals: 16-file always-on 71,637 B (after Phase 2) -> 66,863 B; session start was 72,644 B (-5,781 B, ~-1.4k
   tokens per request). 11 files addressed: cs 27, dod 17, ver 10, ui 7, bduf 5, gnx 11, bf 12, prim 7, pc 13, cm 6, py 6.
+
+## 2026-10-19 — Phase 04 (sonnet, 252 s, 1 attempt) — SHIPPED-UNVERIFIED; first rules run 2/4, controls 2/2
+
+- d7ba9d1: rules case source in scripts/delivery-eval.ts (PATH fixtures only — cmd fixtures include destructive commands
+  a session would execute), `just delivery-check` 4+2, compare to saved, `.failed.json` on a drop. 122 tests. Red proof
+  offline (A7 flipped -> `DROP case gotcha:A7 …`, exit 1). 6 sessions used; `just verify` 3959/3959, nothing restored.
+- Run (seed 11): cs:20 NO (answered NONE), gotcha:A2 OK, gotcha:A7 OK, ver:3 NO (quoted gotcha:D1).
+- Orchestrator audit probe (real hook, no session): both misses WERE delivered — Makefile injects gotcha:E35 + cs:20
+  (2,138 B), wxt.config.ts injects gotcha:D1 + ver:3 (1,832 B). Causes are scoring: the rules mode reused the project
+  prompt "specifically about code in that file (not general coding rules)", which excludes cs:20; ver:3's headline was
+  derived from its table header. Receipt dispatched as a harness fix (no sessions); a re-run needs the user (budget spent).
+
+## 2026-10-19 — Phase 04 receipt fix (bac30eb, sonnet, 132 s, 1 attempt) — re-check clean; Phase 04 DONE (re-run pending user)
+
+- Rules mode has its own prompt (list the `### <id>` of every injected batas block), id-match scoring, table headers never
+  a headline, `promptVersion: 2` (mismatch = new baseline), `--precheck` runs the real hook per fixture with no session
+  and a miss is attributed `delivery` or `model`.
+- Orchestrator re-check: `just check` 126/0; `--precheck` injected=yes for cs:20, gotcha:A2, gotcha:A7, ver:3; both
+  controls fire nothing. Delivery of every sampled moved rule is proven deterministically; the model-quoting half needs a
+  6-session re-run under the new prompt, which is the user's call (budget spent).

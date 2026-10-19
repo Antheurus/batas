@@ -62,5 +62,5 @@ what 2 and 3 moved. Working directory: the batas repo root (no isolation).
   _Plan: plan.md §Phase 3_ · _Blocked by: Phase 02_
 
 ## Block 4
-- [ ] Phase 04 — recurring delivery-eval recipe, one run (item 24)
+- [x] Phase 04 — recurring delivery-eval recipe, one run (item 24) — d7ba9d1, bac30eb; re-run under the new prompt awaits the user
   _Plan: plan.md §Phase 4_ · _Blocked by: Phase 03_
