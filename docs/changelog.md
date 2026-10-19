@@ -1,5 +1,9 @@
 # batas Changelog
 
+## v0.20.4 — Aturan handover pindah ke mod
+
+- Internal change, no user-visible effect: aturan handover di 500k (lessons A1) udah nggak di rules lagi, jadi batas berhenti nyuntikin aturan itu. Sekarang aturannya dibawa mod `/cp` di 400k.
+
 ## v0.20.3 — Ganti runtime ke MLX sudah dicoba, nggak worth
 - Internal, tidak ada perubahan yang terasa. batasd versi MLX cuma ~150 MB lebih hemat (2.1 GB vs 2.27 GB) dengan akurasi sama, jadi batasd tetap di PyTorch.
 

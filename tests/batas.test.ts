@@ -37,7 +37,7 @@ describe("corpus", () => {
     const gotcha = rows.filter((r) => r.id.startsWith("gotcha:")).length;
     const lessons = rows.filter((r) => r.id.startsWith("lessons:")).length;
     expect(gotcha).toBe(157);
-    expect(lessons).toBe(136);
+    expect(lessons).toBe(135);
   });
 
   test("a rule moved into a slice keeps its permanent address", () => {
