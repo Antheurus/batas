@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { config } from "./config.ts";
-import { allMemorySources, familyOf, listMd, memoryTriggers, parseMemory, parseSections, projectSlug, type Entry, type Kind } from "./corpus.ts";
+import { allMemorySources, convertedFamily, listMd, memoryTriggers, parseMemory, parseSections, projectSlug, type Entry, type Kind } from "./corpus.ts";
 import { mutedIds, recordAck, reportWrong } from "./feedback.ts";
 import { filesInCommand, lessonsDir, regenAll, regenIfLessonsChanged, routedLessons } from "./lessons.ts";
 import { appendHookLog, liveSessions } from "./log.ts";
@@ -368,7 +368,7 @@ function liveNote(input: HookInput, state: SessionState): { id: string; text: st
 
 const isMemoryFile = (p: string) =>
   p.startsWith(`${config.projectsDir}/`) && /\/memory\/(?!MEMORY\.md$)[^/]+\.md$/.test(p);
-const isFamilyFile = (p: string) => p.startsWith(`${config.rulesDir}/`) && familyOf(p) !== undefined;
+const familyFileOf = (p: string) => (p.startsWith(`${config.rulesDir}/`) ? convertedFamily(p) : undefined);
 const HAS_TRIGGERS = /^\s*triggers:\s*\S/m;
 
 // rules-writer Step 5b at the moment of the write, not after a backfill: a memory without triggers is never injected,
@@ -396,7 +396,8 @@ function step5bNote(input: HookInput, state: SessionState): { id: string; text: 
       ].join("\n"),
     };
   }
-  if (isFamilyFile(p)) {
+  const family = familyFileOf(p);
+  if (family) {
     const id = "step5b:rules";
     if (state.injected.includes(id)) return undefined;
     return {
@@ -405,7 +406,7 @@ function step5bNote(input: HookInput, state: SessionState): { id: string; text: 
         "### Editing a numbered rule file — rules-writer Step 5b applies before this is done",
         "A new or moved item needs (1) an entry in ~/.claude/batas/triggers.toml with cmd/path/code regexes, prompt phrases",
         "in Indonesian AND English, and a t_* fixture each; (2) its verbatim full wording in",
-        `~/.claude/references/${config.familyFullText[familyOf(p) ?? ""] ?? "<family full text>"} under \`## <ID>\` — a rewritten item updates that section too. Then`,
+        `~/.claude/references/${config.familyFullText[family] ?? "<family full text>"} under \`## <ID>\` — a rewritten item updates that section too. Then`,
         "`just check` in the batas repo (the recall test) and `just sync` in cc-toriq.",
       ].join("\n"),
     };

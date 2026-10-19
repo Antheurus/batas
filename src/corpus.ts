@@ -121,7 +121,14 @@ export function parseFamily(file: string, family: string): Entry[] {
   return out;
 }
 
-export function parseSections(file: string, idPrefix: string, kind: Kind, scope: string, headRe = /^## /): Entry[] {
+export function parseSections(
+  file: string,
+  idPrefix: string,
+  kind: Kind,
+  scope: string,
+  headRe = /^## /,
+  skipLines: Set<number> = new Set(),
+): Entry[] {
   const raw = readFileSync(file, "utf8");
   const { body, offset } = stripFrontmatter(raw);
   const lines = body.split("\n");
@@ -148,9 +155,38 @@ export function parseSections(file: string, idPrefix: string, kind: Kind, scope:
       title = line.replace(/^#+\s*/, "").trim();
       start = i;
     }
-    buf.push(line);
+    if (!skipLines.has(i + offset + 1)) buf.push(line);
   });
   flush();
+  return out;
+}
+
+// Each defect is named, because the exactly-once count only says that a family is off, never where.
+export function familyDefects(
+  dir: string,
+  family: string,
+  fullFile = join(config.referenceDirs[0] ?? "", config.familyFullText[family] ?? ""),
+): string[] {
+  const files = listMd(dir).filter((file) => familyOf(file) === family);
+  const out: string[] = [];
+  if (!config.familyLettered[family] && files.length > 1) {
+    out.push(`family prefix ${family} is mapped from more than one file: ${files.map((f) => basename(f)).sort().join(", ")}`);
+  }
+  const at = new Map<string, string[]>();
+  for (const file of files) {
+    if (!convertedFamily(file)) continue;
+    const items = parseFamily(file, family);
+    if (!items.length) out.push(`converted family file has no numbered items: ${basename(file)}`);
+    for (const e of items) at.set(e.id, [...(at.get(e.id) ?? []), `${basename(file)}:${e.line}`]);
+  }
+  for (const [id, where] of at) if (where.length > 1) out.push(`duplicate id ${id} at ${where.join(", ")}`);
+  if (!config.familyLettered[family] && existsSync(fullFile)) {
+    for (const s of parseSections(fullFile, "full", "reference", "global")) {
+      if (/^\d+$/.test(s.title) && !at.has(`${family}:${s.title}`)) {
+        out.push(`orphan full-text section ## ${s.title} in ${basename(fullFile)}: no item ${family}:${s.title}`);
+      }
+    }
+  }
   return out;
 }
 
@@ -206,13 +242,24 @@ export function listMd(dir: string): string[] {
 
 export type Source = { file: string; parse: () => Entry[] };
 
-// An unlettered family file not yet converted (no marker) stays indexed by section, so its prose is never lost to recall.
-export function parseRuleFile(file: string): Entry[] {
+// The family a rule file's items are indexed under: lettered families always, an unlettered one only once it carries the
+// marker. The hook's Step 5b note asks the same question, so the two can never disagree about a file.
+export function convertedFamily(file: string): string | undefined {
   const family = familyOf(file);
-  if (family && (config.familyLettered[family] || NUMBERED_MARK.test(readFileSync(file, "utf8")))) {
-    return parseFamily(file, family);
-  }
-  return parseSections(file, `rule:${basename(file)}`, "rule-section", "global");
+  if (!family) return undefined;
+  if (config.familyLettered[family]) return family;
+  return existsSync(file) && NUMBERED_MARK.test(readFileSync(file, "utf8")) ? family : undefined;
+}
+
+// An unlettered family file not yet converted (no marker) stays indexed by section, and a converted one keeps the prose
+// outside its items as sections too, so its prose is never lost to recall and no item is indexed twice.
+export function parseRuleFile(file: string): Entry[] {
+  const family = convertedFamily(file);
+  if (!family) return parseSections(file, `rule:${basename(file)}`, "rule-section", "global");
+  const items = parseFamily(file, family);
+  if (config.familyLettered[family]) return items;
+  const itemLines = new Set(items.flatMap((e) => e.body.split("\n").map((_, k) => e.line + k)));
+  return [...items, ...parseSections(file, `rule:${basename(file)}`, "rule-section", "global", /^## /, itemLines)];
 }
 
 export function globalSources(): Source[] {

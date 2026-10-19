@@ -6,6 +6,7 @@
 - Saat pemicu aturan seperti `cs:12` menyala, batas menyuntikkan teks lengkapnya dari `~/.claude/references/rules-full/<file>`, bukan baris ringkas yang sudah ada di konteks. `mcp__batas__get` juga menampilkan teks lengkap itu.
 - Belum ada file aturan yang diubah: file baru dihitung bernomor setelah diberi baris `<!-- batas:numbered -->` (fase berikutnya). Sampai saat itu isinya tetap terindeks dan bisa dicari seperti sekarang.
 - `00-index.md`, `01-request-fidelity.md` dan `persona.md` sengaja tetap utuh dan always-on.
+- Perbaikan: catatan "Editing a numbered rule file" hanya muncul untuk file yang sudah bernomor, prosa di luar item tetap bisa dicari, dan nomor ganda, file bernomor tanpa item, atau teks lengkap tanpa item kini dilaporkan dengan namanya oleh `just check`.
 - Tindakan: tidak ada.
 
 ## v0.21.0 — Lebih banyak aturan muncul tepat saat dibutuhkan, korpus always-on lebih ringan

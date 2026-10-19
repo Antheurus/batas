@@ -17,7 +17,7 @@ import { copiesOf, shareMemory } from "../scripts/memory-share.ts";
 import { routeLessons, ruleFile, staleFiles } from "../scripts/lessons-route.ts";
 import { routeRepo, writeRoutes } from "../src/lessons.ts";
 import { errorsIn } from "../scripts/transcripts.ts";
-import { allMemorySources, countFamilyItems, familyGaps, parseFamily, parseMemory, readRetiredIds, retiredIdPattern } from "../src/corpus.ts";
+import { allMemorySources, countFamilyItems, familyDefects, familyGaps, parseFamily, parseMemory, readRetiredIds, retiredIdPattern } from "../src/corpus.ts";
 import { mutedIds, readAcks, readFeedback, setMuted } from "../src/feedback.ts";
 import { appendHookLog, liveSessions, readHookLog } from "../src/log.ts";
 import { Store } from "../src/store.ts";
@@ -39,6 +39,11 @@ describe("corpus", () => {
     for (const f of FAMILIES) {
       expect(rows.filter((r) => r.id.startsWith(`${f}:`)).length, `family ${f}`).toBe(countFamilyItems(config.rulesDir, f));
     }
+  });
+
+  test("no family has a converted file without items, a duplicate id, or an orphan full-text section", () => {
+    const defects = FAMILIES.flatMap((f) => familyDefects(config.rulesDir, f));
+    expect(defects, defects.join("; ")).toEqual([]);
   });
 
   test("every item of a file-wide numbered family has its full-text section", () => {
@@ -250,6 +255,88 @@ describe("corpus", () => {
       const bad = readRetiredIds(retired).filter((id) => !RETIRED_ID.test(id));
       console.log("malformed retired lines:", bad);
       expect(bad).toEqual(["cs:a5", "cs:A5"]);
+    });
+
+    const hookCtx = async (e: Record<string, string | undefined>, toolName: string, toolInput: Record<string, string>) => {
+      const hook = Bun.spawn(["bun", join(repo, "src", "hook.ts")], { stdin: "pipe", stdout: "pipe", stderr: "pipe", env: e });
+      hook.stdin.write(JSON.stringify({ session_id: `s5b-${Math.random()}`, cwd: fix, hook_event_name: "PreToolUse", tool_name: toolName, tool_input: toolInput }));
+      hook.stdin.end();
+      const out = await new Response(hook.stdout).text();
+      const err = await new Response(hook.stderr).text();
+      expect(await hook.exited, err).toBe(0);
+      return out.trim() ? ((JSON.parse(out) as { hookSpecificOutput?: { additionalContext?: string } }).hookSpecificOutput?.additionalContext ?? "") : "";
+    };
+    const STEP5B = "### Editing a numbered rule file";
+    const edit = (dir: string, name: string) => ({ file_path: join(dir, name), old_string: "a", new_string: "b" });
+
+    test("the Step 5b rule note fires on a converted or lettered family file, never on an unconverted one", async () => {
+      const unconverted = await hookCtx(process.env, "Edit", edit(config.rulesDir, "coding-standard.md"));
+      const converted = await hookCtx(env, "Edit", edit(rules, "coding-standard.md"));
+      const lettered = await hookCtx(env, "Edit", edit(rules, "p-gotcha-db.md"));
+      console.log("step5b unconverted/converted/lettered:", unconverted.includes(STEP5B), converted.includes(STEP5B), lettered.includes(STEP5B));
+      expect(unconverted).not.toContain(STEP5B);
+      expect(converted).toContain(STEP5B);
+      expect(converted).toContain("rules-full/coding-standard.md");
+      expect(lettered).toContain(STEP5B);
+    });
+
+    const sad = (name: string, files: Record<string, string>) => {
+      const h = join(fix, name);
+      for (const [rel, text] of Object.entries(files)) {
+        mkdirSync(join(h, rel, ".."), { recursive: true });
+        writeFileSync(join(h, rel), text);
+      }
+      mkdirSync(join(h, "batas"), { recursive: true });
+      writeFileSync(join(h, "batas", "triggers.toml"), "");
+      return { home: h, env: { ...env, BATAS_CLAUDE_HOME: h, BATAS_STATE_DIR: join(h, "state") } };
+    };
+    const MARK = "<!-- batas:numbered -->";
+    const csItems = (ns: number[]) => ns.map((n) => `${n}. **Item ${n}** — short ITEM-TEXT-${n}.`).join("\n");
+    const csFull = (ns: number[]) => ns.map((n) => `## ${n}\n_linked from ../../rules/coding-standard.md of ${n}_\n\n${n}. **Item ${n}** — the full wording.\n`).join("\n");
+
+    test("a converted file with zero items is named, and the hook path does not throw", async () => {
+      const s = sad("zero", { "rules/coding-standard.md": `# CS\n\n${MARK}\n\n## Rules\n\nOnly a prose paragraph here, long enough to index as a section.\n` });
+      const defects = familyDefects(join(s.home, "rules"), "cs");
+      console.log("zero items:", defects);
+      expect(defects).toContain("converted family file has no numbered items: coding-standard.md");
+      await hookCtx(s.env, "Bash", { command: "config-fixture-cmd --dry" });
+      await hookCtx(s.env, "Edit", edit(join(s.home, "rules"), "coding-standard.md"));
+    });
+
+    test("a duplicate id, a prefix mapped from two files, and an orphan full-text section are each named", () => {
+      const dup = sad("dup", { "rules/coding-standard.md": `# CS\n\n${MARK}\n\n${csItems([1, 2, 12])}\n12. **Twelve again** — dup.\n` });
+      const dupDefects = familyDefects(join(dup.home, "rules"), "cs");
+      console.log("duplicate:", dupDefects);
+      expect(dupDefects.join("\n")).toContain("duplicate id cs:12 at coding-standard.md:");
+
+      const two = sad("two", { "rules/coding-standard.md": `# CS\n\n${MARK}\n\n${csItems([1, 2])}\n`, "rules/primitive.md": `# P\n\n${MARK}\n\n${csItems([3])}\n` });
+      config.families["primitive.md"] = "cs";
+      const twoDefects = familyDefects(join(two.home, "rules"), "cs");
+      config.families["primitive.md"] = "prim";
+      console.log("two files:", twoDefects);
+      expect(twoDefects).toContain("family prefix cs is mapped from more than one file: coding-standard.md, primitive.md");
+
+      const orphan = sad("orphan", { "rules/coding-standard.md": `# CS\n\n${MARK}\n\n${csItems([1, 2])}\n`, "references/rules-full/coding-standard.md": `# full\n\nIntro.\n\n${csFull([1, 2, 7])}` });
+      const orphanDefects = familyDefects(join(orphan.home, "rules"), "cs", join(orphan.home, "references", "rules-full", "coding-standard.md"));
+      console.log("orphan:", orphanDefects);
+      expect(orphanDefects).toEqual(["orphan full-text section ## 7 in coding-standard.md: no item cs:7"]);
+    });
+
+    test("a converted file keeps its prose outside the items searchable, and no item text is indexed twice", async () => {
+      const s = sad("prose", {
+        "rules/coding-standard.md": `# CS\n\n${MARK}\n\nIntro PROSE-MARK paragraph before any item, long enough.\n\n## Rule Priority\n\nCorrectness first PROSE-MARK-2 paragraph long enough to index.\n\n## Rules\n\n${csItems([1, 2])}\n`,
+      });
+      const out = await new Response(
+        Bun.spawn(["bun", "-e", `import {Store} from "./src/store.ts"; const s = new Store(); s.refresh("rules"); const e = s.entries(); const hit = (m) => e.filter((x) => x.body.includes(m)).map((x) => x.kind + "=" + x.id); console.log(JSON.stringify({p1: hit("PROSE-MARK"), p2: hit("PROSE-MARK-2"), i1: hit("ITEM-TEXT-1"), i2: hit("ITEM-TEXT-2"), cs1: s.get("cs:1")?.body, cs2: s.get("cs:2")?.body}))`], { cwd: repo, stdout: "pipe", env: s.env }).stdout,
+      ).text();
+      console.log("prose index:", out.trim());
+      const r = JSON.parse(out) as { p1: string[]; p2: string[]; i1: string[]; i2: string[]; cs1: string; cs2: string };
+      expect(r.p1.filter((id) => id.startsWith("rule-section=")).length).toBeGreaterThanOrEqual(1);
+      expect(r.p2.filter((id) => id.startsWith("rule-section=")).length).toBeGreaterThanOrEqual(1);
+      expect(r.i1).toEqual(["rule=cs:1"]);
+      expect(r.i2).toEqual(["rule=cs:2"]);
+      expect(r.cs1).toBe("1. **Item 1** — short ITEM-TEXT-1.");
+      expect(r.cs2).toBe("2. **Item 2** — short ITEM-TEXT-2.");
     });
 
     test("an unconverted file (no marker) indexes no items and keeps its sections", async () => {
