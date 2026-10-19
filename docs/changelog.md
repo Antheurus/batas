@@ -6,6 +6,7 @@
 - Hasil disimpan ke `.delivery-eval-rules.json`. Run berikutnya dengan set kasus yang sama keluar dengan kode 1 dan menyebut kasus yang turun, atau kontrol yang ikut mengutip aturan. Run pertama hanya menyimpan baseline.
 - Run pertama (2026-10-19): 2 dari 4 aturan sampai, kontrol bersih 2 dari 2. `cs:20` dan `ver:3` belum sampai dan dicatat sebagai temuan, pemicunya tidak diubah.
 - Dijalankan manual setelah memindah aturan, bukan terjadwal, dan tidak ada di `just check`.
+- Perbaikan penilaian: yang dinilai kini sampai-tidaknya aturan ke sesi (id `### <id>` dari blok hook), bukan opini model soal aturan mana yang "khusus" untuk file itu. `cs:20` dan `ver:3` yang gagal di run pertama ternyata sudah diinjeksi hook; run ulang (6 sesi) menunggu user dan menjadi baseline baru. `bun scripts/delivery-eval.ts --precheck` menjalankan hook asli tanpa sesi.
 
 ---
 

@@ -10,7 +10,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { ListRootsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { config } from "../src/config.ts";
 import { captureCorrection, evaluate, lateSemantic, logFlags, ownWords } from "../src/hook.ts";
-import { compareRules, type RuleResult, type RulesRun } from "../scripts/delivery-eval.ts";
+import { answers, attribute, compareRules, injectedHeadline, type RuleResult, type RulesRun } from "../scripts/delivery-eval.ts";
 import { auditPrompts } from "../scripts/prompt-audit.ts";
 import { gitIndex, judgePath, namedPaths, resolveRoot } from "../scripts/memory-audit.ts";
 import { mine, signature } from "../scripts/lesson-mine.ts";
@@ -1846,5 +1846,34 @@ describe("delivery-check comparison", () => {
     const { drops, note } = compareRules({ ...run([true]), key: "old" }, run([false]));
     expect(drops).toEqual([]);
     expect(note).toContain("baseline");
+  });
+
+  test("a different prompt version is a new baseline even when the case set is the same, and a saved run without one counts as older", () => {
+    const old = run([true, true, true, true]);
+    const { drops, note } = compareRules({ ...old, promptVersion: 1 }, { ...run([false, false, false, false]), promptVersion: 2 });
+    expect(drops).toEqual([]);
+    expect(note).toContain("prompt version");
+    expect(compareRules(old, { ...old, promptVersion: 2 }).note).toContain("prompt version");
+    expect(compareRules({ ...old, promptVersion: 2 }, { ...old, promptVersion: 2 }).note).toBeUndefined();
+  });
+
+  test("the id in the answer passes, wherever the headline stands, and cs:2 is not cs:20", () => {
+    expect(answers("### cs:20 — fired by path `**/Makefile`", "cs:20", "")).toBe(true);
+    expect(answers("### cs:20 — fired by path", "cs:2", "")).toBe(false);
+    expect(answers("NONE", "cs:20", "Justfile Is The Only Command Interface")).toBe(false);
+    expect(answers("Justfile Is The Only Command Interface", "cs:20", "Justfile Is The Only Command Interface")).toBe(true);
+    expect(answers("anything at all", "ver:3", "")).toBe(false);
+  });
+
+  test("a table body has no headline to quote, and a bold head is the headline", () => {
+    expect(injectedHeadline("| Deliverable | Acceptance artifact |\n|---|---|\n| Browser extension | Build it |\n\nWording before:\n\n| a | b |")).toBe("");
+    expect(injectedHeadline("20. **Justfile Is The Only Command Interface** — every dev/ops command")).toBe("Justfile Is The Only Command Interface");
+    expect(injectedHeadline("plain rule text with no bold head at all")).toBe("plain rule text with no bold head at all");
+  });
+
+  test("a miss is the model's when the hook injected the rule and delivery's when it did not", () => {
+    expect(attribute(true, true)).toBe("delivered");
+    expect(attribute(true, false)).toBe("model");
+    expect(attribute(false, false)).toBe("delivery");
   });
 });

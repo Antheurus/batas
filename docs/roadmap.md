@@ -207,7 +207,9 @@ always-on, what is not enforced, and what has stopped being measured.
     count) and fail on a drop. Status: **done 2026-10-19** — `just delivery-check` (`delivery-eval.ts --rules`) runs 4 cases
     + 2 controls over the global rules Phases 2-3 moved, by path fixture only, and exits 1 against
     `.delivery-eval-rules.json`. Run by hand after a rule move, not on a timer, and not in `just check`. First run
-    delivered 2/4, controls 2/2 (cs:20 and ver:3 missed, open findings), saved as the baseline.
+    delivered 2/4, controls 2/2 (cs:20 and ver:3 missed, open findings), saved as the baseline. That run is superseded by
+    the phase-4 scoring fix (own delivery prompt, id-match, hook pre-check, `promptVersion`): both misses were scoring
+    defects, the hook injected both rules. A re-run of 6 sessions awaits the user and will be a new baseline.
 25. **Memories that state a config value go stale silently** — item 4 checks paths only. On 2026-10-19 the hard stop
     moved 800000 -> 600000 -> 500000 in one day and two memories still stated the old number until edited by hand.
     Check memories that quote a `settings.json` env key or value against the live file. Status: planned.
