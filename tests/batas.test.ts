@@ -270,13 +270,17 @@ describe("corpus", () => {
     const edit = (dir: string, name: string) => ({ file_path: join(dir, name), old_string: "a", new_string: "b" });
 
     test("the Step 5b rule note fires on a converted or lettered family file, never on an unconverted one", async () => {
-      // a real family file still without the marker; conversion moves through the corpus file by file
-      const still = Object.entries(config.families).find(([name, fam]) => !config.familyLettered[fam] && existsSync(join(config.rulesDir, name)) && !readFileSync(join(config.rulesDir, name), "utf8").includes("<!-- batas:numbered -->"))?.[0];
-      const unconverted = still ? await hookCtx(process.env, "Edit", edit(config.rulesDir, still)) : "";
+      // a fixture family file, so the unconverted case still asserts once every real family file carries the marker
+      const body = "# Primitives\n\n## Owners\n\n1. **One owner** — a numbered line in a file not yet converted.\n";
+      const plain = sad("unconverted", { "rules/primitive.md": body });
+      const marked = sad("marked", { "rules/primitive.md": body.replace("\n\n## Owners", `\n\n${MARK}\n\n## Owners`) });
+      const unconverted = await hookCtx(plain.env, "Edit", edit(join(plain.home, "rules"), "primitive.md"));
+      const control = await hookCtx(marked.env, "Edit", edit(join(marked.home, "rules"), "primitive.md"));
       const converted = await hookCtx(env, "Edit", edit(rules, "coding-standard.md"));
       const lettered = await hookCtx(env, "Edit", edit(rules, "p-gotcha-db.md"));
-      console.log("step5b unconverted/converted/lettered:", unconverted.includes(STEP5B), converted.includes(STEP5B), lettered.includes(STEP5B));
+      console.log("step5b unconverted/control/converted/lettered:", unconverted.includes(STEP5B), control.includes(STEP5B), converted.includes(STEP5B), lettered.includes(STEP5B));
       expect(unconverted).not.toContain(STEP5B);
+      expect(control).toContain(STEP5B);
       expect(converted).toContain(STEP5B);
       expect(converted).toContain("rules-full/coding-standard.md");
       expect(lettered).toContain(STEP5B);

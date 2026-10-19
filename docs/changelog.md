@@ -5,6 +5,7 @@
 - `coding-standard.md`, `02-definition-of-done.md`, `03-real-verification.md`, `04-ui-consistency.md` dan `05-design-then-scope.md` kini bernomor permanen (`cs:N`, `dod:N`, `ver:N`, `ui:N`, `bduf:N`). Tiap butir tinggal satu-dua kalimat di konteks, teks lengkapnya ada di `~/.claude/references/rules-full/` dan disuntikkan batas saat pemicunya menyala, misalnya `npm install -g` memunculkan `cs:8`.
 - Tidak ada kalimat yang hilang: setiap kalimat lama ada di baris ringkas atau di teks lengkapnya. Butir yang berlaku di setiap giliran (misalnya empat syarat "done" dan DONE/OPEN, bukan `in_progress`) tetap utuh di konteks.
 - Lima file ini turun dari 19.375 ke 12.085 byte per giliran (-37,6%). Berlaku di sesi baru, bukan sesi yang sedang berjalan.
+- Perbaikan: butir yang berlaku tiap giliran atau hanya dari prompt kembali memuat nama alat, path dan format yang sempat hilang (misalnya `playwright-cli` untuk bukti UI, format halaman HTML untuk "mana buktinya", dan nilai config dibaca lewat satu accessor), jadi lima file ini kini 13.466 byte.
 
 ## v0.22.0 — Sebelas file aturan always-on lainnya siap diberi nomor permanen
 
