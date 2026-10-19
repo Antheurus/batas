@@ -175,7 +175,18 @@ always-on, what is not enforced, and what has stopped being measured.
     `gotcha-coding.md` (29.2 KB) have addresses, so `rule-audit` cannot see the other 15 files (~45.9 KB:
     coding-standard, the 00-05 gates, persona, gitnexus-first, batas-first, primitive, progress-changelog, ...). Give
     their sections permanent addresses and triggers, then let the same frequency audit decide which stay always-on.
-    Destructive and every-turn guidance stays, as in item 2. Status: planned.
+    **Shape (agreed with the user 2026-10-19): a line in the rules, the content in batas** — the pattern
+    `lessons.md`/`gotcha-coding.md` already use: each section condenses to one or two prescriptive sentences
+    always-on, its full wording moves to a `*-full.md` section that batas injects when the trigger fires. Nothing is
+    dropped, only the always-on half shrinks. Destructive and every-turn guidance keeps its line, as in item 2, because
+    an injection lands after the command ran. Status: planned.
+28. **Deny-first for irreversible commands** — the reason destructive lines must stay always-on is that a PreToolUse
+    injection arrives with the tool result, after the command already ran. batas can already stop a command BEFORE it
+    runs and offer an acknowledged way through (the live-session `git push` guard, `BATAS_ACK_LIVE=1`). Extending that
+    to `reset --hard`, `checkout .`, `clean -f`, `push --force`, `branch -D`, a production deploy or a destructive
+    SQL statement puts the full rule in front of the agent at the one moment it matters, and would let those always-on
+    lines shrink to a single sentence. Tension to settle with the user first: memory `feedback_hook-warn-not-ask` prefers
+    warn over ask popups; an env-var acknowledgement is not a popup, but it does stop the step. Status: planned.
 22. **Move the rarely-firing always-on items inject-only** — `just rule-audit` lists 20 always-on items reaching 2% of
     sessions or fewer (7,363 bytes), and 28 always-on items with no cmd/path/code trigger at all, which can only stay
     always-on until they gain one. Give those 28 triggers, then move the non-destructive rare ones. Status: planned.
