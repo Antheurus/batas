@@ -4,6 +4,7 @@
 
 - Internal, tidak ada perubahan yang terasa kecuali satu: ada daftar `~/.claude/batas/retired-ids.txt` berisi id aturan yang sudah keluar dari korpus (sekarang `lessons:A1`). `just check` gagal dan menyebut id-nya kalau aturan baru memakai nomor itu, atau kalau ada nomor kosong di korpus yang belum dicatat di daftar.
 - Tindakan: menghapus atau memindahkan aturan bernomor berarti menambah id-nya ke `retired-ids.txt`.
+- Perbaikan lanjutan: komentar di `retired-ids.txt` yang berakhir CRLF kini terbaca benar, dan `just check` gagal kalau `triggers.toml` atau `retired-ids.txt` hilang/kosong atau ada baris id yang salah format.
 
 ## v0.20.5 — `just check` menolak trigger yatim
 

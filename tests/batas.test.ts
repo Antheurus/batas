@@ -26,6 +26,7 @@ import { indexHook, INDEX_HOOK_MAX, logChangelog, logProgress, memoryDir, record
 import { createServer, orphanTriggerIds, projectOf, serveHttp, type SessionContext } from "../src/mcp.ts";
 import { installHooks } from "../src/install.ts";
 
+const RETIRED_ID = /^(gotcha|lessons):[A-Z]\d+$/;
 const root = process.env.BATAS_TEST_ROOT as string;
 const demo = join(root, "repos", "demo-app");
 const store = new Store();
@@ -51,6 +52,12 @@ describe("corpus", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
+  test("the triggers file and the retired-ids file exist and are not empty", () => {
+    expect(existsSync(config.triggersFile), `triggers file missing: ${config.triggersFile}`).toBe(true);
+    expect(Object.keys(Triggers.load().specs).length, `triggers file loaded no ids: ${config.triggersFile}`).toBeGreaterThan(0);
+    expect(existsSync(config.retiredIdsFile), `retired-ids file missing: ${config.retiredIdsFile}`).toBe(true);
+  });
+
   test("every global trigger id names a rule that exists", () => {
     const ids = store.entries().map((e) => e.id);
     expect(orphanTriggerIds(Triggers.load(), ids).filter((id) => !id.startsWith("project:"))).toEqual([]);
@@ -69,6 +76,21 @@ describe("corpus", () => {
     const present = new Set(store.entries("rule").map((e) => e.id));
     const reused = readRetiredIds(config.retiredIdsFile).filter((id) => present.has(id));
     expect(reused, `retired id reused by a new rule: ${reused.join(", ")}`).toEqual([]);
+  });
+
+  test("every retired id is a well-formed rule id", () => {
+    const bad = readRetiredIds(config.retiredIdsFile).filter((id) => !RETIRED_ID.test(id));
+    expect(bad, `malformed line in ${config.retiredIdsFile}: ${bad.join(" | ")}`).toEqual([]);
+  });
+
+  test("a CRLF comment is stripped and a malformed retired line is reported by name", () => {
+    const dir = mkdtempSync(join(tmpdir(), "batas-retired-fmt-"));
+    const file = join(dir, "retired-ids.txt");
+    writeFileSync(file, "lessons:A1  # x\r\nnot-an-id\r\nlessons:a1\r\nlessons:A1 garbage words\r\n");
+    const ids = readRetiredIds(file);
+    expect(ids[0]).toBe("lessons:A1");
+    expect(ids.filter((id) => !RETIRED_ID.test(id))).toEqual(["not-an-id", "lessons:a1", "lessons:A1 garbage words"]);
+    rmSync(dir, { recursive: true, force: true });
   });
 
   test("every gap in the corpus is recorded in retired-ids.txt", () => {

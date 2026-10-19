@@ -169,7 +169,7 @@ export function familyGaps(dir: string, family: string): string[] {
 export function readRetiredIds(file: string): string[] {
   if (!existsSync(file)) return [];
   return readFileSync(file, "utf8")
-    .split("\n")
+    .split(/\r?\n/)
     .map((line) => line.replace(/#.*$/, "").trim())
     .filter(Boolean);
 }
