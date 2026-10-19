@@ -164,5 +164,39 @@ and not E21/E23.
     2026-10-09 date from 2026-10-07. Reuses the task-store reader of the shelved `task-band`. Status: deferred until
     item 19 lands and a blind spot is still seen.
 
+## Priority 8 — maturity gaps (measured 2026-10-19)
+
+Measured the day lessons A1 moved into the compact-percentage mod. The injection path itself is sound (57,269
+PreToolUse calls since 2026-09-30, p50 18 ms; effect-audit evidence in item 3), so these are about what is still
+always-on, what is not enforced, and what has stopped being measured.
+
+21. **Tier the unnumbered always-on files** — the always-on corpus is 75,114 bytes (~18.8k tokens re-sent on EVERY
+    request, against ~41k tokens of Stop-hook block text across 114 sessions in a week). Only `lessons.md` and
+    `gotcha-coding.md` (29.2 KB) have addresses, so `rule-audit` cannot see the other 15 files (~45.9 KB:
+    coding-standard, the 00-05 gates, persona, gitnexus-first, batas-first, primitive, progress-changelog, ...). Give
+    their sections permanent addresses and triggers, then let the same frequency audit decide which stay always-on.
+    Destructive and every-turn guidance stays, as in item 2. Status: planned.
+22. **Move the rarely-firing always-on items inject-only** — `just rule-audit` lists 20 always-on items reaching 2% of
+    sessions or fewer (7,363 bytes), and 28 always-on items with no cmd/path/code trigger at all, which can only stay
+    always-on until they gain one. Give those 28 triggers, then move the non-destructive rare ones. Status: planned.
+23. **`just check` fails on orphan trigger ids and stops hard-coding the corpus size** — an orphan (a trigger whose rule
+    no longer exists) is only printed by `status` (`src/mcp.ts`), so the `lessons:A1` entry would have stayed and
+    passed `just check` had it not been removed by hand on 2026-10-19; the same move needed a hand edit of
+    `expect(lessons).toBe(136)` in `tests/batas.test.ts`. Assert zero orphans and derive the expected counts from the
+    corpus instead. Status: planned.
+24. **Delivery-eval as a recurring regression** — the `.delivery-eval-*.json` results date from 2026-10-08, before the
+    shared HTTP server, correction capture, the A1 move and every trigger change since. Nothing re-runs it, so
+    "the rule arrives when needed" is a week-old claim. Run it on a schedule (or from `just check` with a small case
+    count) and fail on a drop. Status: planned.
+25. **Memories that state a config value go stale silently** — item 4 checks paths only. On 2026-10-19 the hard stop
+    moved 800000 -> 600000 -> 500000 in one day and two memories still stated the old number until edited by hand.
+    Check memories that quote a `settings.json` env key or value against the live file. Status: planned.
+26. **Hook tail latency** — p99 over the whole log: Stop 1,546 ms, UserPromptSubmit 1,213 ms (the late semantic wait),
+    PreToolUse 366 ms; PostToolUse p50 is 70 ms on every Bash call (git status for attribution, item 1). The 30-40 ms
+    target holds at p50 only. Status: planned.
+27. **Stop reply-check precision** — the Stop check that a reply "matches a known mistake pattern" has no measured
+    false-positive rate. On 2026-10-19 a test session dismissed its block as an irrelevant recalled memory. Label a
+    sample of Stop blocks as useful or noise before tuning. Status: planned.
+
 Graphify itself was re-checked 2026-10-08 (v0.9.80): still "Not a vector index. No embeddings", a codebase graph
 that duplicates GitNexus; it does not replace batas, which carries lessons, rules and preferences, not code structure.
