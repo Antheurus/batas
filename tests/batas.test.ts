@@ -13,6 +13,7 @@ import { captureCorrection, evaluate, lateSemantic, logFlags, ownWords } from ".
 import { answers, attribute, compareRules, injectedHeadline, type RuleResult, type RulesRun } from "../scripts/delivery-eval.ts";
 import { auditPrompts } from "../scripts/prompt-audit.ts";
 import { gitIndex, judgePath, namedPaths, resolveRoot } from "../scripts/memory-audit.ts";
+import { neverFired } from "../scripts/rule-select.ts";
 import { mine, signature } from "../scripts/lesson-mine.ts";
 import { copiesOf, shareMemory } from "../scripts/memory-share.ts";
 import { routeLessons, ruleFile, staleFiles } from "../scripts/lessons-route.ts";
@@ -1875,5 +1876,16 @@ describe("delivery-check comparison", () => {
     expect(attribute(true, true)).toBe("delivered");
     expect(attribute(true, false)).toBe("model");
     expect(attribute(false, false)).toBe("delivery");
+  });
+});
+
+describe("rule-audit never-fired selection", () => {
+  const specs = { "g:EMPTY": {}, "g:CMD": { cmd: ["rm -rf"] }, "g:HOT": { path: ["x"] }, "g:PROMPT": { prompt: ["hi"] } };
+  const ids = Object.keys(specs);
+  test("an empty table is not never-fired, a pattern with zero fires is", () => {
+    expect(neverFired(ids, specs, new Map(), new Map())).toEqual(["g:CMD", "g:HOT"]);
+  });
+  test("a replay or live fire removes it", () => {
+    expect(neverFired(ids, specs, new Map([["g:CMD", 2]]), new Map([["g:HOT", 1]]))).toEqual([]);
   });
 });

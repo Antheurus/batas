@@ -5,6 +5,7 @@ import { readFeedback } from "../src/feedback.ts";
 import { readHookLog } from "../src/log.ts";
 import { Store } from "../src/store.ts";
 import { Triggers } from "../src/triggers.ts";
+import { neverFired, triggerable } from "./rule-select.ts";
 import { type Call, callsIn, transcriptFiles } from "./transcripts.ts";
 
 const days = Number(process.argv[2] ?? 14);
@@ -33,11 +34,7 @@ for (const r of readHookLog(since)) for (const id of r.fired) live.set(id, (live
 const reported = new Map<string, number>();
 for (const f of readFeedback()) for (const id of f.ids) reported.set(id, (reported.get(id) ?? 0) + 1);
 
-const cmdOnly = (id: string) => {
-  const s = triggers.specs[id];
-  return !!s && !(s.prompt?.length || s.reply?.length);
-};
-const never = ruleIds.filter((id) => !fires.get(id) && !live.get(id) && cmdOnly(id));
+const never = neverFired(ruleIds, triggers.specs, fires, live);
 const noisy = ruleIds
   .map((id) => ({ id, n: fires.get(id) ?? 0 }))
   .filter((r) => r.n / Math.max(calls.length, 1) >= noisyShare)
@@ -64,13 +61,9 @@ const demoteShare = Number(process.argv[5] ?? 0.02);
 const rows = store.entries("rule").map(
   (r) => ({ ...r, file: r.source.split("/").pop() ?? "", share: (sessionsHit.get(r.id)?.size ?? 0) / Math.max(sessionCount, 1) }),
 );
-const triggerable = (id: string) => {
-  const sp = triggers.specs[id];
-  return !!sp && !!(sp.cmd?.length || sp.path?.length || sp.code?.length);
-};
-const demote = rows.filter((r) => ALWAYS_ON.has(r.file) && r.share < demoteShare && triggerable(r.id)).sort((a, b) => b.body.length - a.body.length);
+const demote = rows.filter((r) => ALWAYS_ON.has(r.file) && r.share < demoteShare && triggerable(triggers.specs, r.id)).sort((a, b) => b.body.length - a.body.length);
 const promote = rows.filter((r) => !ALWAYS_ON.has(r.file) && r.share >= promoteShare).sort((a, b) => b.share - a.share);
-const untriggerable = rows.filter((r) => ALWAYS_ON.has(r.file) && !triggerable(r.id));
+const untriggerable = rows.filter((r) => ALWAYS_ON.has(r.file) && !triggerable(triggers.specs, r.id));
 console.log(`\nTIERING — always-on items reaching < ${(demoteShare * 100).toFixed(0)}% of sessions that a cmd/path/code trigger can still deliver (move to inject-only; destructive ones stay, rules-writer Q4):`);
 for (const r of demote) console.log(`  ${r.id.padEnd(14)} ${(r.share * 100).toFixed(1).padStart(5)}% of sessions  ${String(r.body.length).padStart(5)} bytes always-on`);
 console.log(`  total: ${demote.length} items, ${demote.reduce((a, r) => a + r.body.length, 0)} bytes`);

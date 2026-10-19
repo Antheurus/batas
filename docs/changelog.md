@@ -1,5 +1,10 @@
 # batas Changelog
 
+## v0.25.1 — `just rule-audit`: daftar NEVER FIRED tidak lagi penuh item tanpa pola
+
+- Daftar NEVER FIRED sekarang hanya memuat aturan yang punya pola cmd/path/code dan tidak pernah menyala. Item every-turn yang tabel trigger-nya sengaja kosong tidak ikut lagi (sebelumnya 79 dari 80 baris), jadi sinyal sungguhan seperti `lessons:C12` terlihat.
+- Tidak ada perubahan perilaku hook; hanya laporan audit.
+
 ## v0.25.0 — `just delivery-check`: cek ulang apakah aturan global yang dipindah masih sampai ke agen
 
 - Satu perintah, `just delivery-check`, menjalankan 6 sesi `claude -p` (4 aturan global yang dipindah atau dikonversi di Fase 2-3, ditambah 2 kontrol). Tiap sesi hanya membuka satu file tak berbahaya di folder sementara pada path fixture aturan itu, lalu harus mengutip aturan yang masuk ke konteksnya.
