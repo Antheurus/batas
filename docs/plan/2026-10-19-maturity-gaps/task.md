@@ -54,7 +54,7 @@ what 2 and 3 moved. Working directory: the batas repo root (no isolation).
   _Plan: plan.md §Phase 1_ · _Blocked by: none_
 
 ## Block 2
-- [ ] Phase 02 — triggers for the 28, move rare non-destructive items (item 22)
+- [x] Phase 02 — triggers for the 28, move rare non-destructive items (item 22) — cc-toriq 9811540, d2ef797; batas 177548c, ae51de9
   _Plan: plan.md §Phase 2_ · _Blocked by: Phase 01_
 
 ## Block 3

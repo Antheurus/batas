@@ -56,3 +56,45 @@ Audit worktree removed (no test files to salvage). Receipt folded into a fix dis
 - Executor ran a `git stash` mid-diagnosis that briefly took this file; popped at once, `git stash list` empty, content intact.
 - Discovered: src/install.ts creates an empty triggers.toml at import when none exists; that is why a missing file degraded to empty.
 - Block 1 DONE: Phase 01 VERIFIED-LIVE through `just check` + falsifications on temp copies.
+
+## 2026-10-19 — Phase 02 triggers + moves (opus, 899 s, 1 attempt) — SHIPPED-UNVERIFIED, audit in flight
+
+- batas 177548c (docs v0.21.0), cc-toriq mirror 9811540 (8 paths by name; another session's dirty infra.md left out).
+- 18 of 28 untriggered items got cmd/path/code triggers (regexes replayed against 14 days of real calls before writing; five
+  first drafts narrowed, e.g. B49 on `lsof -sTCP:LISTEN` hit 31.5% of sessions). 10 stay every-turn: gotcha A4 A5; lessons
+  A2 A3 A5 A6 B2 B17 B23 F2 (the hook never sees their moment: design judgement, Agent/WebFetch calls, tool output).
+- Of the 20 rare items: moved gotcha E37 E36 A2 A7 A10 A1, lessons C10 C14; split lessons H6; kept as destructive lessons B37
+  B47 E10 C12 C15 E9, gotcha B11 E11 B10; kept as every-turn lessons B1, gotcha C10.
+- Always-on 72,644 -> 70,789 B (-1,855; lessons.md 19,709 -> 19,323, gotcha-coding.md 9,501 -> 8,013). Smaller than the 7,363 B
+  ceiling because most of the rare bytes are destructive. Ids 292 -> 292, none lost; `just check` 106 pass.
+- Deviation: seven newly triggered items under 2% (lessons B49 F3 H4 A4, gotcha A11 C6 A9) kept always-on until Phase 4 measures them.
+- Discovered (pre-existing, not touched): gotcha-full.md B2 `_linked from` still names gotcha-coding.md; lessons:C12 regex
+  never fired in 14 days; lessons C1 C4 B24 noisy (2.0-2.8% of calls); `_negative` Button.tsx fires lessons:G2.
+
+## 2026-10-19 — Block 2 audit (sonnet, 273 s) — RECEIPT, 2 findings + 1 observation folded in
+
+RECEIPT — Phase 2 (cc-toriq 9811540, batas 177548c)
+- claude-home/batas/triggers.toml `["lessons:C8"]` (~line 1177): new cmd matches only `git worktree list`; `git worktree add`
+  and `git worktree remove` (the risky moments) do not fire it.
+  failing check: `cd batas && bun -e 'import {Triggers} from "./src/triggers"; const t=Triggers.load(); for (const c of ["git worktree add ../x HEAD","git worktree remove ../x"]) console.log(c, t.match({cmd:c}).some(m=>m.id==="lessons:C8"))'` → expected `true` for both; today `false`.
+- claude-home/rules/p-lessons-injected.md (C10, C14) + `["lessons:C14"]`: both protect another session's uncommitted work
+  (destructive per the brief) but were moved inject-only; their triggers cover `git add -p`, `git apply --cached`,
+  `git update-index --cacheinfo`, not a plain `git add <file>` on a path another session left dirty.
+  failing check: `bun -e 'import {Triggers} from "./src/triggers"; const t=Triggers.load(); console.log(t.match({cmd:"git add docs/progress.md"}).some(m=>["lessons:C14","lessons:C10"].includes(m.id)))'` → expected `true`; today `false`.
+- Observation: gotcha E36's "a guard or hook that delegates to a shared server must do the work itself when the server does
+  not answer" clause left the always-on file; editing a hook does not fire its triggers.
+Clean elsewhere: no moved item is credential/production/email/webcam; ids 292; routing and links resolve; no new trigger
+fires on git status, ls, bun test, git log -1, git diff, docker ps.
+
+Orchestrator decision on the fix: C10/C14 go BACK always-on (widening to every `git add` would be the noisiest rule in the
+corpus); C8 gains add/remove; E36 returns to the mother as a short item carrying the guard clause, one owner.
+
+## 2026-10-19 — Block 2 receipt fix (batas ae51de9, cc-toriq d2ef797, sonnet, 125 s, 1 attempt) — re-check clean
+
+- C8 now `git worktree (list|add|remove)` with add/remove fixtures; C10 + C14 back in lessons.md section C with their
+  pre-Phase-2 wording; E36 back in gotcha-coding.md as a one-sentence stub carrying the guard clause (one owner, slice copy removed).
+- Orchestrator re-ran every receipt check on the live files: C8 add/remove both `true`; `do the work itself` 1 line in
+  gotcha-coding.md, 0 `36.` in the slice; C10/C14 present in lessons.md §C; `just check` 106 pass 0 fail; corpus-lint 0 failures.
+- Always-on after Phase 2 + fix: 71,637 B (from 72,644; -1,007 net). Ids 292.
+- Deviation: commit-body-guard rejects an `od(...)` subject (not a conventional type); fix commits use `fix(od-…)`.
+- Block 2 DONE.
