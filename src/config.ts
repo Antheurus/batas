@@ -13,6 +13,7 @@ export const config = {
   projectsDir: join(claudeHome, "projects"),
   sharedMemoryDir: join(claudeHome, "memory", "shared"),
   triggersFile: process.env.BATAS_TRIGGERS ?? join(claudeHome, "batas", "triggers.toml"),
+  retiredIdsFile: process.env.BATAS_RETIRED_IDS ?? join(claudeHome, "batas", "retired-ids.txt"),
   // Personal repos and work (Brighty) repos live in two folders; with only the first, every Brighty repo's rules,
   // lessons and progress were outside the corpus (none of Funnel's in 13,773 entries, 2026-10-10). Set here, not in the
   // launchd plist: batasd respawned by a hook call does not carry the plist's environment.

@@ -17,7 +17,7 @@ import { copiesOf, shareMemory } from "../scripts/memory-share.ts";
 import { routeLessons, ruleFile, staleFiles } from "../scripts/lessons-route.ts";
 import { routeRepo, writeRoutes } from "../src/lessons.ts";
 import { errorsIn } from "../scripts/transcripts.ts";
-import { allMemorySources, countFamilyItems, parseMemory } from "../src/corpus.ts";
+import { allMemorySources, countFamilyItems, familyGaps, parseMemory, readRetiredIds } from "../src/corpus.ts";
 import { mutedIds, readAcks, readFeedback, setMuted } from "../src/feedback.ts";
 import { appendHookLog, liveSessions, readHookLog } from "../src/log.ts";
 import { Store } from "../src/store.ts";
@@ -62,6 +62,33 @@ describe("corpus", () => {
     writeFileSync(file, readFileSync(config.triggersFile, "utf8") + '\n["lessons:Z99"]\ncmd = ["zzz-never"]\n');
     const ids = store.entries().map((e) => e.id);
     expect(orphanTriggerIds(Triggers.load(file), ids).filter((id) => !id.startsWith("project:"))).toEqual(["lessons:Z99"]);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  test("no retired rule id is present in the corpus", () => {
+    const present = new Set(store.entries("rule").map((e) => e.id));
+    const reused = readRetiredIds(config.retiredIdsFile).filter((id) => present.has(id));
+    expect(reused, `retired id reused by a new rule: ${reused.join(", ")}`).toEqual([]);
+  });
+
+  test("every gap in the corpus is recorded in retired-ids.txt", () => {
+    const retired = new Set(readRetiredIds(config.retiredIdsFile));
+    const unrecorded = ["gotcha", "lessons"].flatMap((f) => familyGaps(config.rulesDir, f)).filter((id) => !retired.has(id));
+    expect(unrecorded, `add to ${config.retiredIdsFile}: ${unrecorded.join(", ")}`).toEqual([]);
+  });
+
+  test("a reused retired id and an unrecorded deletion are each reported by name", () => {
+    const dir = mkdtempSync(join(tmpdir(), "batas-retired-"));
+    const src = readFileSync(join(config.rulesDir, "lessons.md"), "utf8");
+    const lines = src.split("\n");
+    const cut = lines.findIndex((l) => /^2\. /.test(l));
+    writeFileSync(join(dir, "lessons.md"), lines.filter((_, i) => i !== cut).join("\n"));
+    expect(familyGaps(dir, "lessons")).toContain("lessons:A2");
+    writeFileSync(join(dir, "lessons.md"), src);
+    const retired = join(dir, "retired-ids.txt");
+    writeFileSync(retired, "lessons:A2  # fixture\n# comment\n\n");
+    expect(readRetiredIds(retired)).toEqual(["lessons:A2"]);
+    expect(familyGaps(dir, "lessons")).not.toContain("lessons:A2");
     rmSync(dir, { recursive: true, force: true });
   });
 

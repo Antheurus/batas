@@ -10,6 +10,8 @@ cpSync(join(realHome, "rules"), join(claudeHome, "rules"), { recursive: true });
 cpSync(join(realHome, "references"), join(claudeHome, "references"), { recursive: true });
 const realTriggers = join(realHome, "batas", "triggers.toml");
 if (existsSync(realTriggers)) cpSync(realTriggers, join(claudeHome, "batas", "triggers.toml"));
+const realRetired = join(realHome, "batas", "retired-ids.txt");
+if (existsSync(realRetired)) cpSync(realRetired, join(claudeHome, "batas", "retired-ids.txt"));
 
 const memDir = join(claudeHome, "projects", "-tmp-demo", "memory");
 mkdirSync(memDir, { recursive: true });

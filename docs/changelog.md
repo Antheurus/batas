@@ -1,5 +1,10 @@
 # batas Changelog
 
+## v0.20.6 — Nomor aturan yang sudah dihapus tidak bisa dipakai ulang diam-diam
+
+- Internal, tidak ada perubahan yang terasa kecuali satu: ada daftar `~/.claude/batas/retired-ids.txt` berisi id aturan yang sudah keluar dari korpus (sekarang `lessons:A1`). `just check` gagal dan menyebut id-nya kalau aturan baru memakai nomor itu, atau kalau ada nomor kosong di korpus yang belum dicatat di daftar.
+- Tindakan: menghapus atau memindahkan aturan bernomor berarti menambah id-nya ke `retired-ids.txt`.
+
 ## v0.20.5 — `just check` menolak trigger yatim
 
 - Internal, tidak ada perubahan yang terasa kecuali satu: `just check` sekarang gagal dan menyebut id-nya kalau `triggers.toml` punya entri untuk aturan yang sudah tidak ada, jadi menghapusnya tidak lagi bergantung pada ingatan.

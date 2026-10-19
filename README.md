@@ -71,6 +71,10 @@ t_cmd    = ['pg_restore -d app x.dump'] # fixtures: each must fire this id
 `bun test` is the **recall test**. Every fixture must fire its own rule, and ordinary commands must stay quiet. A
 rule whose fixture stops firing turns the suite red instead of failing silently in a real session.
 
+Rule ids are permanent addresses. Deleting or moving a numbered rule out of the corpus means adding its id to
+`~/.claude/batas/retired-ids.txt` (`<family>:<ID>  # <date> <where it went>`); `just check` fails on a gap that is not
+listed there and on a listed id that a new rule has taken.
+
 ## Commands
 
 | | |

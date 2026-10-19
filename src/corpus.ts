@@ -149,6 +149,31 @@ export function countFamilyItems(dir: string, family: string): number {
     .reduce((n, file) => n + parseFamily(file, family).length, 0);
 }
 
+export function familyGaps(dir: string, family: string): string[] {
+  const ids = new Set<string>();
+  for (const file of listMd(dir)) {
+    if (familyOf(file) === family) for (const e of parseFamily(file, family)) ids.add(e.id);
+  }
+  const max = new Map<string, number>();
+  for (const id of ids) {
+    const m = id.match(/:([A-Z])(\d+)$/);
+    if (m?.[1] && m[2]) max.set(m[1], Math.max(max.get(m[1]) ?? 0, Number(m[2])));
+  }
+  const gaps: string[] = [];
+  for (const [section, top] of max) {
+    for (let n = 1; n < top; n++) if (!ids.has(`${family}:${section}${n}`)) gaps.push(`${family}:${section}${n}`);
+  }
+  return gaps;
+}
+
+export function readRetiredIds(file: string): string[] {
+  if (!existsSync(file)) return [];
+  return readFileSync(file, "utf8")
+    .split("\n")
+    .map((line) => line.replace(/#.*$/, "").trim())
+    .filter(Boolean);
+}
+
 export function projectSlug(dir: string): string {
   return dir.replace(/[^A-Za-z0-9]/g, "-");
 }
