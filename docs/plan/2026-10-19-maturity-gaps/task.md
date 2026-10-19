@@ -16,12 +16,12 @@ every model request); batas injection is cheap. Shrink the always-on half withou
 
 ## DAG
 
-- [ ] Phase 1 — item 23 (orphan gate + derived counts). No dependency. Lands first: it is the safety net every later
+- [x] Phase 1 — item 23 (orphan gate + derived counts). No dependency. Lands first: it is the safety net every later
       rule move relies on.
-- [ ] Phase 2 — item 22 (triggers for the 28, then move rare non-destructive items). Depends on Phase 1.
-- [ ] Phase 3 — item 21 (address + trigger + condense the 15 unnumbered files). Depends on Phase 1; OPEN decisions
+- [x] Phase 2 — item 22 (triggers for the 28, then move rare non-destructive items). Depends on Phase 1.
+- [x] Phase 3 — item 21 (address + trigger + condense the 15 unnumbered files). Depends on Phase 1; OPEN decisions
       below must be answered before it starts.
-- [ ] Phase 4 — item 24 (recurring delivery-eval). Depends on Phase 1; run once after each of Phases 2 and 3.
+- [x] Phase 4 — item 24 (recurring delivery-eval). Depends on Phase 1; run once after each of Phases 2 and 3.
 
 ## OPEN (only the user can settle)
 
