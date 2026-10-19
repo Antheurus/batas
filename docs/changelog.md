@@ -1,5 +1,12 @@
 # batas Changelog
 
+## v0.24.0 — Enam file aturan always-on terakhir kini bernomor, teks lengkapnya datang dari batas
+
+- `gitnexus-first.md`, `batas-first.md`, `primitive.md`, `progress-changelog.md`, `commit-message.md` dan `python-c-over-bash.md` kini bernomor permanen (`gnx:N`, `bf:N`, `prim:N`, `pc:N`, `cm:N`, `py:N`). Teks lengkap tiap butir ada di `~/.claude/references/rules-full/` dan disuntikkan batas saat pemicunya menyala, misalnya `npx gitnexus clean` memunculkan `gnx:9`, `just mcp-status` memunculkan `bf:11`.
+- Semua nama alat, perintah, path, angka dan format tetap di baris always-on: baris `ToolSearch` GitNexus dan batas tidak berubah satu byte pun, begitu juga template commit, format header progress/changelog, dan perintah sapu env yang menyamarkan nilai.
+- Karena enam file ini sudah ringkas, korpus always-on justru naik sedikit, 65.825 ke 66.863 byte per giliran. Yang didapat adalah alamat permanen dan teks lengkap tepat saat dibutuhkan, bukan penghematan.
+- `commit-message.md` kini menyebut `git commit -F <file>` untuk body yang memuat `$` atau backtick. Berlaku di sesi baru, bukan sesi yang sedang berjalan.
+
 ## v0.23.0 — Lima file aturan always-on kini satu baris, teks lengkapnya datang dari batas
 
 - `coding-standard.md`, `02-definition-of-done.md`, `03-real-verification.md`, `04-ui-consistency.md` dan `05-design-then-scope.md` kini bernomor permanen (`cs:N`, `dod:N`, `ver:N`, `ui:N`, `bduf:N`). Tiap butir tinggal satu-dua kalimat di konteks, teks lengkapnya ada di `~/.claude/references/rules-full/` dan disuntikkan batas saat pemicunya menyala, misalnya `npm install -g` memunculkan `cs:8`.
