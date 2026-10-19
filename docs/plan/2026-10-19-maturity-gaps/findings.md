@@ -227,3 +227,24 @@ requires every every-turn/prompt-only item to keep its named tools, paths, numbe
 - Orchestrator re-check: `just check` 126/0; `--precheck` injected=yes for cs:20, gotcha:A2, gotcha:A7, ver:3; both
   controls fire nothing. Delivery of every sampled moved rule is proven deterministically; the model-quoting half needs a
   6-session re-run under the new prompt, which is the user's call (budget spent).
+
+## Cross-phase audit (opus, 443 s) — APPROVE, regression GREEN
+
+- Suite: `just check` 126/0; corpus-lint 0 failures; rule-audit rc 0 (279,275 calls); prompt-audit rc 0 (16,297 prompts,
+  9.4% pull a rule); `--precheck` 4/4 injected, 2/2 controls clean; mcp listening; cc-toriq `just verify` 3959/3959.
+- Always-on 72,644 -> 66,863 B (-5,781 B every request). Injection side: 12 common calls inject 5,910 B with no new-family
+  ids; new families fired 55 times in 75 sessions since 3A (~983 B per session, once). Hook in-process p50 19 ms before
+  and after 3A (p95 39 -> 46 ms).
+- No rule owned twice (familyDefects 0; rule-duplicates' 55 pairs are pointer boilerplate). Cross-refs consistent
+  (dod:17 400k = context-check.py = mod warnTokens; 500k stop).
+- Important: scripts/rule-audit.ts:36-40 `cmdOnly` is true for an empty table, so 79 of 80 NEVER FIRED rows are every-turn
+  tables, burying lessons:C12 and corrupting roadmap item 29's never-fire counts.
+  failing check: `just rule-audit | sed -n '/NEVER FIRED/,/TIERING/p' | grep -c '\[\]$'` → 0 (now 79). Fix dispatched.
+- Minor (accepted, recorded): deleting the TOP item of a lettered section is invisible to the gap gates (orphan-trigger
+  catches it only if a trigger remains); word markers (`of FTS`, `of FULL`) still unchecked by corpus-lint; dod:7 misses
+  "kayak yang existing".
+- Discussion for the user: rule-audit's tiering report proposes 43 always-on items for inject-only (incl. bf:11, cm:1,
+  py:5, gnx:10, ver:3) — a measured follow-up, not this run.
+- Fix 2c057a6 (sonnet, 147 s, 1 attempt): `neverFired` + `triggerable` in scripts/rule-select.ts, `cmdOnly` deleted.
+  Orchestrator re-check: empty-table rows in NEVER FIRED 79 -> 0; list is 6 real rules (gotcha B5 C12 C31 D4, lessons C12 E5);
+  `just check` 128/0. Run DONE.

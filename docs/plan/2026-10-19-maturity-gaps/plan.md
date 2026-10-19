@@ -47,3 +47,16 @@ Blocked on OPEN 1 and 2 in `task.md`.
 ## Not in this plan
 
 Item 28 (deny-first for irreversible commands) and items 25-27; see `docs/roadmap.md` Priority 8.
+
+## Final status
+
+Built: `just check` now fails on orphan trigger ids, reused or unrecorded retired ids, malformed retired lines, duplicate
+ids and orphan full-text sections, and derives every family's size from disk (item 23); the 28 untriggered gotcha/lessons
+items got triggers or were declared every-turn, and 8 rare non-destructive ones moved inject-only (item 22); batas gained
+eleven unlettered families (cs dod ver ui bduf gnx bf prim pc cm py) with full text in `references/rules-full/`, and the
+eleven files were converted to a line in the rules plus the content in batas (item 21); `just delivery-check` re-runs a
+4+2 rules eval on demand with a no-session hook pre-check (item 24). Alignment: Phase 3 split into 3A/3B-1/3B-2, and a
+retired-id guard (01b) was added at the user's prompting; otherwise as planned. Always-on 72,644 -> 66,863 B, hook p50
+unchanged. Learnings: green gates proved little on their own three times (link regex, step5b fixture, eval prompt) —
+the per-block content audits and red proofs carried the run. Pending, the user's call: a 6-session delivery-check re-run
+under the new prompt (the first run's 2/4 was a scoring defect; the pre-check shows 4/4 injected).
