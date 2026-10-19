@@ -96,6 +96,11 @@ function globalOnly(kinds: Kind[]): Kind[] {
   return kinds.filter((k) => GLOBAL_KINDS.includes(k));
 }
 
+export function orphanTriggerIds(triggers: Triggers, ruleIds: string[]): string[] {
+  const known = new Set(ruleIds);
+  return [...new Set(triggers.ids())].filter((id) => !known.has(id) && !/^(memory|hint):/.test(id));
+}
+
 export function createServer(ctx: SessionContext): McpServer {
   const server = new McpServer({ name: "batas", version: "0.1.0" });
   if (!ctx.cwd) {
@@ -405,7 +410,7 @@ export function createServer(ctx: SessionContext): McpServer {
         const ruleIds = s.entries("rule").map((r) => r.id);
         const covered = new Set(triggers.ids());
         const missing = ruleIds.filter((id) => !covered.has(id));
-        const orphan = [...covered].filter((id) => !ruleIds.includes(id) && !/^(memory|hint):/.test(id));
+        const orphan = orphanTriggerIds(triggers, s.entries().map((e) => e.id));
         // Step 5b's other half: an always-on mother item whose verbatim text has no section in its *-full.md is injected
         // as the condensed line only, which is already in context.
         const motherRows = s.entries("rule");

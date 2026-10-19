@@ -1,5 +1,11 @@
 # batas Progress
 
+## Session — 2026-10-19 — v0.20.5 (orphan trigger ids fail `just check`, corpus counts derived)
+
+Roadmap item 23. The orphan computation in the `status` tool moved out of `src/mcp.ts` into an exported `orphanTriggerIds(triggers, ids)` that `status` and the test both call, and `src/corpus.ts` gained `countFamilyItems(dir, family)`, which sums the existing `parseFamily` over a directory's mother file and slices, so no second parser exists. The corpus test now compares the Store's gotcha and lessons counts to that derivation instead of `toBe(157)`/`toBe(135)`, and a new test asserts zero orphan global trigger ids. Two more tests prove the gates: a temp triggers.toml with an added `["lessons:Z99"]` returns exactly that id, and a temp copy of lessons.md with one numbered item removed counts one fewer without any edit of the expected number. Found while building: `status` computed orphans against `kind = rule` ids only, so the `project:mendadak-pos:...` trigger was reported as an orphan in production although it resolves to a project-rule entry; `status` now passes every entry id, which clears that false positive. The test sandbox has no project repos, so the zero-orphan assertion ignores `project:` ids there. Verified: `just check` 100 pass, 0 fail; falsified with Z99 against a temp copy (red, naming lessons:Z99) and with the fixture item removal (67 to 66). No deploy; the launchd MCP restarts itself on the src change.
+
+---
+
 ## Session — 2026-10-19 — v0.20.4 (corpus count follows lessons A1 leaving lessons.md)
 
 lessons A1, the past-500k handover rule, moved out of `~/.claude/rules/lessons.md` into the compact-percentage mod in cc-toriq (`mods/toriq-mods/compact-percentage`), which now measures context and attaches the rule to the user's prompt past 400k under a 500k hard stop. Its `["lessons:A1"]` entry was removed from `~/.claude/batas/triggers.toml` so it cannot inject a rule that no longer lives in lessons.md, and the corpus test's lessons count went from 136 to 135, the same shape as the earlier E36/E37 count change. `just check`: 97 pass, 0 fail.

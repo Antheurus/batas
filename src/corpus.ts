@@ -143,6 +143,12 @@ export function parseSections(file: string, idPrefix: string, kind: Kind, scope:
   return out;
 }
 
+export function countFamilyItems(dir: string, family: string): number {
+  return listMd(dir)
+    .filter((file) => familyOf(file) === family)
+    .reduce((n, file) => n + parseFamily(file, family).length, 0);
+}
+
 export function projectSlug(dir: string): string {
   return dir.replace(/[^A-Za-z0-9]/g, "-");
 }

@@ -1,5 +1,11 @@
 # batas Changelog
 
+## v0.20.5 — `just check` menolak trigger yatim
+
+- Internal, tidak ada perubahan yang terasa kecuali satu: `just check` sekarang gagal dan menyebut id-nya kalau `triggers.toml` punya entri untuk aturan yang sudah tidak ada, jadi menghapusnya tidak lagi bergantung pada ingatan.
+- Jumlah aturan gotcha dan lessons di test dihitung dari file aturan, bukan angka tetap, jadi memindahkan aturan tidak perlu edit test lagi.
+- `status` tidak lagi salah menandai trigger aturan proyek (`project:...`) sebagai yatim.
+
 ## v0.20.4 — Aturan handover pindah ke mod
 
 - Internal change, no user-visible effect: aturan handover di 500k (lessons A1) udah nggak di rules lagi, jadi batas berhenti nyuntikin aturan itu. Sekarang aturannya dibawa mod `/cp` di 400k.

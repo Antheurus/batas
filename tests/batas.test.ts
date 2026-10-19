@@ -17,13 +17,13 @@ import { copiesOf, shareMemory } from "../scripts/memory-share.ts";
 import { routeLessons, ruleFile, staleFiles } from "../scripts/lessons-route.ts";
 import { routeRepo, writeRoutes } from "../src/lessons.ts";
 import { errorsIn } from "../scripts/transcripts.ts";
-import { allMemorySources, parseMemory } from "../src/corpus.ts";
+import { allMemorySources, countFamilyItems, parseMemory } from "../src/corpus.ts";
 import { mutedIds, readAcks, readFeedback, setMuted } from "../src/feedback.ts";
 import { appendHookLog, liveSessions, readHookLog } from "../src/log.ts";
 import { Store } from "../src/store.ts";
 import { Triggers } from "../src/triggers.ts";
 import { indexHook, INDEX_HOOK_MAX, logChangelog, logProgress, memoryDir, recordMemory } from "../src/write.ts";
-import { createServer, projectOf, serveHttp, type SessionContext } from "../src/mcp.ts";
+import { createServer, orphanTriggerIds, projectOf, serveHttp, type SessionContext } from "../src/mcp.ts";
 import { installHooks } from "../src/install.ts";
 
 const root = process.env.BATAS_TEST_ROOT as string;
@@ -36,8 +36,33 @@ describe("corpus", () => {
     const rows = store.entries("rule");
     const gotcha = rows.filter((r) => r.id.startsWith("gotcha:")).length;
     const lessons = rows.filter((r) => r.id.startsWith("lessons:")).length;
-    expect(gotcha).toBe(157);
-    expect(lessons).toBe(135);
+    expect(gotcha).toBe(countFamilyItems(config.rulesDir, "gotcha"));
+    expect(lessons).toBe(countFamilyItems(config.rulesDir, "lessons"));
+  });
+
+  test("the derived family count follows the files on disk", () => {
+    const dir = mkdtempSync(join(tmpdir(), "batas-family-"));
+    const src = readFileSync(join(config.rulesDir, "lessons.md"), "utf8");
+    writeFileSync(join(dir, "lessons.md"), src);
+    const before = countFamilyItems(dir, "lessons");
+    const cut = src.split("\n").findIndex((l) => /^\d+\. /.test(l));
+    writeFileSync(join(dir, "lessons.md"), src.split("\n").filter((_, i) => i !== cut).join("\n"));
+    expect(countFamilyItems(dir, "lessons")).toBe(before - 1);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  test("every global trigger id names a rule that exists", () => {
+    const ids = store.entries().map((e) => e.id);
+    expect(orphanTriggerIds(Triggers.load(), ids).filter((id) => !id.startsWith("project:"))).toEqual([]);
+  });
+
+  test("an orphan trigger id is reported by name", () => {
+    const dir = mkdtempSync(join(tmpdir(), "batas-orphan-"));
+    const file = join(dir, "triggers.toml");
+    writeFileSync(file, readFileSync(config.triggersFile, "utf8") + '\n["lessons:Z99"]\ncmd = ["zzz-never"]\n');
+    const ids = store.entries().map((e) => e.id);
+    expect(orphanTriggerIds(Triggers.load(file), ids).filter((id) => !id.startsWith("project:"))).toEqual(["lessons:Z99"]);
+    rmSync(dir, { recursive: true, force: true });
   });
 
   test("a rule moved into a slice keeps its permanent address", () => {

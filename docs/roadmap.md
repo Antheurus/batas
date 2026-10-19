@@ -194,7 +194,8 @@ always-on, what is not enforced, and what has stopped being measured.
     no longer exists) is only printed by `status` (`src/mcp.ts`), so the `lessons:A1` entry would have stayed and
     passed `just check` had it not been removed by hand on 2026-10-19; the same move needed a hand edit of
     `expect(lessons).toBe(136)` in `tests/batas.test.ts`. Assert zero orphans and derive the expected counts from the
-    corpus instead. Status: planned.
+    corpus instead. Status: **done 2026-10-19** — `orphanTriggerIds` and `countFamilyItems` back a zero-orphan test and
+    a derived count; both falsified (lessons:Z99 named, fixture item removed counts one fewer).
 24. **Delivery-eval as a recurring regression** — the `.delivery-eval-*.json` results date from 2026-10-08, before the
     shared HTTP server, correction capture, the A1 move and every trigger change since. Nothing re-runs it, so
     "the rule arrives when needed" is a week-old claim. Run it on a schedule (or from `just check` with a small case
