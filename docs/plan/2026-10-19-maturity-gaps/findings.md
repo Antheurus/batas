@@ -183,3 +183,27 @@ requires every every-turn/prompt-only item to keep its named tools, paths, numbe
   page format; fee constant names "one accessor / seed".
 - Bytes: five files 12,085 -> 13,466; 16-file always-on 65,825 B (from 72,644 at session start).
 - step5b test now uses a fixture home, so it keeps asserting after 3B-2 converts every file.
+
+## 2026-10-19 — Phase 03B-2 (opus, 902 s, 1 attempt) — SHIPPED-UNVERIFIED, audit in flight
+
+- batas f5e7145, cc-toriq f2b5f69. gnx 11, bf 12, prim 7, pc 13, cm 6, py 6 items. `just check` 118/0, corpus-lint 0,
+  sentences 0 missing, named-token check 0 missing (falsified: deleting `just mcp-restart` -> 1), ToolSearch lines byte-identical.
+  Cold read (1 sonnet session) named the same tool/command for all five situations.
+- The six files GREW 65,825 -> 66,863 B (+1,038): already short, nearly every item keeps its named tools always-on, plus
+  marker/bold-head overhead. Value kept: addresses + triggers (feeds roadmap item 29's per-rule counts).
+- Discovered: `Store.fullBody` injects full text only when it is longer than the line; bf/py full sections needed the
+  pre-conversion wording added for that.
+- SECURITY: while sampling commands from other sessions' transcripts, the executor printed plaintext credentials already
+  sitting in those transcripts (three sshpass passwords for internal/remote SSH hosts and one local API key). Orchestrator
+  checked: no value in scratchpad files (cand3/cand4.toml match only the word) nor in f2b5f69 / f5e7145. Values were not
+  repeated here. User told to rotate the four.
+
+## 2026-10-19 — Phase 03B-2 audit (sonnet, 157 s) — RECEIPT empty (clean); Phase 03 DONE
+
+- Fences byte-identical (both ToolSearch lines, cm template, py env sweep); no backticked token or number missing;
+  gnx:6 one line still maps all 14 question->tool pairs; no new trigger fires on common commands; plain `git commit` does
+  not fire cm:1.
+- Worth-it: all six grew (+1,038 B). 594 B is the marker (required by src/corpus.ts) plus "Full text per item" pointer
+  lines (444 B, the only in-file path to rules-full — kept). Net cost ~1 KB always-on, bought per-item addresses.
+- Phase 03 totals: 16-file always-on 71,637 B (after Phase 2) -> 66,863 B; session start was 72,644 B (-5,781 B, ~-1.4k
+  tokens per request). 11 files addressed: cs 27, dod 17, ver 10, ui 7, bduf 5, gnx 11, bf 12, prim 7, pc 13, cm 6, py 6.

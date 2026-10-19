@@ -58,7 +58,7 @@ what 2 and 3 moved. Working directory: the batas repo root (no isolation).
   _Plan: plan.md §Phase 2_ · _Blocked by: Phase 01_
 
 ## Block 3
-- [ ] Phase 03 — a line in the rules, the content in batas (item 21)
+- [x] Phase 03 — a line in the rules, the content in batas (item 21) — 3A a78bf02 4d37d24; 3B-1 e19158d 7dbc615; 3B-2 f2b5f69 (cc-toriq)
   _Plan: plan.md §Phase 3_ · _Blocked by: Phase 02_
 
 ## Block 4
