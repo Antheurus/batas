@@ -17,7 +17,7 @@ import { copiesOf, shareMemory } from "../scripts/memory-share.ts";
 import { routeLessons, ruleFile, staleFiles } from "../scripts/lessons-route.ts";
 import { routeRepo, writeRoutes } from "../src/lessons.ts";
 import { errorsIn } from "../scripts/transcripts.ts";
-import { allMemorySources, countFamilyItems, familyGaps, parseMemory, readRetiredIds } from "../src/corpus.ts";
+import { allMemorySources, countFamilyItems, familyGaps, parseFamily, parseMemory, readRetiredIds, retiredIdPattern } from "../src/corpus.ts";
 import { mutedIds, readAcks, readFeedback, setMuted } from "../src/feedback.ts";
 import { appendHookLog, liveSessions, readHookLog } from "../src/log.ts";
 import { Store } from "../src/store.ts";
@@ -26,19 +26,24 @@ import { indexHook, INDEX_HOOK_MAX, logChangelog, logProgress, memoryDir, record
 import { createServer, orphanTriggerIds, projectOf, serveHttp, type SessionContext } from "../src/mcp.ts";
 import { installHooks } from "../src/install.ts";
 
-const RETIRED_ID = /^(gotcha|lessons):[A-Z]\d+$/;
+const RETIRED_ID = retiredIdPattern();
+const FAMILIES = [...new Set(Object.values(config.families))];
 const root = process.env.BATAS_TEST_ROOT as string;
 const demo = join(root, "repos", "demo-app");
 const store = new Store();
 store.refresh("all");
 
 describe("corpus", () => {
-  test("indexes every numbered rule of both families exactly once", () => {
+  test("indexes every numbered rule of every family exactly once", () => {
     const rows = store.entries("rule");
-    const gotcha = rows.filter((r) => r.id.startsWith("gotcha:")).length;
-    const lessons = rows.filter((r) => r.id.startsWith("lessons:")).length;
-    expect(gotcha).toBe(countFamilyItems(config.rulesDir, "gotcha"));
-    expect(lessons).toBe(countFamilyItems(config.rulesDir, "lessons"));
+    for (const f of FAMILIES) {
+      expect(rows.filter((r) => r.id.startsWith(`${f}:`)).length, `family ${f}`).toBe(countFamilyItems(config.rulesDir, f));
+    }
+  });
+
+  test("every item of a file-wide numbered family has its full-text section", () => {
+    const missing = store.entries("rule").filter((e) => !config.familyLettered[e.id.split(":")[0] ?? ""] && !store.fullSection(e));
+    expect(missing.map((e) => e.id), "add a `## <N>` section to its references/rules-full/<file>").toEqual([]);
   });
 
   test("the derived family count follows the files on disk", () => {
@@ -95,7 +100,7 @@ describe("corpus", () => {
 
   test("every gap in the corpus is recorded in retired-ids.txt", () => {
     const retired = new Set(readRetiredIds(config.retiredIdsFile));
-    const unrecorded = ["gotcha", "lessons"].flatMap((f) => familyGaps(config.rulesDir, f)).filter((id) => !retired.has(id));
+    const unrecorded = FAMILIES.flatMap((f) => familyGaps(config.rulesDir, f)).filter((id) => !retired.has(id));
     expect(unrecorded, `add to ${config.retiredIdsFile}: ${unrecorded.join(", ")}`).toEqual([]);
   });
 
@@ -112,6 +117,150 @@ describe("corpus", () => {
     expect(readRetiredIds(retired)).toEqual(["lessons:A2"]);
     expect(familyGaps(dir, "lessons")).not.toContain("lessons:A2");
     rmSync(dir, { recursive: true, force: true });
+  });
+
+  describe("a converted file-wide numbered family (fixture)", () => {
+    const fix = mkdtempSync(join(tmpdir(), "batas-numbered-"));
+    const home = join(fix, "claude");
+    const rules = join(home, "rules");
+    const full = join(home, "references", "rules-full");
+    mkdirSync(rules, { recursive: true });
+    mkdirSync(full, { recursive: true });
+    mkdirSync(join(home, "batas"), { recursive: true });
+    const condensed = [
+      "# Coding Standards",
+      "",
+      "<!-- batas:numbered -->",
+      "",
+      "Correctness, then clarity, then minimalism.",
+      "",
+      "## Rules",
+      "",
+      "1. **KISS** — readable over clever.",
+      "2. **Single Responsibility** — split at 250+ lines only when it clarifies.",
+      "",
+      "## Config",
+      "",
+      "12. **Config** — one root file; anything a person would tune ships with a settings surface.",
+      "",
+      "## Pre-Submission Check",
+      "",
+      "1. not an item: plain numbered prose under a heading stays out of the family.",
+      "",
+    ].join("\n");
+    writeFileSync(join(rules, "coding-standard.md"), condensed);
+    const fullText = [
+      "# coding-standard.md — full text",
+      "",
+      "The always-on file carries the condensed rule; this holds the full wording. Look an item up by its permanent ID.",
+      "",
+      "## 1",
+      "_linked from ../../rules/coding-standard.md of 1_",
+      "",
+      "1. **KISS** — readable over clever; a senior reviewer must be able to follow every line without a guided tour.",
+      "",
+      "## 2",
+      "_linked from ../../rules/coding-standard.md of 2_",
+      "",
+      "2. **Single Responsibility** — split at 250+ lines only when it genuinely clarifies; never split a sequential flow.",
+      "",
+      "## 12",
+      "_linked from ../../rules/coding-standard.md of 12_",
+      "",
+      "12. **Config** — one root file, validated at startup, credentials via env. Anything a person would plausibly tune",
+      "(copy, thresholds, fees, limits, toggles) ships with a user-facing settings surface read through one accessor; the",
+      "config value is the seed. FULL-WORDING-CS12.",
+      "",
+    ].join("\n");
+    writeFileSync(join(full, "coding-standard.md"), fullText);
+    writeFileSync(join(home, "batas", "triggers.toml"), '["cs:12"]\ncmd = ["\\\\bconfig-fixture-cmd\\\\b"]\n');
+    const env = { ...process.env, BATAS_CLAUDE_HOME: home, BATAS_STATE_DIR: join(fix, "state"), BATAS_PROJECT_ROOTS: join(fix, "none") };
+    const repo = join(import.meta.dir, "..");
+    const probe = async (code: string): Promise<string> => {
+      const p = Bun.spawn(["bun", "-e", code], { cwd: repo, stdout: "pipe", stderr: "pipe", env });
+      const out = await new Response(p.stdout).text();
+      const err = await new Response(p.stderr).text();
+      expect(await p.exited, err).toBe(0);
+      return out.trim();
+    };
+    const STORE = `import {Store} from "./src/store.ts"; const s = new Store(); s.refresh("all");`;
+    afterAll(() => rmSync(fix, { recursive: true, force: true }));
+
+    test("indexes exactly cs:1 cs:2 cs:12 and reports cs:3..cs:11 as gaps", async () => {
+      const ids = await probe(`${STORE} console.log(s.entries("rule").map((e) => e.id).filter((id) => id.startsWith("cs:")).join(" "))`);
+      console.log("store cs ids:", ids);
+      expect(ids).toBe("cs:1 cs:2 cs:12");
+      expect(countFamilyItems(rules, "cs")).toBe(3);
+      const gaps = familyGaps(rules, "cs");
+      console.log("familyGaps:", gaps.join(" "));
+      expect(gaps).toEqual(["cs:3", "cs:4", "cs:5", "cs:6", "cs:7", "cs:8", "cs:9", "cs:10", "cs:11"]);
+    });
+
+    test("the cs:12 trigger fires in the real hook and injects the full wording, not the condensed line", async () => {
+      const hook = Bun.spawn(["bun", join(repo, "src", "hook.ts")], { stdin: "pipe", stdout: "pipe", env });
+      hook.stdin.write(JSON.stringify({ session_id: `cs-${Math.random()}`, cwd: fix, hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command: "config-fixture-cmd --dry" } }));
+      hook.stdin.end();
+      const out = JSON.parse(await new Response(hook.stdout).text()) as { hookSpecificOutput?: { additionalContext?: string } };
+      const ctx = out.hookSpecificOutput?.additionalContext ?? "";
+      console.log("hook additionalContext:\n" + ctx);
+      expect(ctx).toContain("### cs:12");
+      expect(ctx).toContain("FULL-WORDING-CS12");
+      expect(ctx).not.toContain("_linked from");
+    });
+
+    test("the MCP get tool returns the full wording for cs:12", async () => {
+      const got = await probe(
+        `import {Client} from "@modelcontextprotocol/sdk/client/index.js"; import {InMemoryTransport} from "@modelcontextprotocol/sdk/inMemory.js"; import {createServer} from "./src/mcp.ts";` +
+          `const [c, sv] = InMemoryTransport.createLinkedPair(); await createServer({cwd: "${fix}"}).connect(sv); const cl = new Client({name: "t", version: "0"}); await cl.connect(c);` +
+          `const r = await cl.callTool({name: "get", arguments: {id: "cs:12"}}); console.log(r.content[0].text); process.exit(0);`,
+      );
+      console.log("get cs:12:\n" + got);
+      expect(got.startsWith("## cs:12")).toBe(true);
+      expect(got).toContain("FULL-WORDING-CS12");
+    });
+
+    test("a missing rules-full file degrades in the hook path and turns the full-text check red", async () => {
+      const check = `${STORE} console.log(s.entries("rule").filter((e) => e.id.startsWith("cs:") && !s.fullSection(e)).map((e) => e.id).join(" ") + "|" + s.fullBody(s.get("cs:12")))`;
+      expect((await probe(check)).split("|")[0]).toBe("");
+      rmSync(join(full, "coding-standard.md"));
+      const [missing, body] = (await probe(check)).split("|");
+      console.log("without rules-full, missing full text:", missing);
+      expect(missing).toBe("cs:1 cs:2 cs:12");
+      expect(body).toContain("12. **Config** — one root file; anything");
+      writeFileSync(join(full, "coding-standard.md"), fullText);
+    });
+
+    test("falsify: an orphan cs:99 trigger, a retired id still present, and a malformed retired line are each named", () => {
+      const ids = parseFamily(join(rules, "coding-standard.md"), "cs").map((e) => e.id);
+      const trig = join(fix, "orphan.toml");
+      writeFileSync(trig, '["cs:12"]\ncmd = ["x"]\n["cs:99"]\ncmd = ["zzz-never"]\n');
+      const orphan = orphanTriggerIds(Triggers.load(trig), ids);
+      console.log("orphan:", orphan);
+      expect(orphan).toEqual(["cs:99"]);
+
+      const five = join(fix, "five");
+      mkdirSync(five, { recursive: true });
+      writeFileSync(join(five, "coding-standard.md"), condensed.replace("## Config", "5. **Isolated Environments** — no global installs.\n\n## Config"));
+      const present = new Set(parseFamily(join(five, "coding-standard.md"), "cs").map((e) => e.id));
+      const retired = join(fix, "retired-ids.txt");
+      writeFileSync(retired, "cs:5  # fixture\ncs:a5\ngotcha:D27\ncs:A5\n");
+      const reused = readRetiredIds(retired).filter((id) => present.has(id));
+      console.log("retired id still present:", reused);
+      expect(reused).toEqual(["cs:5"]);
+      const bad = readRetiredIds(retired).filter((id) => !RETIRED_ID.test(id));
+      console.log("malformed retired lines:", bad);
+      expect(bad).toEqual(["cs:a5", "cs:A5"]);
+    });
+
+    test("an unconverted file (no marker) indexes no items and keeps its sections", async () => {
+      const plain = join(fix, "plain");
+      mkdirSync(plain, { recursive: true });
+      writeFileSync(join(plain, "coding-standard.md"), condensed.replace("<!-- batas:numbered -->\n", ""));
+      expect(countFamilyItems(plain, "cs")).toBe(0);
+      expect(familyGaps(plain, "cs")).toEqual([]);
+      const real = store.entries("rule-section").filter((e) => e.source.endsWith("/coding-standard.md")).length;
+      expect(real).toBeGreaterThan(0);
+    });
   });
 
   test("a rule moved into a slice keeps its permanent address", () => {

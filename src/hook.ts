@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { config } from "./config.ts";
-import { allMemorySources, listMd, memoryTriggers, parseMemory, parseSections, projectSlug, type Entry, type Kind } from "./corpus.ts";
+import { allMemorySources, familyOf, listMd, memoryTriggers, parseMemory, parseSections, projectSlug, type Entry, type Kind } from "./corpus.ts";
 import { mutedIds, recordAck, reportWrong } from "./feedback.ts";
 import { filesInCommand, lessonsDir, regenAll, regenIfLessonsChanged, routedLessons } from "./lessons.ts";
 import { appendHookLog, liveSessions } from "./log.ts";
@@ -368,8 +368,7 @@ function liveNote(input: HookInput, state: SessionState): { id: string; text: st
 
 const isMemoryFile = (p: string) =>
   p.startsWith(`${config.projectsDir}/`) && /\/memory\/(?!MEMORY\.md$)[^/]+\.md$/.test(p);
-const isFamilyFile = (p: string) =>
-  p.startsWith(`${config.rulesDir}/`) && /\/(lessons\.md|gotcha-coding\.md|p-(lessons|gotcha)-[^/]+\.md)$/.test(p);
+const isFamilyFile = (p: string) => p.startsWith(`${config.rulesDir}/`) && familyOf(p) !== undefined;
 const HAS_TRIGGERS = /^\s*triggers:\s*\S/m;
 
 // rules-writer Step 5b at the moment of the write, not after a backfill: a memory without triggers is never injected,
@@ -403,10 +402,10 @@ function step5bNote(input: HookInput, state: SessionState): { id: string; text: 
     return {
       id,
       text: [
-        "### Editing a gotcha/lessons rule file — rules-writer Step 5b applies before this is done",
+        "### Editing a numbered rule file — rules-writer Step 5b applies before this is done",
         "A new or moved item needs (1) an entry in ~/.claude/batas/triggers.toml with cmd/path/code regexes, prompt phrases",
         "in Indonesian AND English, and a t_* fixture each; (2) its verbatim full wording in",
-        "~/.claude/references/{lessons,gotcha}-full.md under `## <ID>` — a rewritten item updates that section too. Then",
+        `~/.claude/references/${config.familyFullText[familyOf(p) ?? ""] ?? "<family full text>"} under \`## <ID>\` — a rewritten item updates that section too. Then`,
         "`just check` in the batas repo (the recall test) and `just sync` in cc-toriq.",
       ].join("\n"),
     };
@@ -491,19 +490,9 @@ function resolve(store: Store, id: string): Entry | undefined {
 
 // An always-on family item is condensed and already in context; when its trigger fires, what is worth injecting is
 // the original wording kept verbatim in the family's full-text reference.
-function fullText(store: Store, e: Entry): string | undefined {
-  const [family, addr] = e.id.split(":");
-  const name = family ? config.familyFullText[family] : undefined;
-  if (!name || !addr) return undefined;
-  const ref = store.get(`ref:references/${name}#${addr.toLowerCase()}`);
-  if (!ref || ref.title !== addr) return undefined;
-  return ref.body.replace(/^## .*\n/, "").replace(/^_linked from [^\n]*\n+/, "").trim();
-}
-
 function render(store: Store, e: Entry, m: Match, origin?: string): string {
   const who = origin ? ` · ${origin}` : "";
-  const full = fullText(store, e);
-  const body = full && full.length > e.body.length ? full : e.body;
+  const body = store.fullBody(e);
   return `### ${e.id}${who} — fired by ${m.via} \`${m.pattern}\` (${basename(e.source)}:${e.line})\n${body}`;
 }
 

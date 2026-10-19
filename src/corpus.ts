@@ -1,3 +1,6 @@
+// A family item's always-on line is condensed and already in context, so when its trigger fires batas injects the item's
+// full wording from familyFullText (rules-full/<file> for the unlettered families), never the line again; injecting the
+// condensed line was rejected because it adds nothing the session does not already hold.
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, join, relative } from "node:path";
 import { config } from "./config.ts";
@@ -26,6 +29,8 @@ export type Entry = {
 
 const FAMILY_HEAD = /^## ([A-Z])\. (.+)$/;
 const FAMILY_ITEM = /^(\d+)\. /;
+const NUMBERED_ITEM = /^(\d+)\. \*\*/;
+const NUMBERED_MARK = /^<!-- batas:numbered -->$/m;
 
 export function stripFrontmatter(text: string): { fm: Record<string, string>; body: string; offset: number } {
   if (!text.startsWith("---\n")) return { fm: {}, body: text, offset: 0 };
@@ -63,6 +68,8 @@ function slug(text: string): string {
 
 export function parseFamily(file: string, family: string): Entry[] {
   const { body, offset } = stripFrontmatter(readFileSync(file, "utf8"));
+  const lettered = !!config.familyLettered[family];
+  if (!lettered && !NUMBERED_MARK.test(body)) return [];
   const lines = body.split("\n");
   const out: Entry[] = [];
   let section: string | undefined;
@@ -87,16 +94,20 @@ export function parseFamily(file: string, family: string): Entry[] {
 
   lines.forEach((line, i) => {
     if (line.startsWith("```")) inFence = !inFence;
-    const head = !inFence && line.match(FAMILY_HEAD);
+    const head = lettered && !inFence && line.match(FAMILY_HEAD);
     if (head) {
       flush();
       section = head[1];
       return;
     }
-    const item = !inFence && section ? line.match(FAMILY_ITEM) : null;
+    const item = inFence ? null : lettered ? (section ? line.match(FAMILY_ITEM) : null) : line.match(NUMBERED_ITEM);
     if (item) {
       flush();
-      current = { id: `${family}:${section}${item[1]}`, start: i, lines: [line] };
+      current = { id: `${family}:${section ?? ""}${item[1]}`, start: i, lines: [line] };
+      return;
+    }
+    if (!inFence && !lettered && line.startsWith("#")) {
+      flush();
       return;
     }
     if (line.startsWith("## ")) {
@@ -156,14 +167,22 @@ export function familyGaps(dir: string, family: string): string[] {
   }
   const max = new Map<string, number>();
   for (const id of ids) {
-    const m = id.match(/:([A-Z])(\d+)$/);
-    if (m?.[1] && m[2]) max.set(m[1], Math.max(max.get(m[1]) ?? 0, Number(m[2])));
+    const m = id.match(/:([A-Z]?)(\d+)$/);
+    if (m?.[1] !== undefined && m[2]) max.set(m[1], Math.max(max.get(m[1]) ?? 0, Number(m[2])));
   }
   const gaps: string[] = [];
   for (const [section, top] of max) {
     for (let n = 1; n < top; n++) if (!ids.has(`${family}:${section}${n}`)) gaps.push(`${family}:${section}${n}`);
   }
   return gaps;
+}
+
+// A retired id names a family from config: lettered `gotcha:D27`, unlettered `cs:12`.
+export function retiredIdPattern(): RegExp {
+  const fams = [...new Set(Object.values(config.families))];
+  const lettered = fams.filter((f) => config.familyLettered[f]).join("|");
+  const numbered = fams.filter((f) => !config.familyLettered[f]).join("|");
+  return new RegExp(`^(?:(?:${lettered}):[A-Z]\\d+|(?:${numbered}):\\d+)$`);
 }
 
 export function readRetiredIds(file: string): string[] {
@@ -187,18 +206,19 @@ export function listMd(dir: string): string[] {
 
 export type Source = { file: string; parse: () => Entry[] };
 
+// An unlettered family file not yet converted (no marker) stays indexed by section, so its prose is never lost to recall.
+export function parseRuleFile(file: string): Entry[] {
+  const family = familyOf(file);
+  if (family && (config.familyLettered[family] || NUMBERED_MARK.test(readFileSync(file, "utf8")))) {
+    return parseFamily(file, family);
+  }
+  return parseSections(file, `rule:${basename(file)}`, "rule-section", "global");
+}
+
 export function globalSources(): Source[] {
   const sources: Source[] = [];
 
-  for (const file of listMd(config.rulesDir)) {
-    const family = familyOf(file);
-    const name = basename(file);
-    sources.push({
-      file,
-      parse: () =>
-        family ? parseFamily(file, family) : parseSections(file, `rule:${name}`, "rule-section", "global"),
-    });
-  }
+  for (const file of listMd(config.rulesDir)) sources.push({ file, parse: () => parseRuleFile(file) });
 
   const refDirs = [...config.referenceDirs];
   if (existsSync(config.skillsDir)) {
@@ -213,6 +233,8 @@ export function globalSources(): Source[] {
     }
   }
 
+  // rules-full/ is a subdirectory, which the flat reference listing above does not reach.
+  for (const src of familyFullTextSources()) if (!sources.some((s) => s.file === src.file)) sources.push(src);
   sources.push(...allMemorySources());
   return sources;
 }
@@ -347,16 +369,7 @@ function familyFullTextSources(): Source[] {
 
 export function allSources(scope: "rules" | "all"): Source[] {
   if (scope === "rules") {
-    return [...familyFullTextSources(), ...listMd(config.rulesDir).map((file) => {
-      const family = familyOf(file);
-      return {
-        file,
-        parse: () =>
-          family
-            ? parseFamily(file, family)
-            : parseSections(file, `rule:${basename(file)}`, "rule-section", "global"),
-      };
-    })];
+    return [...familyFullTextSources(), ...listMd(config.rulesDir).map((file) => ({ file, parse: () => parseRuleFile(file) }))];
   }
   return [...globalSources(), ...projectSources()];
 }

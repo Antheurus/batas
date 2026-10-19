@@ -4,10 +4,11 @@
 // match words, and a database file shared between live sessions was the source of the "disk I/O error" class.
 import { readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { config } from "./config.ts";
 import { allSources, type Entry, type Kind, type Source } from "./corpus.ts";
 import { semanticSearch } from "./semantic.ts";
 
-const LINK_TO = /_linked to (\S+?) of ([A-Z]\d+)_/g;
+const LINK_TO = /_linked to (\S+?) of ([A-Z]?\d+)_/g;
 const WIKI = /\[\[([^\]]+)\]\]/g;
 
 export type Hit = Entry & { score: number; snippet: string };
@@ -89,6 +90,22 @@ export class Store {
     let best: Entry | undefined;
     for (const e of this.byId.values()) if (e.id.includes(id) && (!best || e.id.length < best.id.length)) best = e;
     return best;
+  }
+
+  fullSection(e: Entry): string | undefined {
+    const [family, addr] = e.id.split(":");
+    const name = family ? config.familyFullText[family] : undefined;
+    if (!name || !addr) return undefined;
+    const ref = this.get(`ref:references/${name}#${addr.toLowerCase()}`);
+    if (!ref || ref.title !== addr) return undefined;
+    return ref.body.replace(/^## .*\n/, "").replace(/^_linked from [^\n]*\n+/, "").trim();
+  }
+
+  // A family item as it is shown and injected: its verbatim full-text section when that is longer than the condensed
+  // item, else the item itself, so a missing reference degrades to the item and never throws.
+  fullBody(e: Entry): string {
+    const full = this.fullSection(e);
+    return full && full.length > e.body.length ? full : e.body;
   }
 
   entries(kind?: Kind): Entry[] {

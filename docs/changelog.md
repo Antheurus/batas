@@ -1,5 +1,13 @@
 # batas Changelog
 
+## v0.22.0 — Sebelas file aturan always-on lainnya siap diberi nomor permanen
+
+- batas kini mengenali nomor permanen untuk 11 file aturan always-on yang selama ini tanpa alamat: `cs` (coding-standard), `dod`, `ver`, `ui`, `bduf`, `gnx`, `bf`, `prim`, `pc`, `cm`, `py`. Contoh: `cs:12` = Rule 12 di coding-standard.
+- Saat pemicu aturan seperti `cs:12` menyala, batas menyuntikkan teks lengkapnya dari `~/.claude/references/rules-full/<file>`, bukan baris ringkas yang sudah ada di konteks. `mcp__batas__get` juga menampilkan teks lengkap itu.
+- Belum ada file aturan yang diubah: file baru dihitung bernomor setelah diberi baris `<!-- batas:numbered -->` (fase berikutnya). Sampai saat itu isinya tetap terindeks dan bisa dicari seperti sekarang.
+- `00-index.md`, `01-request-fidelity.md` dan `persona.md` sengaja tetap utuh dan always-on.
+- Tindakan: tidak ada.
+
 ## v0.21.0 — Lebih banyak aturan muncul tepat saat dibutuhkan, korpus always-on lebih ringan
 
 - 18 aturan always-on yang sebelumnya hanya bisa dipicu lewat kata di prompt kini juga punya pemicu perintah/file/kode, jadi batas menyuntikkan teks lengkapnya saat tangan agent ada di situ: perbandingan rentang tanggal relatif (`interval '30 days'`, `subDays(`), `gh pr create`/`merge`, `git log origin/main..HEAD`, `git worktree list`, file `.env.example`, paket `contracts/`, `SKILL.md`, `learnings.md`, dan lain-lain.

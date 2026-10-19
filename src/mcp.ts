@@ -210,7 +210,7 @@ export function createServer(ctx: SessionContext): McpServer {
     "get",
     {
       description:
-        "Fetch one entry in full by id — a rule address like 'gotcha:D27' or 'lessons:C18', a memory like " +
+        "Fetch one entry in full by id — a rule address like 'gotcha:D27', 'lessons:C18' or 'cs:12', a memory like " +
         "'memory:<project-slug>/<name>', or any id returned by recall/check. Partial ids resolve to the closest match.",
       inputSchema: { id: z.string() },
       annotations: { readOnlyHint: true },
@@ -223,7 +223,7 @@ export function createServer(ctx: SessionContext): McpServer {
         const links = s.links(e.id);
         const spec = Triggers.load().specs[e.id];
         const who = spec?.origin ? `\n\norigin: ${spec.origin}${spec.recorded ? ` (recorded ${spec.recorded})` : ""}` : "";
-        return text(`${full(e)}${who}${links.length ? `\n\nlinks: ${links.map((l) => l.dst).join(", ")}` : ""}`);
+        return text(`${full({ ...e, body: s.fullBody(e) })}${who}${links.length ? `\n\nlinks: ${links.map((l) => l.dst).join(", ")}` : ""}`);
       } catch (err) {
         return fail(err);
       }
@@ -415,14 +415,8 @@ export function createServer(ctx: SessionContext): McpServer {
         // as the condensed line only, which is already in context.
         const motherRows = s.entries("rule");
         const noFullText = motherRows
-          .filter((r) => /\/(lessons\.md|gotcha-coding\.md)$/.test(r.source))
-          .map((r) => r.id)
-          .filter((id) => {
-            const [family, addr] = id.split(":");
-            const file = family ? config.familyFullText[family] : undefined;
-            const exact = s.entries("reference").some((e) => e.id === `ref:references/${file}#${addr?.toLowerCase()}`);
-            return !!file && !!addr && !exact;
-          });
+          .filter((r) => !!config.families[basename(r.source)] && !s.fullSection(r))
+          .map((r) => r.id);
         const rows = readHookLog(Date.now() - 24 * 3600 * 1000);
         let activity = "no hook activity recorded in 24h";
         if (rows.length) {

@@ -58,7 +58,7 @@ if (reported.size) {
 // injected. Destructiveness is not measurable here, so the report proposes and the rules-writer rubric (Q4) decides.
 const store = new Store();
 store.refresh("rules");
-const ALWAYS_ON = new Set(["lessons.md", "gotcha-coding.md"]);
+const ALWAYS_ON = new Set(Object.keys(config.families));
 const promoteShare = Number(process.argv[4] ?? 0.3);
 const demoteShare = Number(process.argv[5] ?? 0.02);
 const rows = store.entries("rule").map(

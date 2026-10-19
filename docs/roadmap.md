@@ -179,7 +179,8 @@ always-on, what is not enforced, and what has stopped being measured.
     `lessons.md`/`gotcha-coding.md` already use: each section condenses to one or two prescriptive sentences
     always-on, its full wording moves to a `*-full.md` section that batas injects when the trigger fires. Nothing is
     dropped, only the always-on half shrinks. Destructive and every-turn guidance keeps its line, as in item 2, because
-    an injection lands after the command ran. Status: planned.
+    an injection lands after the command ran. Status: in progress — 3A batas side landed 2026-10-19 (prefix map,
+    `<!-- batas:numbered -->` marker, `references/rules-full/<file>` full-text home; see README "Rule families").
 28. **Deny-first for irreversible commands** — the reason destructive lines must stay always-on is that a PreToolUse
     injection arrives with the tool result, after the command already ran. batas can already stop a command BEFORE it
     runs and offer an acknowledged way through (the live-session `git push` guard, `BATAS_ACK_LIVE=1`). Extending that

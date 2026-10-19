@@ -10,7 +10,7 @@ git, and readable by a human. batas indexes them and puts them in front of the a
 
 | What gets indexed | Where it lives |
 |---|---|
-| Global rules (always-on + path-scoped slices), addressed `gotcha:D27`, `lessons:C18` | `~/.claude/rules/*.md` |
+| Global rules (always-on + path-scoped slices), addressed `gotcha:D27`, `lessons:C18`, `cs:12` | `~/.claude/rules/*.md` |
 | Incident write-ups and skill references | `~/.claude/references/`, `~/.claude/skills/*/references/` |
 | Per-project memory: user, feedback, project, reference | `~/.claude/projects/*/memory/*.md` |
 | Project rules, `docs/progress.md`, `docs/changelog.md`, `docs/context/`, `docs/lessons/`, `docs/qa/context.md` | every repo under the project roots |
@@ -28,7 +28,7 @@ git, and readable by a human. batas indexes them and puts them in front of the a
 | `PreToolUse` hook, sweeping git command | `git add -A/./-u`, `commit -a`, `stash` without paths, `checkout .`, `restore .`, `reset --hard`, `clean -f` while the repo has a dirty file that is not this session's work: written by another session (from its Edit/Write calls, and from a `PostToolUse` hook that attributes every file a Bash command or script changed during the call — idle sessions included), or dirty since before this session's transcript was created | **denies**, naming the files; way through: stage by path, or prefix `BATAS_ACK_FOREIGN=1 ` |
 | `PreToolUse` hook, `git push` | another session logged in the same repo root within 15 minutes | **denies**; way through: check `git log @{u}..HEAD`, then prefix `BATAS_ACK_LIVE=1 ` |
 | `PreToolUse` hook, other shared-checkout git command | another session live in the same root | warns once per set of sessions |
-| `PreToolUse` hook, always-on family rule | a `gotcha:`/`lessons:` trigger fires | injects the item's verbatim full text from `~/.claude/references/{gotcha,lessons}-full.md`, not the condensed line already in context |
+| `PreToolUse` hook, always-on family rule | a family trigger fires (`gotcha:`, `lessons:`, `cs:`, ...) | injects the item's verbatim full text from `~/.claude/references/{gotcha,lessons}-full.md` or `~/.claude/references/rules-full/<file>`, not the condensed line already in context |
 | `Stop` hook | the final reply matches a known mistake pattern | blocks once with the rule, and honours `stop_hook_active` |
 | MCP `batas` | when the agent calls it | `check`, `recall`, `get`, `record`, `log_progress`, `log_changelog`, `status` |
 | Skill `batas` | on its trigger phrases | tells the agent which tool fits which situation |
@@ -74,6 +74,34 @@ rule whose fixture stops firing turns the suite red instead of failing silently 
 Rule ids are permanent addresses. Deleting or moving a numbered rule out of the corpus means adding its id to
 `~/.claude/batas/retired-ids.txt` (`<family>:<ID>  # <date> <where it went>`); `just check` fails on a gap that is not
 listed there and on a listed id that a new rule has taken.
+
+### Rule families
+
+Every numbered rule file is a family, mapped in `src/config.ts` (`families`, `familyLettered`, `familyFullText`):
+
+| File | Prefix | Numbering | Full text |
+|---|---|---|---|
+| `gotcha-coding.md` + `p-gotcha-*.md` | `gotcha` | lettered, `## D. ...` then `27. ` → `gotcha:D27` | `references/gotcha-full.md` |
+| `lessons.md` + `p-lessons-*.md` | `lessons` | lettered → `lessons:C18` | `references/lessons-full.md` |
+| `coding-standard.md` | `cs` | file-wide → `cs:12` | `references/rules-full/coding-standard.md` |
+| `02-definition-of-done.md` | `dod` | file-wide | `references/rules-full/02-definition-of-done.md` |
+| `03-real-verification.md` | `ver` | file-wide | `references/rules-full/03-real-verification.md` |
+| `04-ui-consistency.md` | `ui` | file-wide | `references/rules-full/04-ui-consistency.md` |
+| `05-design-then-scope.md` | `bduf` | file-wide | `references/rules-full/05-design-then-scope.md` |
+| `gitnexus-first.md` | `gnx` | file-wide | `references/rules-full/gitnexus-first.md` |
+| `batas-first.md` | `bf` | file-wide | `references/rules-full/batas-first.md` |
+| `primitive.md` | `prim` | file-wide | `references/rules-full/primitive.md` |
+| `progress-changelog.md` | `pc` | file-wide | `references/rules-full/progress-changelog.md` |
+| `commit-message.md` | `cm` | file-wide | `references/rules-full/commit-message.md` |
+| `python-c-over-bash.md` | `py` | file-wide | `references/rules-full/python-c-over-bash.md` |
+
+`00-index.md`, `01-request-fidelity.md` and `persona.md` are not families: they stay whole and always-on.
+
+A file-wide family counts items only once the file carries the line `<!-- batas:numbered -->`; until then it is
+indexed by `##` section like any other rule file. In a converted file an item is a top-level line `N. **...**` (no
+indent, outside a code fence), running to the next item or heading; `N` is unique in the file and permanent. Its full
+wording sits in the family's full-text file under `## N` (the file opens with a `# ` title line). `just check` fails
+when a converted item has no `## N` section; the hook falls back to the condensed line instead of throwing.
 
 ## Commands
 
