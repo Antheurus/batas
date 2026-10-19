@@ -50,7 +50,7 @@ Sequential throughout: Phases 2 and 3 both write `~/.claude/batas/triggers.toml`
 what 2 and 3 moved. Working directory: the batas repo root (no isolation).
 
 ## Block 1
-- [ ] Phase 01 — orphan gate + derived counts (item 23)
+- [x] Phase 01 — orphan gate + derived counts (item 23) — d19c342, 3d61720, 2dedee6
   _Plan: plan.md §Phase 1_ · _Blocked by: none_
 
 ## Block 2

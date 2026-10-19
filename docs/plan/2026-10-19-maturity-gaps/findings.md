@@ -31,3 +31,28 @@
 - Known limit: deleting the LAST item of a section leaves no visible gap; only the orphan-trigger gate catches it, and
   only when that item had a trigger.
 - Roadmap item 29 now carries the delete-candidate gates (trigger exists, fixture fires, not destructive, zero situations).
+
+## 2026-10-19 — Block 1 audit (sonnet, 333 s) — RECEIPT, 2 findings
+
+RECEIPT — Batch, Phases 01 and 01b (d19c342, 3d61720)
+- src/corpus.ts `readRetiredIds`, the `.replace(/#.*$/, "")` line — a CRLF line with a comment keeps its comment (`.` does
+  not match `\r`), so `"lessons:A1  # x"` is returned, never equals a real id, and reuse test (a) passes silently.
+  failing check: `printf 'lessons:A1  # x\r\n' > $S/r.txt; bun -e 'import {readRetiredIds} from "./src/corpus.ts"; console.log(JSON.stringify(readRetiredIds(process.argv[1])))' $S/r.txt` → expected `["lessons:A1"]`; actual `["lessons:A1  # x"]`.
+- tests/batas.test.ts:54-57 zero-orphan test passes vacuously when triggers.toml is missing (`Triggers.load`,
+  src/triggers.ts:137, returns an empty set with no error); same silent mode for a missing retired-ids.txt.
+  failing check: `BATAS_TRIGGERS=/nonexistent/x.toml bun test 2>&1 | grep -E "pass|fail"` → expected a failure naming the missing triggers file; actual 0 fail.
+- Informational probes: malformed lines (`not-an-id`, lowercase `lessons:a1`) are returned verbatim and match nothing, silently.
+Clean on spec: all-entry-id comparison cannot hide a gotcha/lessons orphan; familyGaps per section correct.
+Audit worktree removed (no test files to salvage). Receipt folded into a fix dispatch before Block 2.
+
+## 2026-10-19 — Block 1 receipt fix (2dedee6, sonnet, 153 s, 1 attempt) — re-check clean
+
+- `readRetiredIds` splits on `/\r?\n/`; new tests: triggers file and retired-ids file exist and load ids; every retired line
+  matches `^(gotcha|lessons):[A-Z]\d+$`. Runtime stays lenient (Triggers.load and src/install.ts unchanged), only the gate is strict.
+- Re-check run by the orchestrator on the main tree, every receipt check: CRLF comment -> `["lessons:A1"]`; `BATAS_RETIRED_IDS`
+  -> a file holding `not-an-id` -> `malformed line in …: not-an-id`, 104 pass 2 fail; real files `just check` 106 pass 0 fail.
+  Executor: missing retired-ids -> `retired-ids file missing`; missing triggers (writable path) -> `triggers file loaded no ids`.
+  The re-check was done by the orchestrator running the receipt's own checks, not a second auditor dispatch.
+- Executor ran a `git stash` mid-diagnosis that briefly took this file; popped at once, `git stash list` empty, content intact.
+- Discovered: src/install.ts creates an empty triggers.toml at import when none exists; that is why a missing file degraded to empty.
+- Block 1 DONE: Phase 01 VERIFIED-LIVE through `just check` + falsifications on temp copies.
