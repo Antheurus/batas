@@ -209,5 +209,16 @@ always-on, what is not enforced, and what has stopped being measured.
     false-positive rate. On 2026-10-19 a test session dismissed its block as an irrelevant recalled memory. Label a
     sample of Stop blocks as useful or noise before tuning. Status: planned.
 
+29. **Count every rule's fires, then prune what never earns its place** — asked by the user 2026-10-19: once batas runs
+    as a mod it can count how often each rule is triggered, so the corpus can be improved and the rules that never matter
+    deleted, not only moved. Today `just rule-audit` estimates this by replaying transcripts and the hook log, which
+    misses subagent calls (E22) and says nothing about whether an injection changed what the agent did. A mod sees every
+    `tool.call` and `prompt.submit` live, main and subagent, and can keep a per-rule ledger in `$.store`: fires, sessions
+    reached, last fired, and whether the next action followed the rule. Output: a `just rule-ledger` report ranking
+    rules by fires and by effect, with three verdicts: keep always-on, move inject-only (feeds item 22), or a candidate
+    to delete (zero fires over 30 days and not destructive). Deleting stays the user's call, made from that list.
+    Split per memory `mods-deferred-until-stable`: the mod only counts, enforcement stays in the existing hooks, and a
+    session without the mod only loses its counts. Builds on item 20's ledger. Status: planned, after items 21-24.
+
 Graphify itself was re-checked 2026-10-08 (v0.9.80): still "Not a vector index. No embeddings", a codebase graph
 that duplicates GitNexus; it does not replace batas, which carries lessons, rules and preferences, not code structure.

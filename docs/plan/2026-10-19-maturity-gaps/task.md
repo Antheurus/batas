@@ -36,3 +36,10 @@ every model request); batas injection is cheap. Shrink the always-on half withou
    `just` after a rule move, not on a timer.
 4. **Item 28 (deny-first for irreversible commands)** is NOT in this plan. It touches memory
    `feedback_hook-warn-not-ask` and needs its own decision.
+
+## Answered 2026-10-19 (resume session)
+
+- OPEN 1: prefix plus number, permanent like `gotcha:`/`lessons:` (e.g. `cs:12`, `dod:3`).
+- OPEN 2: exempt and kept whole always-on: `00-index.md`, `01-request-fidelity.md`, `persona.md`. All other files are in scope.
+- OPEN 3: 4 cases plus 2 controls per run (6 `claude -p` sessions), run by hand through `just` after a rule move, never on a timer.
+- New from the user mid-resume: roadmap item 29 (per-rule fire ledger in a mod, then prune). Not in this plan; after items 21-24.
