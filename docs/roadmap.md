@@ -189,7 +189,9 @@ always-on, what is not enforced, and what has stopped being measured.
     warn over ask popups; an env-var acknowledgement is not a popup, but it does stop the step. Status: planned.
 22. **Move the rarely-firing always-on items inject-only** — `just rule-audit` lists 20 always-on items reaching 2% of
     sessions or fewer (7,363 bytes), and 28 always-on items with no cmd/path/code trigger at all, which can only stay
-    always-on until they gain one. Give those 28 triggers, then move the non-destructive rare ones. Status: planned.
+    always-on until they gain one. Give those 28 triggers, then move the non-destructive rare ones. Status: **done
+    2026-10-19** — 18 gained cmd/path/code triggers, 10 stay every-turn (no hook-visible moment); 8 rare non-destructive
+    items moved inject-only and H6 split, destructive ones kept; always-on 72,644 -> 70,789 B, no id lost.
 23. **`just check` fails on orphan trigger ids and stops hard-coding the corpus size** — an orphan (a trigger whose rule
     no longer exists) is only printed by `status` (`src/mcp.ts`), so the `lessons:A1` entry would have stayed and
     passed `just check` had it not been removed by hand on 2026-10-19; the same move needed a hand edit of

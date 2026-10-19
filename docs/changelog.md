@@ -1,5 +1,13 @@
 # batas Changelog
 
+## v0.21.0 — Lebih banyak aturan muncul tepat saat dibutuhkan, korpus always-on lebih ringan
+
+- 18 aturan always-on yang sebelumnya hanya bisa dipicu lewat kata di prompt kini juga punya pemicu perintah/file/kode, jadi batas menyuntikkan teks lengkapnya saat tangan agent ada di situ: perbandingan rentang tanggal relatif (`interval '30 days'`, `subDays(`), `gh pr create`/`merge`, `git log origin/main..HEAD`, `git worktree list`, file `.env.example`, paket `contracts/`, `SKILL.md`, `learnings.md`, dan lain-lain.
+- 10 aturan sengaja tetap tanpa pemicu karena berlaku tiap giliran atau momennya tidak terlihat oleh hook (dispatch subagent, WebFetch, pesan error di output); daftarnya ada di progress.
+- 8 aturan yang jarang muncul dan tidak destruktif pindah dari file always-on ke slice yang disuntikkan batas (gotcha A1 A2 A7 A10 E36 E37, lessons C10 C14); lessons H6 dipendekkan jadi kalimat destruktifnya saja. Aturan destruktif (email, kamera, prisma shadow DB, git checkout bertanda bintang, dll) tetap always-on.
+- Tidak ada aturan yang hilang: 157 gotcha dan 135 lessons, nomor dan id tetap. Korpus always-on turun dari 72.644 ke 70.789 byte.
+- Tindakan: tidak ada. Perubahan aturan berlaku di sesi baru.
+
 ## v0.20.6 — Nomor aturan yang sudah dihapus tidak bisa dipakai ulang diam-diam
 
 - Internal, tidak ada perubahan yang terasa kecuali satu: ada daftar `~/.claude/batas/retired-ids.txt` berisi id aturan yang sudah keluar dari korpus (sekarang `lessons:A1`). `just check` gagal dan menyebut id-nya kalau aturan baru memakai nomor itu, atau kalau ada nomor kosong di korpus yang belum dicatat di daftar.
