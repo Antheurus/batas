@@ -578,7 +578,14 @@ export function serveHttp(port: number, host: string, restartOn?: string) {
   if (restartOn) {
     const stamp = sourceStamp(restartOn);
     setInterval(() => {
-      if (sourceStamp(restartOn) === stamp) return;
+      let current: string;
+      try {
+        current = sourceStamp(restartOn);
+      } catch (error) {
+        console.error(`batas mcp: source watch skipped a tick: ${error instanceof Error ? error.message : String(error)}`);
+        return;
+      }
+      if (current === stamp) return;
       const busy = [...opened].reduce((n, s) => n + s.pending.size, 0);
       if (busy || Date.now() - lastResponse < config.http.settleMs) return;
       console.error(`batas mcp: ${restartOn} changed, exiting for launchd to start the new code`);

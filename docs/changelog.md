@@ -1,5 +1,12 @@
 # batas Changelog
 
+## v0.25.2 — batas nggak mati lagi gara-gara gangguan baca folder sesaat
+
+- Server batas bersama dulu bisa mati sendiri kalau macOS memotong pembacaan folder sumbernya sesaat. Akibatnya alat batas di semua sesi Claude ikut putus. Sekarang gangguan sesaat itu cuma dilewati dan dicatat di log, servernya tetap hidup.
+- Tidak ada yang perlu dilakukan.
+
+---
+
 ## v0.25.1 — `just rule-audit`: daftar NEVER FIRED tidak lagi penuh item tanpa pola
 
 - Daftar NEVER FIRED sekarang hanya memuat aturan yang punya pola cmd/path/code dan tidak pernah menyala. Item every-turn yang tabel trigger-nya sengaja kosong tidak ikut lagi (sebelumnya 79 dari 80 baris), jadi sinyal sungguhan seperti `lessons:C12` terlihat.
