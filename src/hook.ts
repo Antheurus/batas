@@ -32,7 +32,37 @@ type HookInput = {
   prompt?: string;
   last_assistant_message?: string;
   stop_hook_active?: boolean;
+  // set by Cursor, which runs these same settings.json hooks under its own event and tool names
+  cursor_version?: string;
+  workspace_roots?: string[];
+  loop_count?: number;
 };
+
+// Cursor's names for the events and tools batas handles. Cursor translates a Claude-shaped reply back on its own (its
+// hook runner enables Claude hookSpecificOutput compatibility), but only when hookEventName carries the CLAUDE name, so
+// the input is renamed here and everything downstream stays Claude-only.
+const CURSOR_EVENTS: Record<string, string> = {
+  preToolUse: "PreToolUse",
+  postToolUse: "PostToolUse",
+  beforeSubmitPrompt: "UserPromptSubmit",
+  stop: "Stop",
+};
+const CURSOR_TOOLS: Record<string, string> = { Shell: "Bash", "MCP:record": "mcp__batas__record" };
+
+export function fromCursor(input: HookInput): HookInput {
+  const event = input.hook_event_name ?? "";
+  if (!input.cursor_version && !(event in CURSOR_EVENTS)) return input;
+  const command = input.tool_input as (HookInput["tool_input"] & { cwd?: string }) | undefined;
+  return {
+    ...input,
+    hook_event_name: CURSOR_EVENTS[event] ?? event,
+    tool_name: input.tool_name ? (CURSOR_TOOLS[input.tool_name] ?? input.tool_name) : undefined,
+    cwd: input.cwd || command?.cwd || input.workspace_roots?.[0],
+    transcript_path: input.transcript_path ?? undefined,
+    // Cursor re-prompts on a Stop block and counts the rounds instead of sending stop_hook_active.
+    stop_hook_active: input.stop_hook_active ?? (input.loop_count ?? 0) > 0,
+  };
+}
 
 // lastPrompt is what the PROMPT hook injected most recently — the only thing "batas nyasar" can be about, since the
 // user never sees the rules fired by the agent's own tool calls.
@@ -1209,7 +1239,7 @@ async function main() {
   let semantic: SemanticHit[] | undefined;
   let semanticState: "warm" | "cold" | undefined;
   try {
-    input = JSON.parse(await Bun.stdin.text()) as HookInput;
+    input = fromCursor(JSON.parse(await Bun.stdin.text()) as HookInput);
     const dispatching = input.hook_event_name === "PreToolUse" && (input.tool_name === "Agent" || input.tool_name === "Task") && !!input.tool_input?.prompt && process.env.BATAS_NO_SUBAGENT_BRIEF !== "1";
     const prompting = (input.hook_event_name === "UserPromptSubmit" && !!input.prompt && !SYSTEM_PROMPT.test(input.prompt)) || dispatching;
     // Sent before the corpus is read, so the daemon encodes while this process parses; whatever is left of the prompt
@@ -1245,6 +1275,7 @@ async function main() {
       ms: Math.round(performance.now() - started),
       bytes: injectedBytes(result.output),
       ...logFlags(input, process.env.CLAUDE_CODE_ENTRYPOINT),
+      ...(input.cursor_version ? { client: "cursor" } : {}),
       ...(semanticState ? { semantic: semanticState } : {}),
       // whether a prompt reaches the hook with its pasted blocks still tagged, which ownWords relies on
       ...(input.prompt?.includes("<pasted_content id=") ? { pasted: true } : {}),

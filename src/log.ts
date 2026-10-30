@@ -16,6 +16,8 @@ export type HookLogRow = {
   headless?: boolean;
   // the call ran `git commit`: a headless session that commits is carried by the next push, so it counts as live
   committed?: boolean;
+  // the editor that ran the hook, when it is not Claude Code
+  client?: string;
   error?: string;
 };
 

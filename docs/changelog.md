@@ -1,5 +1,13 @@
 # batas Changelog
 
+## v0.26.0 — batas sekarang jalan juga di Cursor
+
+- Di Cursor, batas sebelumnya tidak pernah memberi peringatan apa pun, karena Cursor menamai kejadiannya dengan cara lain. Sekarang batas mengenali nama-nama Cursor, jadi aturan dan catatan yang sama muncul saat agent menjalankan perintah, mengedit file, atau saat kamu mengirim pesan.
+- Pemeriksaan isi jawaban terakhir agent belum bisa jalan di Cursor, karena Cursor tidak mengirim isi jawaban itu ke hook.
+- Tidak ada yang perlu dilakukan.
+
+---
+
 ## v0.25.3 — Push tidak diblok lagi kalau isinya cuma commit lu sendiri
 
 - Waktu ada sesi Claude lain aktif di repo yang sama, batas dulu memblok setiap push sampai agent menambahkan izin khusus. Agent jadi terbiasa selalu menambahkan izin itu, sehingga pengamannya tidak berguna. Sekarang batas memeriksa isi push: kalau semua commit-nya dibuat sesi itu sendiri, push langsung jalan. Kalau ada commit sesi lain ikut terbawa, tetap diblok.

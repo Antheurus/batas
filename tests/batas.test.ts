@@ -9,7 +9,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { ListRootsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { config } from "../src/config.ts";
-import { captureCorrection, evaluate, lateSemantic, logFlags, ownWords } from "../src/hook.ts";
+import { captureCorrection, evaluate, fromCursor, lateSemantic, logFlags, ownWords } from "../src/hook.ts";
 import { answers, attribute, compareRules, injectedHeadline, type RuleResult, type RulesRun } from "../scripts/delivery-eval.ts";
 import { auditPrompts } from "../scripts/prompt-audit.ts";
 import { gitIndex, judgePath, namedPaths, resolveRoot } from "../scripts/memory-audit.ts";
@@ -1700,6 +1700,31 @@ describe("collision guard blocks", () => {
     commitAs("kasir-other", "stok.ts");
     const out = run2(clone, "me-own", "git push origin main");
     expect(out.hookSpecificOutput?.permissionDecision).toBe("deny");
+  });
+
+  test("a Cursor call is read under Claude's names, so a rule fires and Cursor can translate the reply back", () => {
+    const repo = mkdtempSync(join(tmpdir(), "batas-cursor-"));
+    Bun.spawnSync(["git", "init", "-q", repo]);
+    const cursor = {
+      session_id: "cursor-c1",
+      hook_event_name: "preToolUse",
+      cursor_version: "3.27.22",
+      tool_name: "Shell",
+      tool_input: { command: "echo ===== && ls" },
+      cwd: "",
+      workspace_roots: [repo],
+      transcript_path: null as unknown as string,
+    };
+    const input = fromCursor(cursor);
+    expect([input.hook_event_name, input.tool_name, input.cwd, input.transcript_path]).toEqual(["PreToolUse", "Bash", repo, undefined]);
+    const t = new Triggers({ "lessons:B56": { cmd: [String.raw`(^|[;&|(]\s*)echo\s+={2,}`] } });
+    const out = evaluate(input, store, t).output as { hookSpecificOutput?: { hookEventName?: string; additionalContext?: string } };
+    expect(out.hookSpecificOutput?.hookEventName).toBe("PreToolUse");
+    expect(out.hookSpecificOutput?.additionalContext).toContain("lessons:B56");
+    expect(fromCursor({ hook_event_name: "stop", cursor_version: "3.27.22", loop_count: 1 }).stop_hook_active).toBe(true);
+    expect(fromCursor({ hook_event_name: "stop", cursor_version: "3.27.22", loop_count: 0 }).stop_hook_active).toBe(false);
+    const claude = { session_id: "c", hook_event_name: "PreToolUse", tool_name: "Bash", cwd: repo };
+    expect(fromCursor(claude)).toBe(claude);
   });
 
   test("files a Bash command or script changed are attributed to the session that ran it", () => {
