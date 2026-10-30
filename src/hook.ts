@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { config } from "./config.ts";
 import { allMemorySources, convertedFamily, listMd, memoryTriggers, parseMemory, parseSections, projectSlug, type Entry, type Kind } from "./corpus.ts";
@@ -56,6 +56,8 @@ type SessionState = {
   correction?: { at: number; strong: boolean };
   // when this session last called mcp__batas__record (not a lesson draft), seen by the PostToolUse hook
   recordedAt?: number;
+  // commits this session made, so a push that carries only these needs no ack while another session is live
+  commits?: string[];
 };
 
 type Pending = { key: string; kind: "prompt" | "write"; at: number; file?: string };
@@ -133,8 +135,17 @@ const ACK_FOREIGN = /(^|[\s;&|])BATAS_ACK_FOREIGN=1\s/;
 const ACK_LIVE = /(^|[\s;&|])BATAS_ACK_LIVE=1\s/;
 const OTHERS_TOUCHED_WINDOW_MS = 24 * 3600 * 1000;
 
+// A hook runs beside the session's own git commands, so it must never take index.lock: a plain `git status` refreshes the
+// index and can make a concurrent `git commit` fail with "index.lock exists".
+const GIT_ENV = { ...process.env, GIT_OPTIONAL_LOCKS: "0" };
+
+function gitOut(repo: string, args: string[]): string | undefined {
+  const out = Bun.spawnSync(["git", "-C", repo, ...args], { stdout: "pipe", stderr: "ignore", env: GIT_ENV });
+  return out.exitCode === 0 ? out.stdout.toString() : undefined;
+}
+
 function dirtyFiles(repo: string): string[] {
-  const out = Bun.spawnSync(["git", "-C", repo, "status", "--porcelain", "--untracked-files=all"], { stdout: "pipe", stderr: "ignore" });
+  const out = Bun.spawnSync(["git", "-C", repo, "status", "--porcelain", "--untracked-files=all"], { stdout: "pipe", stderr: "ignore", env: GIT_ENV });
   if (out.exitCode !== 0) return [];
   return out.stdout
     .toString()
@@ -223,7 +234,7 @@ function bashCodeRules(files: string[], store: Store, triggers: Triggers, state:
     const repo = repoRoot(dirname(f));
     if (!repo) continue;
     let code = "";
-    const diff = Bun.spawnSync(["git", "-C", repo, "diff", "--no-color", "-U0", "HEAD", "--", f], { stdout: "pipe", stderr: "ignore" });
+    const diff = Bun.spawnSync(["git", "-C", repo, "diff", "--no-color", "-U0", "HEAD", "--", f], { stdout: "pipe", stderr: "ignore", env: GIT_ENV });
     const added = diff.exitCode === 0 ? diff.stdout.toString() : "";
     if (added.trim()) {
       code = added.split("\n").filter((l) => l.startsWith("+") && !l.startsWith("+++")).map((l) => l.slice(1)).join("\n");
@@ -332,6 +343,10 @@ function collisionDeny(input: HookInput, state: SessionState): { deny?: string; 
   }
   if (PUSH.test(cmd)) {
     const others = liveSessions(repo, input.session_id ?? "", Date.now() - config.liveWindowMs);
+    // The risk is carrying another session's commit; a push of only this session's own commits carries none.
+    const unpushed = others.size ? gitOut(repo, ["rev-list", "@{u}..HEAD"])?.split("\n").filter(Boolean) : undefined;
+    const mine = new Set(state.commits ?? []);
+    if (unpushed && unpushed.every((sha) => mine.has(sha))) return {};
     if (others.size && ACK_LIVE.test(cmd)) return { acked: "guard:ack-live" };
     if (others.size) {
       return { deny: [
@@ -447,6 +462,7 @@ function loadSession(id: string): SessionState {
       listed: s.listed ?? [],
       correction: s.correction,
       recordedAt: s.recordedAt,
+      commits: s.commits ?? [],
     };
   } catch {
     return { injected: [], hinted: [], lastPrompt: [], muted: [], touched: [], started: Date.now(), bashStart: 0, spent: 0, pending: [], listed: [] };
@@ -455,7 +471,10 @@ function loadSession(id: string): SessionState {
 
 function saveSession(id: string, state: SessionState) {
   mkdirSync(config.sessionsDir, { recursive: true });
-  writeFileSync(sessionFile(id), JSON.stringify(state));
+  const file = sessionFile(id);
+  const tmp = `${file}.${process.pid}.tmp`;
+  writeFileSync(tmp, JSON.stringify(state));
+  renameSync(tmp, file);
 }
 
 function pruneSessions() {
@@ -754,6 +773,12 @@ export function evaluate(input: HookInput, store: Store, triggers: Triggers, sem
     }
     if (input.tool_name !== "Bash") return { output: {}, fired: [] };
     const st = loadSession(session);
+    const committedIn = logFlags(input).committed ? repoRoot(commandDir(input.tool_input?.command, input.cwd)) : undefined;
+    const head = committedIn ? gitOut(committedIn, ["rev-parse", "HEAD"])?.trim() : undefined;
+    if (head && !st.commits?.includes(head)) {
+      st.commits = [...(st.commits ?? []), head].slice(-200);
+      saveSession(session, st);
+    }
     const changed = attributeBash(input, st);
     const lessons = changed.length ? bashLessons(changed, input, st) : undefined;
     const coded = changed.length ? bashCodeRules(changed, store, triggers, st) : undefined;

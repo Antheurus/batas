@@ -1,5 +1,14 @@
 # batas Changelog
 
+## v0.25.3 — Push tidak diblok lagi kalau isinya cuma commit lu sendiri
+
+- Waktu ada sesi Claude lain aktif di repo yang sama, batas dulu memblok setiap push sampai agent menambahkan izin khusus. Agent jadi terbiasa selalu menambahkan izin itu, sehingga pengamannya tidak berguna. Sekarang batas memeriksa isi push: kalau semua commit-nya dibuat sesi itu sendiri, push langsung jalan. Kalau ada commit sesi lain ikut terbawa, tetap diblok.
+- Pengecekan git yang dijalankan batas di belakang layar tidak lagi mengunci index repo, jadi tidak bisa bikin `git commit` di sesi lain gagal dengan pesan index.lock.
+- Catatan per sesi milik batas sekarang disimpan utuh sekaligus, jadi tidak bisa rusak setengah jalan kalau prosesnya terhenti di tengah.
+- Tidak ada yang perlu dilakukan.
+
+---
+
 ## v0.25.2 — batas nggak mati lagi gara-gara gangguan baca folder sesaat
 
 - Server batas bersama dulu bisa mati sendiri kalau macOS memotong pembacaan folder sumbernya sesaat. Akibatnya alat batas di semua sesi Claude ikut putus. Sekarang gangguan sesaat itu cuma dilewati dan dicatat di log, servernya tetap hidup.

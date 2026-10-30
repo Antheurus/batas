@@ -1675,6 +1675,33 @@ describe("collision guard blocks", () => {
     expect(logFlags({ tool_name: "Bash", tool_input: { command: "git commit -m x" } }, "cli")).toEqual({ committed: true });
   });
 
+  test("a push carrying only this session's own commits needs no ack; one carrying another's is denied", () => {
+    const remote = mkdtempSync(join(tmpdir(), "batas-remote-"));
+    Bun.spawnSync(["git", "init", "-q", "--bare", "-b", "main", remote]);
+    const clone = mkdtempSync(join(tmpdir(), "batas-clone-"));
+    const g = (...args: string[]) => Bun.spawnSync(["git", "-C", clone, "-c", "user.name=Rina", "-c", "user.email=rina@toko.id", ...args]);
+    Bun.spawnSync(["git", "clone", "-q", remote, clone]);
+    g("checkout", "-q", "-b", "main");
+    writeFileSync(join(clone, "kasir.ts"), "export const pajak = 0.11;\n");
+    g("add", "kasir.ts");
+    g("commit", "-qm", "awal");
+    g("push", "-q", "-u", "origin", "main");
+    const commitAs = (session_id: string, file: string) => {
+      writeFileSync(join(clone, file), `export const ${file.replace(".ts", "")} = 1;\n`);
+      g("add", file);
+      const command = `git commit -qm ${file}`;
+      evaluate({ session_id, cwd: clone, hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command } }, store, t);
+      g("commit", "-qm", file);
+      evaluate({ session_id, cwd: clone, hook_event_name: "PostToolUse", tool_name: "Bash", tool_input: { command } }, store, t);
+    };
+    appendHookLog({ ts: new Date().toISOString(), session: "kasir-other", repo: realpathSync(clone), fired: [], ms: 1 });
+    commitAs("me-own", "diskon.ts");
+    expect(run2(clone, "me-own", "git push origin main").hookSpecificOutput?.permissionDecision).toBeUndefined();
+    commitAs("kasir-other", "stok.ts");
+    const out = run2(clone, "me-own", "git push origin main");
+    expect(out.hookSpecificOutput?.permissionDecision).toBe("deny");
+  });
+
   test("files a Bash command or script changed are attributed to the session that ran it", () => {
     const r = mkdtempSync(join(tmpdir(), "batas-script-"));
     Bun.spawnSync(["git", "init", "-q", r]);
