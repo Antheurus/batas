@@ -174,9 +174,15 @@ export function lessonsDir(repo: string): string {
   return join(repo, ".claude", "rules", "lessons");
 }
 
+// Throws rather than routing against an empty file list: zero files resolves every lesson to nowhere, and the
+// caller would then rewrite the generated directory as empty.
 export function routeRepo(repo: string): { routes: Route[]; unresolved: Lesson[] } {
-  const ls = Bun.spawnSync(["git", "-C", repo, "ls-files"], { stdout: "pipe", stderr: "ignore" });
-  return routeLessons(repo, ls.stdout.toString().split("\n").filter(Boolean));
+  const ls = Bun.spawnSync(["git", "-C", repo, "ls-files"], { stdout: "pipe", stderr: "pipe" });
+  const files = ls.stdout.toString().split("\n").filter(Boolean);
+  if (ls.exitCode !== 0 || files.length === 0) {
+    throw new Error(`git ls-files in ${repo} returned ${files.length} files (exit ${ls.exitCode}): ${ls.stderr.toString().trim()}`);
+  }
+  return routeLessons(repo, files);
 }
 
 // Rewrites the generated directory from scratch and stamps it with the lessons' newest mtime.
@@ -204,7 +210,13 @@ export function regenIfLessonsChanged(repo: string): string[] | undefined {
 // Full re-resolution against the code, for the moment before a commit: a renamed or moved symbol shows up only here.
 export function regenAll(repo: string): string[] {
   if (!existsSync(join(lessonsDir(repo), MARKER))) return [];
-  const { routes } = routeRepo(repo);
+  let routes: Route[];
+  try {
+    ({ routes } = routeRepo(repo));
+  } catch (err) {
+    console.error(`batas: lessons regen skipped, existing files kept: ${(err as Error).message}`);
+    return [];
+  }
   const stale = staleFiles(lessonsDir(repo), routes);
   if (stale.length || lessonsStamp(repo) > Number(readFileSync(join(lessonsDir(repo), MARKER), "utf8") || 0)) writeRoutes(repo, routes);
   return stale;

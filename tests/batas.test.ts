@@ -17,7 +17,7 @@ import { neverFired } from "../scripts/rule-select.ts";
 import { mine, signature } from "../scripts/lesson-mine.ts";
 import { copiesOf, shareMemory } from "../scripts/memory-share.ts";
 import { routeLessons, ruleFile, staleFiles } from "../scripts/lessons-route.ts";
-import { routeRepo, writeRoutes } from "../src/lessons.ts";
+import { regenAll, routeRepo, writeRoutes } from "../src/lessons.ts";
 import { errorsIn } from "../scripts/transcripts.ts";
 import { allMemorySources, countFamilyItems, familyDefects, familyGaps, parseFamily, parseMemory, readRetiredIds, retiredIdPattern } from "../src/corpus.ts";
 import { mutedIds, readAcks, readFeedback, setMuted } from "../src/feedback.ts";
@@ -880,6 +880,28 @@ describe("hook", () => {
       evaluate({ session_id: "bl5", cwd: repo, hook_event_name: "PostToolUse", tool_name: "Bash", tool_input: { command: "python3 fix.py" } }, store, t).output,
     );
     expect(after).toContain("Tender settled twice");
+  });
+
+  test("a failed git ls-files never empties the routed lessons directory", () => {
+    const repo = mkdtempSync(join(tmpdir(), "batas-lsfail-"));
+    const sh = (...a: string[]) => Bun.spawnSync(["git", "-C", repo, ...a], { stderr: "ignore" });
+    sh("init", "-q");
+    mkdirSync(join(repo, "backend"), { recursive: true });
+    mkdirSync(join(repo, "docs", "lessons"), { recursive: true });
+    writeFileSync(join(repo, "backend", "svc.go"), "package svc\n\nfunc SettleOrder() {}\n");
+    const lesson = join(repo, "docs", "lessons", "backend.md");
+    writeFileSync(lesson, "# B\n## Tender settled twice\nSimbol: `SettleOrder`\nOld wording.\n");
+    sh("add", "-A");
+    writeRoutes(repo, routeRepo(repo).routes);
+    const rule = join(repo, ".claude", "rules", "lessons", "p-lessons-backend-svc.md");
+    expect(existsSync(rule)).toBe(true);
+    rmSync(join(repo, ".git"), { recursive: true, force: true });
+    expect(() => routeRepo(repo)).toThrow("git ls-files");
+    writeFileSync(lesson, "# B\n## Tender settled twice\nSimbol: `SettleOrder`\nNew wording.\n");
+    const later = new Date(Date.now() + 5000);
+    utimesSync(lesson, later, later);
+    expect(regenAll(repo)).toEqual([]);
+    expect(readFileSync(rule, "utf8")).toContain("Old wording.");
   });
 
   test("routed lessons regenerate when a lesson changes, and a commit with stale ones is refused once", () => {
