@@ -9,7 +9,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { ListRootsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { config } from "../src/config.ts";
-import { captureCorrection, evaluate, fromCursor, lateSemantic, logFlags, ownWords } from "../src/hook.ts";
+import { captureCorrection, evaluate, fromCodex, fromCursor, lateSemantic, logFlags, ownWords } from "../src/hook.ts";
 import { answers, attribute, compareRules, injectedHeadline, type RuleResult, type RulesRun } from "../scripts/delivery-eval.ts";
 import { auditPrompts } from "../scripts/prompt-audit.ts";
 import { gitIndex, judgePath, namedPaths, resolveRoot } from "../scripts/memory-audit.ts";
@@ -1747,6 +1747,29 @@ describe("collision guard blocks", () => {
     expect(fromCursor({ hook_event_name: "stop", cursor_version: "3.27.22", loop_count: 0 }).stop_hook_active).toBe(false);
     const claude = { session_id: "c", hook_event_name: "PreToolUse", tool_name: "Bash", cwd: repo };
     expect(fromCursor(claude)).toBe(claude);
+  });
+
+  test("a Codex apply_patch is read as an Edit or Write of its first file, so file triggers fire there", () => {
+    const repo = mkdtempSync(join(tmpdir(), "batas-codex-"));
+    Bun.spawnSync(["git", "init", "-q", repo]);
+    const patch = (body: string) => ({
+      session_id: "codex-c1",
+      hook_event_name: "PreToolUse",
+      tool_name: "apply_patch",
+      cwd: repo,
+      tool_input: { command: `*** Begin Patch\n${body}\n*** End Patch` },
+    });
+    const edit = fromCodex(patch(`*** Update File: ${repo}/justfile\n@@\n keep\n-old\n+new line\n*** Update File: ${repo}/b.ts\n+x`));
+    expect([edit.tool_name, edit.tool_input]).toEqual(["Edit", { file_path: `${repo}/justfile`, new_string: "keep\nnew line" }]);
+    const add = fromCodex(patch("*** Add File: notes.md\n+one\n+two"));
+    expect([add.tool_name, add.tool_input]).toEqual(["Write", { file_path: "notes.md", content: "one\ntwo\n" }]);
+    const t = new Triggers({ "gotcha:E35": { path: ["**/{justfile,Justfile,Makefile}"] } });
+    const out = evaluate(edit, store, t).output as { hookSpecificOutput?: { additionalContext?: string } };
+    expect(out.hookSpecificOutput?.additionalContext).toContain("gotcha:E35");
+    const bash = { hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command: "ls" } };
+    expect(fromCodex(bash)).toBe(bash);
+    const junk = patch("not a patch");
+    expect(fromCodex(junk)).toBe(junk);
   });
 
   test("files a Bash command or script changed are attributed to the session that ran it", () => {

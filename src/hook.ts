@@ -64,6 +64,25 @@ export function fromCursor(input: HookInput): HookInput {
   };
 }
 
+// Codex sends Claude's own event names and `Bash` for the shell; only its file edits differ, arriving as one
+// `apply_patch` whose command is the patch text. Mirrors from_codex in ~/.claude/hooks/hook_input.py: a patch touching
+// several files is read as an edit of its first, since every file trigger takes one path.
+export function fromCodex(input: HookInput): HookInput {
+  if (input.tool_name !== "apply_patch") return input;
+  const files: { op: string; path: string; added: string[] }[] = [];
+  for (const line of (input.tool_input?.command ?? "").split("\n")) {
+    const header = /^\*\*\* (Update|Add|Delete) File: (.+)$/.exec(line);
+    if (header) files.push({ op: header[1]!, path: header[2]!.trim(), added: [] });
+    else if (files.length && /^[+ ]/.test(line) && !line.startsWith("***")) files.at(-1)!.added.push(line.slice(1));
+  }
+  const first = files[0];
+  if (!first) return input;
+  const text = first.added.join("\n");
+  return first.op === "Update"
+    ? { ...input, tool_name: "Edit", tool_input: { file_path: first.path, new_string: text } }
+    : { ...input, tool_name: "Write", tool_input: { file_path: first.path, content: first.op === "Add" ? text + "\n" : "" } };
+}
+
 // lastPrompt is what the PROMPT hook injected most recently — the only thing "batas nyasar" can be about, since the
 // user never sees the rules fired by the agent's own tool calls.
 // touched is every file this session wrote through a file tool — what tells its dirty files from another session's.
@@ -1239,7 +1258,7 @@ async function main() {
   let semantic: SemanticHit[] | undefined;
   let semanticState: "warm" | "cold" | undefined;
   try {
-    input = fromCursor(JSON.parse(await Bun.stdin.text()) as HookInput);
+    input = fromCodex(fromCursor(JSON.parse(await Bun.stdin.text()) as HookInput));
     const dispatching = input.hook_event_name === "PreToolUse" && (input.tool_name === "Agent" || input.tool_name === "Task") && !!input.tool_input?.prompt && process.env.BATAS_NO_SUBAGENT_BRIEF !== "1";
     const prompting = (input.hook_event_name === "UserPromptSubmit" && !!input.prompt && !SYSTEM_PROMPT.test(input.prompt)) || dispatching;
     // Sent before the corpus is read, so the daemon encodes while this process parses; whatever is left of the prompt
