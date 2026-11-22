@@ -1789,6 +1789,22 @@ describe("collision guard blocks", () => {
     expect(out.hookSpecificOutput?.permissionDecisionReason).not.toContain("mine-by-script.ts");
   });
 
+  test("a file another session claimed is not attributed to a Bash call that merely ran while it changed", () => {
+    const r = realpathSync(mkdtempSync(join(tmpdir(), "batas-overlap-")));
+    Bun.spawnSync(["git", "init", "-q", r]);
+    const template = join(r, "verifyEmail.handlebars");
+    const own = join(r, "migrate-notes.md");
+    const hook = (session_id: string, hook_event_name: string, tool_name: string, tool_input: { command?: string; file_path?: string; new_string?: string }) =>
+      evaluate({ session_id, cwd: r, hook_event_name, tool_name, tool_input }, store, t);
+    hook("long-bash", "PreToolUse", "Bash", { command: "just check" });
+    hook("template-editor", "PreToolUse", "Edit", { file_path: template, new_string: "<p>Verifikasi email kamu</p>" });
+    writeFileSync(template, "<p>Verifikasi email kamu</p>\n");
+    writeFileSync(own, "volume hecate_mongo-data: 524 file\n");
+    hook("long-bash", "PostToolUse", "Bash", { command: "just check" });
+    const ledger = JSON.parse(readFileSync(join(config.sessionsDir, "long-bash.json"), "utf8")) as { touched: string[] };
+    expect(ledger.touched).toEqual([own]);
+  });
+
   test("session start is the transcript's birth: older dirt is foreign, the session's own earlier work is not", () => {
     const r = mkdtempSync(join(tmpdir(), "batas-pre-"));
     Bun.spawnSync(["git", "init", "-q", r]);

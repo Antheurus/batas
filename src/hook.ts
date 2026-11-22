@@ -227,12 +227,14 @@ function attributeBash(input: HookInput, state: SessionState): string[] {
     }
   }
   for (const repo of repos) {
+    let theirs: Set<string> | undefined;
     for (const f of dirtyFiles(repo)) {
       const m = mtime(f);
-      if (m !== undefined && m >= state.bashStart - 5 && !state.touched.includes(f)) {
-        state.touched.push(f);
-        added.push(f);
-      }
+      if (m === undefined || m < state.bashStart - 5 || state.touched.includes(f)) continue;
+      theirs ??= othersTouched(repo, input.session_id ?? "");
+      if (theirs.has(f)) continue;
+      state.touched.push(f);
+      added.push(f);
     }
   }
   return added;
@@ -326,22 +328,27 @@ function sessionStart(input: HookInput): number | undefined {
 
 // Dirty files that are not this session's work: written by another session (even an idle one, which the 15-minute
 // live window cannot see), or already dirty before this session started and never touched by it since.
-function foreignDirty(repo: string, session: string, state: SessionState, started: number | undefined): { file: string; why: string }[] {
-  const dirty = dirtyFiles(repo);
-  const mine = state.touched;
-  if (!dirty.length) return [];
+function othersTouched(repo: string, session: string): Set<string> {
   const theirs = new Set<string>();
   const since = Date.now() - OTHERS_TOUCHED_WINDOW_MS;
   const own = sessionFile(session);
   for (const f of existsSync(config.sessionsDir) ? readdirSync(config.sessionsDir) : []) {
     const p = join(config.sessionsDir, f);
-    if (p === own || statSync(p).mtimeMs < since) continue;
     try {
+      if (p === own || statSync(p).mtimeMs < since) continue;
       for (const t of (JSON.parse(readFileSync(p, "utf8")) as Partial<SessionState>).touched ?? []) {
         if (t.startsWith(`${repo}/`)) theirs.add(t);
       }
     } catch {}
   }
+  return theirs;
+}
+
+function foreignDirty(repo: string, session: string, state: SessionState, started: number | undefined): { file: string; why: string }[] {
+  const dirty = dirtyFiles(repo);
+  const mine = state.touched;
+  if (!dirty.length) return [];
+  const theirs = othersTouched(repo, session);
   const mineSet = new Set(mine);
   const out: { file: string; why: string }[] = [];
   for (const d of dirty) {

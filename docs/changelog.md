@@ -1,5 +1,10 @@
 # batas Changelog
 
+## v0.26.1 — Pengingat progress/changelog tidak lagi menyalahkan sesi yang tidak mengubah apa-apa
+
+- Kalau dua sesi Claude bekerja di repo yang sama, file yang diedit satu sesi bisa ikut tercatat sebagai editan sesi lain yang kebetulan sedang menjalankan perintah Bash. Akibatnya, sesi yang tidak mengubah apa pun terus diblokir dan diminta menulis progress/changelog. Sekarang file yang sudah diklaim sesi lain tidak lagi ikut tercatat.
+- Tidak ada yang perlu kamu lakukan.
+
 ## v0.26.0 — batas sekarang jalan juga di Cursor
 
 - Di Cursor, batas sebelumnya tidak pernah memberi peringatan apa pun, karena Cursor menamai kejadiannya dengan cara lain. Sekarang batas mengenali nama-nama Cursor, jadi aturan dan catatan yang sama muncul saat agent menjalankan perintah, mengedit file, atau saat kamu mengirim pesan.
