@@ -1,5 +1,13 @@
 # batas Changelog
 
+## v0.26.2 — Audit efektivitas batas bisa dijalankan lagi, dan laporannya tidak membocorkan password
+
+- `just rule-audit`, `just effect-audit` dan `just lesson-mine` sempat mati semua gara-gara satu link folder sesi lama yang sudah terhapus. Sekarang link seperti itu dilewati dan audit jalan sampai selesai.
+- Laporan `just lesson-mine` sekarang menyamarkan password, token, key, URL database dan header Authorization yang terbawa di contoh perintahnya.
+- Yang perlu kamu lakukan: ganti password database prod salesos. Laporan versi lama sempat mencetaknya ke dalam satu sesi agent.
+
+---
+
 ## v0.26.1 — Pengingat progress/changelog tidak lagi menyalahkan sesi yang tidak mengubah apa-apa
 
 - Kalau dua sesi Claude bekerja di repo yang sama, file yang diedit satu sesi bisa ikut tercatat sebagai editan sesi lain yang kebetulan sedang menjalankan perintah Bash. Akibatnya, sesi yang tidak mengubah apa pun terus diblokir dan diminta menulis progress/changelog. Sekarang file yang sudah diklaim sesi lain tidak lagi ikut tercatat.
