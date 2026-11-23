@@ -1,5 +1,15 @@
 # batas Changelog
 
+## v0.27.0 — just eval: rapor batas dengan angka yang bisa dicek, plus 4 rule baru dari kesalahan yang paling sering
+
+- Baru: `just eval` di repo batas. Satu perintah, sekitar 4 menit, dan hasilnya empat angka dari 30 hari sesi asli: apakah kesalahan berkurang setelah agent diingatkan, apakah memori yang disuntik nyambung dengan permintaan, berapa banyak kesalahan berulang yang sudah punya rule, dan apakah hasilnya datang tepat waktu. Setiap angka disertai rentang kepercayaan 95% dan pembanding, dan setiap run dibandingkan dengan run sebelumnya.
+- Angka pertama: kesalahan yang rule-nya sudah disuntik diulang di 11,3% sesi, sedangkan kesalahan tanpa rule diulang di 14,3%. Turunnya kecil (sekitar 3 poin) tapi terukur. Memori yang dipanggil kata pemicu relevan di sekitar 72% kasus menurut label tangan.
+- Rule baru dan yang diperbarui: `grep` dan `find` di mesin ini dibungkus rtk, jadi `(` atau `{` di pola grep dan `find -exec` gagal (pakai `-F`, `/usr/bin/grep`, `/usr/bin/find`). Loop menunggu harus jalan di background. `python3` sistem tidak punya paket tambahan, jadi pakai `uv run --with`. Cek dulu kolom tabel sebelum query `psql`. Bersama-sama ini menaikkan porsi kesalahan berulang yang punya rule dari 38,6% jadi 49,5%.
+- Kata pemicu yang terbukti noise dibuang dari 19 memori (misalnya 'video', 'kasir', 'handover'), dan alarm palsu `'1'` di trigger-audit sudah hilang.
+- Label relevansi di `evals/relevance-labels.json` dibuat oleh agent. Kalau kamu mau angka relevansinya lebih bisa dipercaya, koreksi atau tambah label lewat `just eval-label`.
+
+---
+
 ## v0.26.2 — Audit efektivitas batas bisa dijalankan lagi, dan laporannya tidak membocorkan password
 
 - `just rule-audit`, `just effect-audit` dan `just lesson-mine` sempat mati semua gara-gara satu link folder sesi lama yang sudah terhapus. Sekarang link seperti itu dilewati dan audit jalan sampai selesai.
