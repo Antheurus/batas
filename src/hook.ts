@@ -601,16 +601,16 @@ export function ownWords(prompt: string): string {
   return typed.replace(/\s+/g, "").length >= 12 ? typed : said.replace(PASTED, "$2");
 }
 
-// A memory matches when the prompt says one of its trigger words, or, with a warm batasd, when it stands out by meaning
-// (semanticMemories); a cold prompt's meaning match arrives on the next hook call instead. Sharing content words was
-// tried as a third path and dropped: on 500 replayed real prompts it surfaced 273 memories nobody's trigger named, up
-// to 8 on one prompt, and they were mostly unrelated (scripts/listing-replay.ts). Another project's memory needs its
-// trigger, and is listed rather than injected.
 // The prompt as memory triggers read it: the user's own words, lowercased, with filesystem paths cut.
 export function memoryPromptText(prompt: string): string {
   return ownWords(prompt).replace(/(^|\s)(?:~|\.\.?)?\/[^\s/]+\/\S*/g, "$1 ").toLowerCase();
 }
 
+// A memory matches when the prompt says one of its trigger words, or, with a warm batasd, when it stands out by meaning
+// (semanticMemories); a cold prompt's meaning match arrives on the next hook call instead. Sharing content words was
+// tried as a third path and dropped: on 500 replayed real prompts it surfaced 273 memories nobody's trigger named, up
+// to 8 on one prompt, and they were mostly unrelated (scripts/listing-replay.ts). Another project's memory needs its
+// trigger, and is listed rather than injected.
 function relevantMemories(
   store: Store,
   prompt: string,

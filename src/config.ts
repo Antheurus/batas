@@ -13,6 +13,9 @@ export const config = {
   projectsDir: join(claudeHome, "projects"),
   sharedMemoryDir: join(claudeHome, "memory", "shared"),
   triggersFile: process.env.BATAS_TRIGGERS ?? join(claudeHome, "batas", "triggers.toml"),
+  // The triggers file as it was on a past day, for replaying a session against the rules it actually had: a git repo that
+  // commits a copy of it (the cc-toriq mirror), as "<repo>:<path in repo>".
+  triggersHistory: process.env.BATAS_TRIGGERS_HISTORY ?? `${join(home, "Documents", "PROJECT_MISPAQUL_ATTORIQ", "cc-toriq")}:claude-home/batas/triggers.toml`,
   retiredIdsFile: process.env.BATAS_RETIRED_IDS ?? join(claudeHome, "batas", "retired-ids.txt"),
   // Personal repos and work (Brighty) repos live in two folders; with only the first, every Brighty repo's rules,
   // lessons and progress were outside the corpus (none of Funnel's in 13,773 entries, 2026-10-10). Set here, not in the

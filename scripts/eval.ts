@@ -25,7 +25,7 @@ import { memoryPromptText, ownWords, saysTrigger } from "../src/hook.ts";
 import { type HookLogRow, readHookLog } from "../src/log.ts";
 import { semanticSearch } from "../src/semantic.ts";
 import { Store } from "../src/store.ts";
-import { Triggers } from "../src/triggers.ts";
+import { type TriggerSpec, Triggers } from "../src/triggers.ts";
 import { mine, redact, signature } from "./lesson-mine.ts";
 import { callsIn, errorsIn, type ToolError, transcriptFiles } from "./transcripts.ts";
 
@@ -122,12 +122,38 @@ export function injections(rows: HookLogRow[]): Map<string, Map<string, number>>
   return out;
 }
 
+// Every committed version of the triggers file, newest first. A session is replayed against the version that was live
+// when it started, so a rule added today is not credited with reminding last month's sessions.
+export function triggerHistory(spec = config.triggersHistory): { at: number; triggers: Triggers }[] {
+  const [repo = "", path = ""] = spec.split(":");
+  const log = Bun.spawnSync(["/usr/bin/git", "-C", repo, "log", "--format=%H %ct", "--", path], { stdout: "pipe", stderr: "pipe" });
+  if (log.exitCode !== 0) return [];
+  const out: { at: number; triggers: Triggers }[] = [];
+  for (const line of log.stdout.toString().split("\n").filter(Boolean)) {
+    const [sha, at] = line.split(" ");
+    const show = Bun.spawnSync(["/usr/bin/git", "-C", repo, "show", `${sha}:${path}`], { stdout: "pipe", stderr: "pipe" });
+    if (show.exitCode !== 0) continue;
+    try {
+      out.push({ at: Number(at) * 1000, triggers: new Triggers(Bun.TOML.parse(show.stdout.toString()) as Record<string, TriggerSpec>) });
+    } catch {
+      console.error(`batas eval: triggers.toml at ${sha?.slice(0, 8)} does not parse, skipped`);
+    }
+  }
+  return out;
+}
+
+// The version live at a moment: the newest committed before it, else the oldest there is.
+export function triggersAt(history: { at: number; triggers: Triggers }[], at: number, fallback: Triggers): Triggers {
+  return (history.find((h) => h.at <= at) ?? history[history.length - 1])?.triggers ?? fallback;
+}
+
 // The same moment replayed from a transcript: the first call each rule's trigger matches. Memories and hints are left
 // out — they are matched on the prompt, not on a call. Only the main agent's transcript counts, which is also what it saw.
-export function replayInjections(files: string[], triggers: Triggers): Map<string, Map<string, number>> {
+export function replayInjections(files: string[], triggersFor: (file: string) => Triggers): Map<string, Map<string, number>> {
   const out = new Map<string, Map<string, number>>();
   for (const f of files) {
     const m = new Map<string, number>();
+    const triggers = triggersFor(f);
     for (const c of callsIn(f)) for (const hit of triggers.match(c)) if (!/^(memory|hint):/.test(hit.id) && !m.has(hit.id)) m.set(hit.id, c.ts);
     out.set(sessionOf(f), m);
   }
@@ -144,7 +170,8 @@ export function balancedAccuracy(rows: { label: boolean; said: boolean }[]): { a
   return { acc: (tpr + tnr) / 2, tpr, tnr, n: rows.length };
 }
 
-export type Label = { prompt: string; memory: string; relevant: boolean; by: string; note?: string };
+// set: "tuning" labels chose trigger edits, so only "held-out" ones measure the result honestly.
+export type Label = { prompt: string; memory: string; relevant: boolean; by: string; note?: string; set?: "tuning" | "held-out" };
 
 export type RelevanceCase = { memory: string; trigger: string; prompt: string; total: number; k: number; whole: boolean; cut: boolean };
 
@@ -166,10 +193,16 @@ export function withoutTriggers(prompt: string, words: string[]): string | undef
   return left.length >= 3 ? left.join(" ") : undefined;
 }
 
-// A trigger is judged only once it has fired often enough that a perfect one could have beaten chance (chance^n < 0.05);
-// then it beats chance when its hits are unlikely under chance alone (one-sided binomial p < 0.05).
+// The fewest fires at which a trigger that is right half the time would already beat chance (one-sided p < 0.05).
+export function minFires(chance: number): number {
+  for (let n = 1; n < 200; n++) if (binomTail(Math.ceil(n / 2), n, chance) < 0.05) return n;
+  return 200;
+}
+
+// A trigger is judged only once it has fired minFires times; then it beats chance when its hits are unlikely under
+// chance alone (one-sided binomial p < 0.05).
 export function triggerVerdict(hits: number, n: number, chance: number): "beats chance" | "no better than chance" | "too few" {
-  if (n < Math.ceil(Math.log(0.05) / Math.log(Math.max(chance, 1e-9)))) return "too few";
+  if (n < minFires(chance)) return "too few";
   return binomTail(hits, n, chance) < 0.05 ? "beats chance" : "no better than chance";
 }
 
@@ -300,6 +333,13 @@ if (import.meta.main) {
   };
   const onRelevant = wilson(labels.filter((l) => l.relevant && fires(l)).length, labels.filter((l) => l.relevant).length);
   const onIrrelevant = wilson(labels.filter((l) => !l.relevant && fires(l)).length, labels.filter((l) => !l.relevant).length);
+  // Labels are drawn at random from pairs a trigger fired on, so the share relevant IS the triggers' precision.
+  const precisionOf = (set: string) => {
+    const xs = labels.filter((l) => (l.set ?? "tuning") === set);
+    return wilson(xs.filter((l) => l.relevant).length, xs.length);
+  };
+  const tuningPrecision = precisionOf("tuning");
+  const heldOutPrecision = precisionOf("held-out");
 
   // 1. Prevention. Recurring mistakes and which rules cover them, from every session in the window.
   const triggers = Triggers.load();
@@ -308,7 +348,8 @@ if (import.meta.main) {
   const candidates = mine(allErrors, triggers, 3);
   const coveredBy = new Map(candidates.filter((c) => c.coveredBy.length).map((c) => [c.signature, c.coveredBy]));
   const recurring = new Set(candidates.map((c) => c.signature));
-  const replayed = replayInjections(files, triggers);
+  const history = triggerHistory();
+  const replayed = replayInjections(files, (f) => triggersAt(history, statSync(f).birthtimeMs, triggers));
   const cases = preventionCases(allErrors, coveredBy, replayed).filter((c) => recurring.has(c.signature));
   const rate = (xs: PreventionCase[], g: Group) => {
     const ys = xs.filter((c) => c.group === g);
@@ -326,7 +367,9 @@ if (import.meta.main) {
   const liveCases = preventionCases(seenErrors, coveredBy, injections(rows)).filter((c) => recurring.has(c.signature));
   const replayCases = preventionCases(seenErrors, coveredBy, replayed).filter((c) => recurring.has(c.signature));
   const liveGroup = new Map(liveCases.map((c) => [`${c.session}\u0000${c.signature}`, c.group]));
-  const agree = wilson(replayCases.filter((c) => liveGroup.get(`${c.session}\u0000${c.signature}`) === c.group).length, replayCases.length);
+  // An uncovered case lands in the same group whichever map is used, so only covered ones test the replay.
+  const testable = replayCases.filter((c) => c.group !== "uncovered");
+  const agree = wilson(testable.filter((c) => liveGroup.get(`${c.session}\u0000${c.signature}`) === c.group).length, testable.length);
 
   // 2. Relevance of trigger-word memory injections, on a sample of prompts.
   const pairsTotal = byPrompt.reduce((a, s) => a + s.pairs.length, 0);
@@ -381,10 +424,11 @@ if (import.meta.main) {
   const headline = {
     at: new Date().toISOString(),
     days,
+    prompts: maxPrompts,
     probes,
     judge: { name: judgeName, whole: wholeAcc, cut: cutAcc, labels: judged.length },
     prevention: { reminded, unreminded, uncovered, replayAgreesWithLog: agree },
-    relevance: { hit: relHit, chance, noisy: noise.length, judged: noise.length + beats.length, injections30d: pairsTotal, onRelevant, onIrrelevant },
+    relevance: { hit: relHit, chance, noisy: noise.length, judged: noise.length + beats.length, injections30d: pairsTotal, onRelevant, onIrrelevant, tuningPrecision, heldOutPrecision },
     coverage,
     onTime: { semantic: warm, tool: toolOnTime, prompt: promptOnTime },
   };
@@ -395,7 +439,9 @@ if (import.meta.main) {
         .sort()
         .pop()
     : undefined;
-  const before = previous ? (JSON.parse(readFileSync(join(dir, previous), "utf8")) as Partial<typeof headline>) : undefined;
+  const last = previous ? (JSON.parse(readFileSync(join(dir, previous), "utf8")) as Partial<typeof headline>) : undefined;
+  // A delta against a run with another window or sample size compares two different things.
+  const before = last && last.days === days && last.prompts === maxPrompts ? last : undefined;
   const delta = (now: number, then: number | undefined) =>
     then === undefined ? "" : `   ${now - then >= 0 ? "+" : ""}${((now - then) * 100).toFixed(1)} pt since ${before?.at?.slice(0, 16)}`;
   const pt = (x: { d: number; lo: number; hi: number }) => `${(x.d * 100).toFixed(1)} pt [${(x.lo * 100).toFixed(1)} to ${(x.hi * 100).toFixed(1)}]`;
@@ -405,14 +451,13 @@ if (import.meta.main) {
   say("0. JUDGES — can the numbers below be trusted?");
   say(probes ? `   semantic ranking, 80 known-answer probes: EN ${probes.en}/40, ID ${probes.id}/40 in top 3` : "   semantic ranking: skipped (--no-judge, or batasd not answering)");
   say(`   relevance judge vs ${judged.length} hand labels (balanced accuracy): whole prompt ${pct(wholeAcc.acc)}, without trigger words ${pct(cutAcc.acc)} -> using "${judgeName}"`);
-  say(`   prevention replay vs the hook log (${seen.size} sessions it saw whole): ${span(agree)} of cases put in the same group`);
+  say(`   prevention replay (triggers as of each session, ${history.length} versions) vs the hook log, covered cases only: ${span(agree)} put in the same group`);
   say("");
   say("1. PREVENTION — after the rule for a mistake was injected, how often did the session make that mistake again?");
   say(`   reminded       ${span(reminded)}${delta(reminded.p, before?.prevention?.reminded.p)}`);
-  say(`   not reminded   ${span(unreminded)}   same mistakes, rule not injected (yet)`);
-  say(`   no rule        ${span(uncovered)}   mistakes no rule covers`);
-  say(`   reminded vs not reminded: ${pt(difference(reminded, unreminded))} -> ${compare(reminded, unreminded)}`);
-  say(`   reminded vs no rule:      ${pt(difference(reminded, uncovered))} -> ${compare(reminded, uncovered)}`);
+  say(`   no rule        ${span(uncovered)}   mistakes no rule covers — the baseline`);
+  say(`   reminded vs no rule: ${pt(difference(reminded, uncovered))} -> ${compare(reminded, uncovered)}`);
+  say(`   (not reminded  ${span(unreminded)}   descriptive only: mostly calls the trigger does not match, not a control)`);
   const perRule = new Map<string, PreventionCase[]>();
   for (const c of cases.filter((x) => x.group === "reminded")) for (const r of c.rules) perRule.set(r, [...(perRule.get(r) ?? []), c]);
   const ruleRows = [...perRule]
@@ -427,10 +472,11 @@ if (import.meta.main) {
   say("");
   say(`2. RELEVANCE — a memory a trigger word pulled in: does the prompt rank it in its project's top 10%? (judge: ${judgeName})`);
   if (daemonDown) say("   batasd stopped answering part-way; the numbers cover the cases judged before that");
-  say(`   relevant       ${span(relHit)}${delta(relHit.p, before?.relevance?.hit.p)}`);
-  say(`   chance         ${pct(chance)}   -> ${chance ? (relHit.p / chance).toFixed(1) : "-"}x chance   (${rel.length} injections from ${sample.length} of ${byPrompt.length} prompts; ${pairsTotal} injections in ${days} days)`);
+  say(`   precision by hand label, held out: ${span(heldOutPrecision)}   (the labels the trigger edits were chosen on: ${span(tuningPrecision)})`);
+  say(`   the embedding judge says ${span(relHit)} relevant, chance ${pct(chance)} — but it calls ${pct(1 - wholeAcc.tnr)} of irrelevant labels relevant, so read the hand-label line`);
+  say(`   (${rel.length} injections judged from ${sample.length} of ${byPrompt.length} prompts; ${pairsTotal} trigger injections in ${days} days)`);
   say(`   on the hand labels, a trigger still fires on ${onRelevant.k}/${onRelevant.n} relevant pairs and ${onIrrelevant.k}/${onIrrelevant.n} irrelevant ones${before?.relevance?.onIrrelevant ? `   (was ${before.relevance.onRelevant?.k}/${before.relevance.onRelevant?.n} and ${before.relevance.onIrrelevant.k}/${before.relevance.onIrrelevant.n})` : ""}`);
-  say(`   triggers with enough fires to judge: ${beats.length + noise.length}; beat chance ${beats.length}; no better than chance ${noise.length}${before?.relevance ? `   (was ${before.relevance.noisy})` : ""}`);
+  say(`   noise candidates for a person to read (judge accuracy ${pct(wholeAcc.acc)}): ${beats.length + noise.length} triggers judged, ${noise.length} no better than chance${before?.relevance ? `   (was ${before.relevance.noisy})` : ""}`);
   for (const t of noise.slice(0, 15)) say(`     '${t.trigger}' -> ${t.memory.split("/").pop()}  ${t.hits}/${t.n} vs chance ${pct(t.chance)}  e.g. "${clip(t.example, 55)}"`);
   say("");
   say("3. COVERAGE — mistakes made in 3+ sessions: share of (session, mistake) cases a rule covers");

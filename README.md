@@ -131,14 +131,15 @@ saved to `~/.batas/eval/` and the next one prints the change against it.
 
 | | Case | Baseline | Verdict |
 |---|---|---|---|
-| Prevention | a mistake in a session (an error signature seen in 3+ sessions): after its rule was injected, was it made again on a later call? | the same mistakes with the rule not yet injected, and mistakes no rule covers | `fewer` / `more` only when the whole interval of the difference is on one side of zero |
-| Relevance | a memory a trigger word pulled into a prompt: is it in the top 10% of its project's memories for that prompt (batasd)? | k/N, the chance a random memory gets there | per trigger: `no better than chance` when it fired often enough to have beaten chance and did not (one-sided binomial) |
+| Prevention | a mistake in a session (an error signature seen in 3+ sessions): after its rule was injected, was it made again on a later call? | mistakes no rule covers (the same mistakes un-reminded are printed too, but they are mostly calls the trigger does not match, so they are not a control) | `fewer` / `more` only when the whole interval of the difference is on one side of zero |
+| Relevance | a memory a trigger word pulled into a prompt: did it help with that prompt? | — | the share of hand labels marked relevant is the triggers' precision; only `held-out` labels (not the ones trigger edits were chosen on) measure a change. The embedding judge (top 10% of the project's memories) is printed beside it with its own accuracy, and lists noise candidates for a person to read |
 | Coverage | the same mistakes: does a rule fire on them at all? | — | the uncovered ones are lesson candidates |
 | On time | the prompt's semantic match inside the 150 ms budget; hook latency within budget | — | — |
 
 The numbers are only as good as their judges, so the report starts with them. **When a rule was injected is replayed
-from the transcript** (the hook injects a rule once, on its first trigger match) **and checked against the hook log**
-on the days the log still holds. **The relevance judge is scored against hand labels** in `evals/relevance-labels.json`:
+from the transcript** (the hook injects a rule once, on its first trigger match), **against `triggers.toml` as it was
+when that session started** (its git history in the cc-toriq mirror, `BATAS_TRIGGERS_HISTORY`), **and checked against the
+hook log** on the covered cases of the days the log still holds. **The relevance judge is scored against hand labels** in `evals/relevance-labels.json`:
 two variants — the whole prompt, and the prompt with the trigger words cut out — and the one with the higher balanced
 accuracy is used. A label is a person's (or an agent's, named in `by`) call that the memory helps with that prompt; add
 more with `just eval-label`. The semantic ranking itself is checked on the 80 known-answer probes of `just semantic-eval`.

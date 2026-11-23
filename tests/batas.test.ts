@@ -15,7 +15,7 @@ import { auditPrompts } from "../scripts/prompt-audit.ts";
 import { gitIndex, judgePath, namedPaths, resolveRoot } from "../scripts/memory-audit.ts";
 import { neverFired } from "../scripts/rule-select.ts";
 import { mine, redact, signature } from "../scripts/lesson-mine.ts";
-import { balancedAccuracy, binomTail, compare, difference, injections, preventionCases, topK, triggerVerdict, wilson, withoutTriggers } from "../scripts/eval.ts";
+import { balancedAccuracy, binomTail, compare, difference, injections, minFires, preventionCases, topK, triggersAt, triggerVerdict, wilson, withoutTriggers } from "../scripts/eval.ts";
 import { copiesOf, shareMemory } from "../scripts/memory-share.ts";
 import { routeLessons, ruleFile, staleFiles } from "../scripts/lessons-route.ts";
 import { regenAll, routeRepo, writeRoutes } from "../src/lessons.ts";
@@ -2050,8 +2050,10 @@ describe("eval", () => {
   test("binomial tail and the trigger verdict", () => {
     expect(Number(binomTail(3, 10, 0.1).toFixed(4))).toBe(0.0702);
     expect(binomTail(0, 10, 0.1)).toBe(1);
-    // chance 10%: a perfect trigger needs 2 fires to beat chance (0.1^2 = 0.01 < 0.05)
+    // chance 10%: a trigger right half the time beats chance from 3 fires (P(X>=2 | 3, 0.1) = 0.028)
+    expect(minFires(0.1)).toBe(3);
     expect(triggerVerdict(1, 1, 0.1)).toBe("too few");
+    expect(triggerVerdict(1, 2, 0.1)).toBe("too few");
     expect(triggerVerdict(9, 12, 0.1)).toBe("beats chance");
     expect(triggerVerdict(1, 16, 0.1)).toBe("no better than chance");
     expect(topK(8)).toBe(1);
@@ -2091,5 +2093,26 @@ describe("eval", () => {
       ["s3", "unreminded", true],
       ["s4", "uncovered", false],
     ]);
+  });
+});
+
+describe("eval replay", () => {
+  test("a session is replayed against the triggers live when it started, not today's", () => {
+    const old = new Triggers({ "lessons:B19": { cmd: ["\\bbun\\s+run\\s+dev\\b"] } });
+    const now = new Triggers({ "lessons:B19": { cmd: ["\\bbun\\s+run\\s+dev\\b", "(^|;\\s*)sleep\\s+\\d{3,}"] } });
+    const history = [{ at: 2000, triggers: now }, { at: 1000, triggers: old }];
+    const poll = { cmd: "sleep 120; gh pr checks 8" };
+    expect(triggersAt(history, 1500, now).match(poll).map((m) => m.id)).toEqual([]);
+    expect(triggersAt(history, 2500, now).match(poll).map((m) => m.id)).toEqual(["lessons:B19"]);
+    expect(triggersAt(history, 10, now)).toBe(old);
+    expect(triggersAt([], 10, now)).toBe(now);
+  });
+
+  test("B24 and B61 stay quiet where the wrapped tool or the venv already does the right thing", () => {
+    const t = Triggers.load();
+    const ids = (cmd: string) => t.match({ cmd }).map((m) => m.id).filter((id) => id === "lessons:B24" || id === "lessons:B61");
+    expect(ids('grep --fixed-strings "a(" src/x.ts')).toEqual([]);
+    expect(ids('source .venv/bin/activate && python -c "import numpy"')).toEqual([]);
+    expect(ids("python3 -c 'import yaml; print(1)'")).toEqual(["lessons:B61"]);
   });
 });

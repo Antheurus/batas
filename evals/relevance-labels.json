@@ -3,543 +3,631 @@
     "prompt": "redesign Pencapaian & Action Plan, lanjut dari memori insights-page-curated-not-wall",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-mendadak-pos/insights-page-curated-not-wall",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "btw mdm ada dimana ya?",
     "memory": "memory:-Users-macbook-Documents-DATA-BRIGHTY-MISPAQUL-ATTORIQ-module-auto-scrape-integration-service-mono/databridge-hld-page03-scope-2026-11-04",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "ini relay wizard yang belum selesai, coba kirim promptnya ke gua biar dijalankan sama agent lain, karena kita udah mau matiin relay dan fokus ke 1 aplikasi per 31 desember, jadi update relay masuk ke kitapos kasir mobile aja",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-mendadak-pos/native-plugin-method-feature-detect",
     "relevant": true,
     "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
-    "note": "borderline: relay moving into the Kasir app touches native plugin rollout"
+    "note": "borderline: relay moving into the Kasir app touches native plugin rollout",
+    "set": "tuning"
   },
   {
     "prompt": "[Image #12] jujur sebagai user, gimana menurut lu sidebarnya? apakah emang user friendly atau gimana? dan kalo dia sendiri pengen bikin kayak semacam automation buat ambil datanya, gua rasa lu perlu bikin 3 hal yang paling penting disini, orang yang pakai adalah orang yang pengen liat data secara berkala. \n\njadi kita perlu ada 3 hal:\n- schedule trigger buat ambil data berkala dengan rules system yang bisa diatur, lu bisa cek per ../../*/module-auto-* yang udah sangat mature.\n- lalu ada dashboard buatan mereka sendiri, ini yang jadi USP kita buat kasih ke mereka buat bikin apapun yang mereka su",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-mendadak-tools-v2/v2-agent-sync-must-work-and-scoped-by-default",
     "relevant": true,
     "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
-    "note": "borderline: data-pull automation"
+    "note": "borderline: data-pull automation",
+    "set": "tuning"
   },
   {
     "prompt": "[Image #2] kok belum ada bulan ini, berarti ini pas dia pilih date window this month, apakah dia akan cuma ambil data 12 hari aja besok atau 13 hari (karena tanggal 13)?",
     "memory": "memory:-Users-macbook-Documents-DATA-BRIGHTY-MISPAQUL-ATTORIQ-module-auto-scrape-integration-service-mono/shopee-window-is-one-calendar-month",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "ganti jadi rl:off/69% <kapan dia weekly reset>",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-cc-toriq/groovingflow-weekly-report",
     "relevant": false,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "nih masukkan juga data dari bank jago gua\n\n/Users/macbook/Downloads/Jago_PT_SISTEM_ANAK_BANGSA_14112026.pdf '/Users/macbook/Downloads/Jago_PT_SISTEM_ANAK_BANGSA_17112026 (1).pdf' /Users/macbook/Downloads/Jago_PT_SISTEM_ANAK_BANGSA_17112026.pdf\n\n\n`rik lo perlu bikin detail yg real mutasi biar keliatan pemasukan dan pengeluaran realnya`",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-mendadak-pos/invoice-issuer-pt-sab-signed",
     "relevant": false,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "- Akun Google berlangganan Google AI (Pro/Ultra) untuk tes langsung --> pro dari kami, dan ultra dari klien\n- Daftarkan GitHub OAuth App milik Klipsera (client id) untuk login Copilot\npelanggan lewat SDK resmi @github/copilot-sdk --> fokus aja pakai normal ya\n- Posting tiktok, ini bukan buat tiktok aja tapi juga platform lain kayak instagram, tiktok, threads, dll",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-video-maker/klipsia-repliz-klipsia-owned-account",
     "relevant": false,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "[Image #11] daripada cek riwayat po as a modal, mending jadi drawer aja, [Image #12] ini terima barnag juga terlalu slim, padahal bisa aja lebih lebarin, [Image #13] nomor PO kependekan, data ini bisa di download PDFnya kayak yang diminta ini, [Image #14] ini referensi udah jadinya, tapi lu ngerti kan jadi ini bisa ada preview PDF nya juga pas di edit kayaknya seru, instead of download PDF, dia generate PDF, terus ada template yang udah jadi dan mereka bisa bikin template, done /improve-experience",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-mendadak-pos/storefront-full-pages-not-drawers",
     "relevant": false,
     "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
-    "note": "admin PO screen, the memory is about the QR storefront"
+    "note": "admin PO screen, the memory is about the QR storefront",
+    "set": "tuning"
   },
   {
     "prompt": "A1: yang gagal itu, apa querynya? retry udah belum?\nA2: maksudnya?\nA3: benerin biar dia liat yang 08, 62, 8 aja leftnya biar bisa di kasih wa.me, kalo bukan ya berarti nomor telp biasa\nA4: yap lanjutin aja masih banyak context, gua naikkan ke 60\nA5: ok",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-mendadak-pos/keep-working-when-context-raised",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "[Image #1] ini emang di social.lajulabs nggk lu cek????",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-mendadak-pos/social-repliz-plus-next-asks",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "kirim .apk nya ke Downloads, gua mau kirim ke orang",
     "memory": "memory:-Users-macbook-Documents-DATA-BRIGHTY-MISPAQUL-ATTORIQ-module-hegemoni-hub/hub-android-debug-signed",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "jadi pas dia mendapatkan uang 2jt dari customer, kita kirim ke dia berapa? 2 juta apa 2 jt - 1.5% deduct?",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-mendadak-pos/proposal-2-0-qr-fee-1-5",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "`Satu hal biar jelas: nambah satu entry di registry itu tetap dihitung extension, bukan modification. Yang \"dikunci\" itu bentuk dan cara kerja registry-nya, bukan daftar isinya.` --> betul, gua nggk mau itu jadi kaku, bukan berarti nggk boleh, tapi pastikan emang itu diperlukan dlu... normalnya, human written code itu adalah, dia akan lanjutkan dari `return` code sebelumnya, apakah AI harus lakukan itu? normally, tapi nggk dipaksakan. jika memang user pengen performance, ya berarti kita perlu gabungkan, jawabannya tetap di ROI dari code itu, KODE = LIABILITY. jadi jika ada code yang gagal, itu",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-cc-toriq/feedback-registry-adapter-for-ast-grep",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "ini kok tbtb si pips keluar sendiri ya?",
     "memory": "memory:-Users-macbook-Documents-DATA-BRIGHTY-MISPAQUL-ATTORIQ-module-auto-scrape-integration-service-mono/pips-only-auth-live-2026-11-02",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "jadi di social.lajulabs.com, buatin sebuah tempat dan api yang bisa gua kasih promptnya ke orang, ini api pakai env dan promptnya harus bisa masukkan itu ke memory, karena mau gua kasih ke orang, jadi dia bisa jalankan itu dan cek cek kalo ada yang perlu dijawab, gas jadi gini... dia itu cuma skill dari adu-motion yang di modif sama kita dengan copy writing yang disesuaikan, jadi tiap video yang udah dibuat nantinya simpan kesini dari video ai buatan dari claude",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-cc-toriq/social-video-ai-creator-api",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "jadi ada storyboard yang bisa gua liat",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-mendadak-pos/kitapos-video-copy-format-not-topic",
     "relevant": false,
     "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
-    "note": "storyboard named, but nothing ties it to the KITAPOS film"
+    "note": "storyboard named, but nothing ties it to the KITAPOS film",
+    "set": "tuning"
   },
   {
     "prompt": "explain the codebase of our architecture i like, im talking about registry + adapter way",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-cc-toriq/feedback-modular-monolith-roi",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "commit aja toh",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-cc-toriq/feedback_commit-push-land-without-asking",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "kok panas banget",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-cc-toriq/mendadak-pos-reindex-hook-force-only",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "bebasin skyhook, staco, kekini dari kyb",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-mendadak-pos/real-customer-staco",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "kok verifikasi gagal?",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-otofiliate/wait-while-user-solves-captcha",
     "relevant": true,
     "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
-    "note": "borderline: verification could be the captcha flow"
+    "note": "borderline: verification could be the captcha flow",
+    "set": "tuning"
   },
   {
     "prompt": "kalo perorangan itu cuma butuh npwp dan ktp aja",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-mendadak-pos/merchant-kyb-gate-decisions",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "berarti gua kalo minta 25 orang nggk mungkin bisa pilih sama sekali dong, harusnya dia bisa pilih multiple juga [Image #2] kok gua minta 6 aja nggk bisa disini",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-mendadak-pos/reserve-page-multi-table-for-big-parties",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "nanti pas merged nanti lu jangan dulu ke main, ke dev dulu aja... ada commtion orang jadi agak bingung soal UI baru",
     "memory": "memory:-Users-macbook-Documents-DATA-BRIGHTY-MISPAQUL-ATTORIQ-module-product-rnd-service-be/merge-to-dev-not-main",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "gua ada omp dan gua pengen sambungkan ke refuseless, coba lu update biar dia pakai refuseless https://docs.refuseless.com/introduction nanti kasih gua 1 command buat gua isi APInya, sisanya lu setup",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-cc-toriq/omp-uses-refuseless",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "sebelumnya lu udah pernah login ke wws os server belum ya?",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-cc-toriq/ssh-key-wws-vps",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "LU KIRA ORANG YANG BIKIN DARI GOOGLE FLOW KAGAK LANGSUNG DI MASUKKAN KE TIKTOK? 99% orang yang gua tanyain mereka langsung upload ke tiktok",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-video-maker/klipsia-target-storyboard-to-flow-pipeline",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "A1: hapus 1 nya\nA2: ya, coba cek pakai patchright disini /self-learn-reverse-engineer",
     "memory": "memory:-Users-macbook-Documents-DATA-BRIGHTY-MISPAQUL-ATTORIQ-module-auto-scrape-integration-service-mono/browser-choice-by-purpose",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "sama package tambahan Video AI + Konsultasi marketing 1 bulan 1x",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-mendadak-pos/evidence-photos-not-video-default",
     "relevant": false,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "keterlaluan mahal kalo pakai API, gua nggk mau dan itu juga yang sebelum sebelumnya udah gua infokan, jangan buat gua ngulangin keinginan gua.",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-video-maker/klipsia-no-api-paid-chat-brain",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "docs/plan/2026-11-08-otofiliate-one-extension/ nih kerjain",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-otofiliate/one-extension-for-tiktok-and-shopee",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "bridgenya aktifin buat yang printer kasir",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-mendadak-pos/service-fee-and-others-includes-kitapos-fee",
     "relevant": false,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "sama ini juga lu perlu tau adalah, di shopee NGGK BOLEH LEWAT 30 hari. disabled aja",
     "memory": "memory:-Users-macbook-Documents-DATA-BRIGHTY-MISPAQUL-ATTORIQ-module-auto-scrape-integration-service-mono/shopee-window-is-one-calendar-month",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "lanjutin buat coba masukkan dari grooving pips juga dong",
     "memory": "memory:-Users-macbook-Documents-DATA-BRIGHTY-MISPAQUL-ATTORIQ-module-auto-scrape-integration-service-mono/pips-only-auth-live-2026-11-02",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "kita jangan pakai e2e secara sering ya, karena emang yang penting itu uat, native, hurl, playwright ini emang se penting apa ya?",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-mendadak-pos/e2e-playwright-scoped-not-routine",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "sama kasih info biar orang itu komen, misal di video yang gua kasih itu harusnya ada narative komen \"tikus\" biar kitapos bisa bantu basmi tikus di tempat kalian, bla bla... nah karena ini video soal rating, berarti komen \"rating\"",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-mendadak-pos/evidence-photos-not-video-default",
     "relevant": false,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "coba bukain, cuma jangan cepet banget gua pas mau login udah kellaur duluan",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-video-maker/never-reprompt-login-after-user-signed-in",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "harusnya dia udah ada komisinya [Image #1]",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-mendadak-pos/check-existing-social-automation-before-proposing",
     "relevant": false,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "gk ngerti lu nannya apaan, cuma klopun gua deploy, tetep per env kan ya kita pakia faspay apa xendit, jadi kita bisa deploy push dulu?",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-mendadak-pos/xendit-direct-payments-decisions",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "ini coba tolong buka annotate",
     "memory": "memory:-Users-macbook-Documents-DATA-BRIGHTY-MISPAQUL-ATTORIQ-module-auto-scrape-integration-service-mono/browser-choice-by-purpose",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "pakai logo yang bener dong jangan ngasal.",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-vidio-shop/brand-logos-from-zonalogo",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "terus secara UIUX juga sekarang itu bare banget, lu mau bikin buat project sendiri apa buat jualan, kok cuma 1 warna, dll itu uiux sampah sesampah sampahnya",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-mendadak-pos/marketing-skills-for-lead-replies",
     "relevant": false,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "pertanyaan lu sampah banget, kan harusnya udah ada flow yang kita buat kemarin juga",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-mendadak-pos/check-existing-social-automation-before-proposing",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "jangan asal kasih ke gua, review pastikan itu tuh sesuai standard video yang bisa viral",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-mendadak-pos/evidence-photos-not-video-default",
     "relevant": false,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "terlalu SLOP /improve-experience /design-taste",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-mendadak-pos/design-taste-skill-quality-bar",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "ini otofiliate tolong buatin product knowledge, pastikan jelas secara per fitur dan hal apa yang bisa diraih dari fitur itu",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-otofiliate/live-platform-writes-look-ordinary",
     "relevant": false,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "itu yang task buat bikin login kasih aja ke handover, gua lagi buat agent lain yang jalan buat suruh kerjain, lu bisa kirim pesan aja ke dia",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-mendadak-tools-v2/v2-no-handover-before-60-percent",
     "relevant": false,
     "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
-    "note": "'handover' means hand the task to another agent here"
+    "note": "'handover' means hand the task to another agent here",
+    "set": "tuning"
   },
   {
     "prompt": "yang review itu orang haleon dan nilainya gua bilang belum ada",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-cc-toriq/haleon-video-ai-sheet",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "`sore mas hadi, sebelumnya dari bang yoga ada info soal buat produk langsung untuk nanti di playmaker tentang video ai creation ya mas, boleh sekalian mas minta insight sedikit + apa` --> kira-kira gimana gua ngomongnya?",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-mendadak-pos/evidence-photos-not-video-default",
     "relevant": false,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "jadi bro ini kan udah di tanggal 1 nov, mana ya yang lu bilang lu mau benerin pakai xendit jadinya, gas nih",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-mendadak-pos/xendit-direct-payments-decisions",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "kita kan simpan ya logs di kitapos, nah kira-kira kalo lu cek data dari staco dan skyhook, apa aja hal yang mereka pakai 80% dari hal yang mereka lakukan, itu yang jadi opsi hyper-optimized kita",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-mendadak-pos/real-customer-staco",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "A1: ai flag\nA2: brand approval\nA3: acceptable\nA4: hold whole project set\na5: yeah",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-video-maker/klipsia-approve-keyframes-from-canvas",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "jadi ini ngapain aja tadi listing, gau mau clear dan pastikan merge",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-cc-toriq/feedback_commit-push-land-without-asking",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "kasih ke gua prompt buat dikasih ke temen gua, gua pnegne ngomong kayak:\n\ntolong cek apakah sudah ada githubnya? jika belum buatin dlu terus kirimkan ke mispaqul.attoriq@gmaill.com, lalu pastikan env dan lainnya diinfokan ke user untuk dikirimkan ke mispaqul lewat chat langsung, ini termasuk kredensial server dan api key yang diperlukan",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-cc-toriq/cloudflare-work-infra-map-and-asia-pop-triage",
     "relevant": false,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "animasi voidStage ini bisa tiba tiba flicker, jadi lu fix ya pastikan harus aman, cara reproduksi adalah dengan pencet skill 2 kali, biar si sidebar berubah ukuran",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-hecate/hecate-full-fork-front-and-back",
     "relevant": false,
     "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
-    "note": "a flicker bug, the memory is about the fork decision"
+    "note": "a flicker bug, the memory is about the fork decision",
+    "set": "tuning"
   },
   {
     "prompt": "itu harus SUPER POLISHED. BUKAN CUMA JADI. SUPER SUPER POLISHED.",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-video-maker/klipsia-films-wow-or-trash-no-forced-business-story",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "dan buat juga biar makin gampang pas dia masang template, dan gua jujur nggk tau... cuma harusnya secara pewarnaan dan lainnya itu jelasin, soalnya semuanya putih dan kurang jelas banget itu pas gua buka di tablet, button langsung dicetak ini jangan ada, dan pas milih template, gua jujur kalo jadi orang awam nggk ngerti gimana cara ubahnya, soalnya kurang jelas juga /improve-experience",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-mendadak-pos/redmi-pad-app-testing",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "sini gua jelasin dulu, gua ada beberapa produk dan source income gua yang bisa gua infokan:\n- Operating System Builder for business - FWD Engineer (ini yang akan gua bisa kerjain juga per client, dan gua harus bisa handover ke orang buat kerjain)\n- Otofiliate - Produk yang akan launching full di 1 Desember 2026\n- Kitapos - ini udah proven menghasilkan, belum terlalu besar tapi udah jelas ada revenue.\n- AI Video Generation - ini yang bareng sama Haleon untuk brands Sensodyne, Centrum, Scots, Polident\n- Side Job as Engineer Freelancer di Kementrian Kehutanan\n- Mendadak Tools, v1 sudah jalan dan ",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-cc-toriq/social-video-ai-creator-api",
     "relevant": false,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge",
+    "set": "tuning"
   },
   {
     "prompt": "explain the codebase of our architecture i like, im talking about registry + adapter way",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-cc-toriq/feedback-registry-adapter-for-ast-grep",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit",
+    "set": "held-out"
   },
   {
     "prompt": "berat banget nih panas juga",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-cc-toriq/mendadak-pos-reindex-hook-force-only",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit",
+    "set": "held-out"
   },
   {
     "prompt": "bebasin skyhook, staco, kekini dari kyb",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-mendadak-pos/merchant-kyb-gate-decisions",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit",
+    "set": "held-out"
   },
   {
     "prompt": "1 task open, lu beresin al out",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-mendadak-pos/open-file-after-making-it",
     "relevant": false,
     "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit",
-    "note": "'open' means an open task here"
+    "note": "'open' means an open task here",
+    "set": "held-out"
   },
   {
     "prompt": "lebih ke apakah itu dibutuhkan, sekaligus dalam 1 prompt itu ya, biar hemat juga, nggk jangan by default",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-mendadak-pos/assistant-is-need-is-visible",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit",
+    "set": "held-out"
   },
   {
     "prompt": "oke jadi ini gua perlu bilang apa nih, jam 5 pulang tapi [Image #3]",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-cc-toriq/statusline-no-five-hour-window",
     "relevant": false,
     "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit",
-    "note": "'jam 5 pulang', not the usage window"
+    "note": "'jam 5 pulang', not the usage window",
+    "set": "held-out"
   },
   {
     "prompt": "Lanjut PID Worksheet. Invoke Skill od-execute (cold entry).\nRead in order: docs/plan/2026-11-12-pid-worksheet/handover-02.md (highest handover = current),\ndocs/plan/2026-11-12-pid-worksheet/task.md, the tail of docs/plan/2026-11-12-pid-worksheet/findings.md\n(from \"## Resume — 2026-11-13 (session 2)\"), docs/plan/2026-11-12-pid-worksheet/plan.md (§Phase 07–10),\nskim docs/plan/2026-11-12-pid-worksheet/research.md. All paths under module-product-rnd-service-be.\nWork only in the detached worktrees module-product-rnd-service-{be,fe}-wt-pid-worksheet (BE f9b84a9, FE da38475).\nFirst: audit Phase 07 (F",
     "memory": "memory:-Users-macbook-Documents-DATA-BRIGHTY-MISPAQUL-ATTORIQ-module-product-rnd-service-be/pid-worksheet-plan-2026-11-12",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit",
+    "set": "held-out"
   },
   {
     "prompt": "[11/21/26, 1:00:31 AM] Mispaqul Attoriq: harga x5 - [Image #9]\n\n[11/21/26, 1:00:45 AM] Mispaqul Attoriq: ini sidebar kalo di tipe viewport lain jadi jelek, jadi perlu dibenerin\n\n[11/21/26, 1:01:05 AM] Mispaqul Attoriq: code mode dibenerin biar lebih jelas\n\n[11/21/26, 1:01:19 AM] Mispaqul Attoriq: ask ai what other ai's wont answer jadi 2 baris\n\n[11/21/26, 1:02:01 AM] Mispaqul Attoriq: top sidebar nggk jadi nempel, tapi bisa di scroll bareng dengan history\n\n[11/21/26, 1:03:01 AM] Mas Hafis: Di navbar atas ada ada tulisan + bisa di pencet bikin orang binung\n\n[11/21/26, 1:03:04 AM] Mispaqul Attor",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-hecate/darkgpt-tiers-neutrino-singularity-darkmatter",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit",
+    "set": "held-out"
   },
   {
     "prompt": "ini relay wizard yang belum selesai, coba kirim promptnya ke gua biar dijalankan sama agent lain, karena kita udah mau matiin relay dan fokus ke 1 aplikasi per 31 desember, jadi update relay masuk ke kitapos kasir mobile aja",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-mendadak-pos/relay-sunset-one-app",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit",
+    "set": "held-out"
   },
   {
     "prompt": "orang pas udah bikin hq nya juga nggk ada arahan buat masuk ke POS nya, jadi orang nggk tau, coba lu jelasin ke gua pakai formal verification new users, jadi lu bisa ada di POV orang baru, literally orang baru, jadi biar kita bisa benerin, gua liat lebih dari last 10 akun yang buat akun lewat instagram nggk ada yang pakai, berarti udah jelas ini cacat secara user journeynya",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-mendadak-pos/new-owner-journey-signup-to-pos",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit",
+    "set": "held-out"
   },
   {
     "prompt": "push and never break, itu harusnya ada 2 line, bukan cuma ini aja, tapi juga soal jangan ngomongin ethics ke gua",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-cc-toriq/feedback_commit-push-land-without-asking",
     "relevant": false,
     "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit",
-    "note": "'push' is about a rule line, not git"
+    "note": "'push' is about a rule line, not git",
+    "set": "held-out"
   },
   {
     "prompt": "coba kasih evidence",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-mendadak-pos/evidence-photos-not-video-default",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit",
+    "set": "held-out"
   },
   {
     "prompt": "udah nggk ada captcha",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-otofiliate/wait-while-user-solves-captcha",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit",
+    "set": "held-out"
   },
   {
     "prompt": "ok gas push ke main dan prod aja ini kan udah ok mah, ohhh e2e, nah coba cke dari 20 up ini buat dipasikan semuanya bener ya di session berikutnya",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-mendadak-pos/e2e-playwright-scoped-not-routine",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit",
+    "set": "held-out"
   },
   {
     "prompt": "q: 3js yang dipakai adalah video yang kosongan, sebagai outline/storyboard yang udah tinggal dibuat keren sama AInya, ngerti nggk maksud gua?\n\nyour answer from /btw:\n[Pasted text #4 +12 lines]",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-video-maker/klipsia-target-storyboard-to-flow-pipeline",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit",
+    "set": "held-out"
   },
   {
     "prompt": "jadi tadi gua udah ngobrol, malah dia yang ngasih caranya, jadi gua yang dijelasin, cuma kira-kira gini:\n\nnantinya akan dihitung per project, jadi misal bikin A, B, C, D dan ini bentuknya app... terus itu tuh harus beres, lalu pas dibereskan, dia itu harus kayak:\n- user bikin app, it yang sesuaikan secara data, security, arsitektur, dll \n- gua juga bikin superapp jadi anggapannya gua itu bentuk komputer, nah ada adapter buat disambungin as printer, mouse, keyboard, dll itulah hasilnya\n- nah disini gua boleh kerjain kapan aja, pagi, siang, malam... terserah yang jelas projectnya harus beres dal",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-cc-toriq/feedback-modular-monolith-roi",
     "relevant": false,
     "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit",
-    "note": "pricing per project, not architecture"
+    "note": "pricing per project, not architecture",
+    "set": "held-out"
   },
   {
     "prompt": "jadi kalo bentuknya mcp gimana?",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-mendadak-pos/openapi-agent-readable",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit",
+    "set": "held-out"
   },
   {
     "prompt": "jadi lu bisa cek ini nggk https://docs.google.com/spreadsheets/d/1NMwZHGeMar4YI255YOnS1pT2TLK0OA7Xg0cfeCL5aQY/edit?gid=305992769#gid=305992769 /sheets-cli \n\njadi gua pengen lu QC apakah sudah sesuai dengan foto yang dibuat di sheet BT Request juga",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-cc-toriq/haleon-100-videos-week-pipeline",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit",
+    "set": "held-out"
   },
   {
     "prompt": "buatin plan yang thorough buat lu scrape semua kafe yang ada di jakarta, dan bekasi dulu, gua expect lu bikin banyak banget query buat ambil semua ini, nanti bikin maps dan lainnya, fiturnya mirip kayak yang ada di ../../*/module-sales-* terus buat scrape ada di ../../*/module-auto kita simpan aja di codebase kita juga as in module scrape/ sisanya ya simpan ke vendor kita buat jadi action plan kita, gua biasanya sortir by rating dulu, pastikan ada email dan nomor lebih diutamakan, cuma ya gua pengen lu scrape all out aja sih dari awal, kalo bisa sekarang mending lu langsung ambil data disitu t",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-mendadak-pos/insights-page-curated-not-wall",
     "relevant": false,
     "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit",
-    "note": "a scraping plan, not the insights page"
+    "note": "a scraping plan, not the insights page",
+    "set": "held-out"
   },
   {
     "prompt": "buat akun skyhookcoffeeofficial2026@gmail.com, ini mimic semua hal yang ada di skyhookcoffeeofficial@gmail.com kecuali penjualannya",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-mendadak-pos/skyhook-2026-clone-no-sales",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit",
+    "set": "held-out"
   },
   {
     "prompt": "tolong cek 24jam terakhir ada error, itu di fix ya",
     "memory": "memory:-Users-macbook-Documents-DATA-BRIGHTY-MISPAQUL-ATTORIQ-module-auto-scrape-integration-service-mono/failed-runs-triage-2026-10-20",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit",
+    "set": "held-out"
   },
   {
     "prompt": "[Image #4] ini jelek, coba benerin design nya /design-taste",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-mendadak-pos/insights-page-curated-not-wall",
     "relevant": false,
     "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit",
-    "note": "an unnamed page"
+    "note": "an unnamed page",
+    "set": "held-out"
   },
   {
     "prompt": "ada link reservasi mandiri",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-mendadak-pos/reserve-page-multi-table-for-big-parties",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit",
+    "set": "held-out"
   },
   {
     "prompt": "- [Image #1] ini contoh video sampah, jangan pakai yang ini, coba lu cek yang ini kitapos deh, tapi bukan bikin untuk kitapos, buat aja untuk produk Brighty [Image #2] ini soap bar produk.\n- bikin juga video yang pakai ke google flow, tapi buat se keren mungkin, video yang bisa sampai 30s~90s terus ini kalo buat video yang cara orang bikin: \n + https://www.youtube.com/watch?v=qtPrAS9Ms6M \n + https://www.youtube.com/watch?v=mTlNZqLLx2c\n\n- /Users/macbook/Downloads/ssstik.io_1794967820795.mp4 /Users/macbook/Downloads/ssstik.io_1794967831637.mp4",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-video-maker/klipsia-target-storyboard-to-flow-pipeline",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit",
+    "set": "held-out"
   },
   {
     "prompt": "[Image #14] ini pakai logo yang bener dong, nih shopee https://zonalogo.com/id/search?q=shopee cek logo di zonalogo always. dan icons juga pakai yang bener, itu keliatan slop",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-vidio-shop/pitch-deck-no-hand-holding-real-mockups",
     "relevant": false,
     "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit",
-    "note": "the logo memory applies, not the deck one"
+    "note": "the logo memory applies, not the deck one",
+    "set": "held-out"
   },
   {
     "prompt": "setau gua nggk semahal itu, ini yang mahal karena hal lain dari claude, dan vm docker yang nggk kepakai di matiin aja",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-cc-toriq/user_machine",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit",
+    "set": "held-out"
   },
   {
     "prompt": "mcp kita ini udah jadi juga belum ya?",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-mendadak-tools-v2/v2-agent-is-users-own-via-mcp",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit",
+    "set": "held-out"
   },
   {
     "prompt": "A1: semua merchant\nA2: makanya ini langsung aja lewat service & lainnya, kayak gini [Image #6] jadi nggk keliatan banget kan ya, termasuk di sisi POS, jadi lebih enak kita ambilnya pas ada yang beli lewat QR meja juga\nA3: tergantung rekomendasi.",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-mendadak-pos/acrylic-cards-2026-11-skyhook-pending",
     "relevant": false,
     "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit",
-    "note": "service fee via QR, not acrylic cards"
+    "note": "service fee via QR, not acrylic cards",
+    "set": "held-out"
   },
   {
     "prompt": "main deploy prod",
     "memory": "memory:-Users-macbook-Documents-PROJECT-MISPAQUL-ATTORIQ-mendadak-pos/deploy-from-main-not-dev",
     "relevant": true,
-    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit"
+    "by": "agent (claude-opus-5-5), 2026-11-23, blind to the judge, held out after the trigger edit",
+    "set": "held-out"
   }
 ]
