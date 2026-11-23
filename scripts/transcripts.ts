@@ -7,7 +7,8 @@ export type Call = { cmd?: string; path?: string; code?: string; session: string
 export function transcriptFiles(dir: string, fromMs: number, toMs = Number.POSITIVE_INFINITY, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
     const p = join(dir, name);
-    const st = statSync(p);
+    const st = statSync(p, { throwIfNoEntry: false });
+    if (!st) continue;
     if (st.isDirectory()) transcriptFiles(p, fromMs, toMs, out);
     else if (name.endsWith(".jsonl") && st.mtimeMs >= fromMs && st.birthtimeMs <= toMs) out.push(p);
   }
