@@ -122,6 +122,14 @@ prompt-audit share="0.01":
 rule-audit days="14" share="0.02" promote="0.3" demote="0.02":
     bun scripts/rule-audit.ts {{days}} {{share}} {{promote}} {{demote}}
 
+# the scorecard: prevention, relevance, coverage, on-time — each a 95% interval against a baseline, judges checked first, saved to ~/.batas/eval/ and compared with the last run (about 3-4 min)
+eval days="30" prompts="400":
+    bun scripts/eval.ts {{days}} {{prompts}}
+
+# unlabelled (prompt, memory) pairs a trigger produced, as JSON: decide `relevant` by hand and append them to evals/relevance-labels.json
+eval-label n="30" seed="303":
+    bun scripts/eval.ts 30 --label-sample={{n}} --seed={{seed}}
+
 # did injections change behaviour? repeat rate of each trigger per session, before vs after batas went live (days per side, min sessions)
 effect-audit days="21" min="8":
     bun scripts/effect-audit.ts {{days}} {{min}}

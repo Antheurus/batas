@@ -606,6 +606,11 @@ export function ownWords(prompt: string): string {
 // tried as a third path and dropped: on 500 replayed real prompts it surfaced 273 memories nobody's trigger named, up
 // to 8 on one prompt, and they were mostly unrelated (scripts/listing-replay.ts). Another project's memory needs its
 // trigger, and is listed rather than injected.
+// The prompt as memory triggers read it: the user's own words, lowercased, with filesystem paths cut.
+export function memoryPromptText(prompt: string): string {
+  return ownWords(prompt).replace(/(^|\s)(?:~|\.\.?)?\/[^\s/]+\/\S*/g, "$1 ").toLowerCase();
+}
+
 function relevantMemories(
   store: Store,
   prompt: string,
@@ -616,7 +621,7 @@ function relevantMemories(
   // A filesystem path names where the work happens, not what it is about: "brighty v2 fe" matched every brief that
   // carried /Users/.../DATA_BRIGHTY_.../...-fe-v2, word by word, and attached two unrelated brighty-v2 memories to a
   // Funnel SSE brief. URLs and slash commands stay: "docs.ipaymu.com" and "/od-handover" name the topic.
-  const lower = ownWords(prompt).replace(/(^|\s)(?:~|\.\.?)?\/[^\s/]+\/\S*/g, "$1 ").toLowerCase();
+  const lower = memoryPromptText(prompt);
   const triggered = (h: Pick<Entry, "title">) => memoryTriggers(h.title).some((t) => saysTrigger(lower, t));
   const strong = store.memories(project).filter((h) => !skip.includes(h.id) && triggered(h));
   const meant = semantic ? semanticMemories(store, project, [...skip, ...strong.map((h) => h.id)], semantic) : { full: [], more: [] };

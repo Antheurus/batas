@@ -7,9 +7,10 @@ import { config } from "../src/config.ts";
 import { Triggers } from "../src/triggers.ts";
 import { errorsIn, type ToolError, transcriptFiles } from "./transcripts.ts";
 
-// The harness's own refusals and a user saying no are not mistakes to learn from.
+// The harness's own refusals, a user saying no or pressing stop, and a search that simply found nothing (grep exits 1)
+// are not mistakes to learn from.
 const NOT_A_MISTAKE =
-  /^<tool_use_error>|user doesn't want|user rejected|YOUR PLAN WAS NOT APPROVED|hook (error|blocking)|PreToolUse:|denied this tool|Permission to use/i;
+  /^<tool_use_error>|user doesn't want|user rejected|YOUR PLAN WAS NOT APPROVED|hook (error|blocking)|PreToolUse:|denied this tool|Permission to use|^\[Request interrupted by user|^(Exit code 1\n)?0 matches for /i;
 // A bare exception name or a traceback frame is an agent's own script being debugged, not a repeated trap.
 const GENERIC = /^(\w*(Error|Exception)(: <\w+>| <\w+>)?|raise .*|response = self\.parent\.error\(|triggerUncaughtException\(|<s>:? ?\{?)$/;
 const ERRORISH = /error|fatal|denied|not found|cannot|can't|failed|exception|refused|no such|does not exist|invalid|unexpected/i;

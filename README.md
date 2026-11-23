@@ -113,6 +113,8 @@ when a converted item has no `## N` section; the hook falls back to the condense
 | `just semantic-status` / `just batasd-restart` | is batasd up, how many vectors; restart it on the current code |
 | `just semantic-eval [--lessons\|--repo\|--all]` / `just semantic-calibrate` | recall quality on the 80 blind probes; where the prompt gate sits |
 | `just delivery-check` | after a rule move: 6 fresh `claude -p` sessions (4 moved/converted global rules, 2 controls) each Read a harmless file at a rule's path fixture; exits 1 when delivery drops against the saved `.delivery-eval-rules.json` (the first run saves the baseline). `bun scripts/delivery-eval.ts --compare <previous.json> <current.json>` runs only the comparison |
+| `just eval` | the scorecard below: does batas change behaviour, and is what it injects relevant |
+| `just eval-label` | pairs to label by hand for the relevance judge (`evals/relevance-labels.json`) |
 | `just fire "git stash pop"` | which rules a command or phrase fires |
 | `just log` | recent hook calls: what fired, and how many ms it took |
 | `just reindex` | re-embed whatever changed, and wait for it |
@@ -120,6 +122,26 @@ when a converted item has no `## N` section; the hook falls back to the condense
 State lives in `~/.batas/`: `vectors.lance` (batasd's embeddings), `batasd.sock` / `batasd.log`, `sessions/` (which
 rules each session was already given) and `hook.log.jsonl`. The text itself is never copied: the hook and the MCP server
 parse the markdown files directly (the rules in ~8 ms, all ~8,000 entries in ~265 ms).
+
+## Measuring it — `just eval`
+
+Four evals over the last 30 days of real sessions. Each is a set of cases with a baseline and a 95% interval (Wilson;
+Newcombe for a difference), so a change to a rule, a trigger or the daemon shows up as a number that moved. Every run is
+saved to `~/.batas/eval/` and the next one prints the change against it.
+
+| | Case | Baseline | Verdict |
+|---|---|---|---|
+| Prevention | a mistake in a session (an error signature seen in 3+ sessions): after its rule was injected, was it made again on a later call? | the same mistakes with the rule not yet injected, and mistakes no rule covers | `fewer` / `more` only when the whole interval of the difference is on one side of zero |
+| Relevance | a memory a trigger word pulled into a prompt: is it in the top 10% of its project's memories for that prompt (batasd)? | k/N, the chance a random memory gets there | per trigger: `no better than chance` when it fired often enough to have beaten chance and did not (one-sided binomial) |
+| Coverage | the same mistakes: does a rule fire on them at all? | — | the uncovered ones are lesson candidates |
+| On time | the prompt's semantic match inside the 150 ms budget; hook latency within budget | — | — |
+
+The numbers are only as good as their judges, so the report starts with them. **When a rule was injected is replayed
+from the transcript** (the hook injects a rule once, on its first trigger match) **and checked against the hook log**
+on the days the log still holds. **The relevance judge is scored against hand labels** in `evals/relevance-labels.json`:
+two variants — the whole prompt, and the prompt with the trigger words cut out — and the one with the higher balanced
+accuracy is used. A label is a person's (or an agent's, named in `by`) call that the memory helps with that prompt; add
+more with `just eval-label`. The semantic ranking itself is checked on the 80 known-answer probes of `just semantic-eval`.
 
 ## Search is semantic, triggers are not
 

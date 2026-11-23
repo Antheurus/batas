@@ -48,7 +48,8 @@ for path in glob.glob(os.path.join(CLAUDE, "projects", "*", "memory", "*.md")):
     # Same as the hook's parser: top-level or nested under metadata:, quoted or bare.
     found = re.search(r'(?m)^\s*triggers:\s*"?([^"\n]+)"?\s*$', open(path, errors="ignore").read())
     project = path.split("/projects/")[1].split("/")[0]
-    terms = [t.strip().lower() for t in found.group(1).split(",") if t.strip()] if found else []
+    # len > 1, as memoryTriggers() in src/corpus.ts: the hook never fires a one-character term, so it is not reported either
+    terms = [t.strip().lower() for t in found.group(1).split(",") if len(t.strip()) > 1] if found else []
     memories[project].append((os.path.basename(path), terms))
 
 missing = [(p, n) for p, ms in memories.items() for n, t in ms if not t]

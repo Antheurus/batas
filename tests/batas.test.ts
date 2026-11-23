@@ -15,6 +15,7 @@ import { auditPrompts } from "../scripts/prompt-audit.ts";
 import { gitIndex, judgePath, namedPaths, resolveRoot } from "../scripts/memory-audit.ts";
 import { neverFired } from "../scripts/rule-select.ts";
 import { mine, redact, signature } from "../scripts/lesson-mine.ts";
+import { balancedAccuracy, binomTail, compare, difference, injections, preventionCases, topK, triggerVerdict, wilson, withoutTriggers } from "../scripts/eval.ts";
 import { copiesOf, shareMemory } from "../scripts/memory-share.ts";
 import { routeLessons, ruleFile, staleFiles } from "../scripts/lessons-route.ts";
 import { regenAll, routeRepo, writeRoutes } from "../src/lessons.ts";
@@ -2024,5 +2025,71 @@ describe("lesson-mine report", () => {
     expect(redact("psql postgres://app:s3cret@db:5432/app")).toBe("psql postgres://app:***@db:5432/app");
     expect(redact("export GH_TOKEN=ghp_x; curl -H 'Authorization: Bearer abc.def' https://api.example.com")).toBe("export GH_TOKEN=***; curl -H 'Authorization: Bearer ***' https://api.example.com");
     expect(redact("PORT=3410 NODE_ENV=test bun run dev")).toBe("PORT=3410 NODE_ENV=test bun run dev");
+  });
+});
+
+describe("eval", () => {
+  test("a grep that matched nothing and a stop the user pressed are not mistakes; a real failure still is", () => {
+    expect(signature("Exit code 1\n0 matches for 'MIRAN\\|miran'")).toBeUndefined();
+    expect(signature("[Request interrupted by user for tool use]")).toBeUndefined();
+    expect(signature("Exit code 2\nrg: regex parse error:\n    (?:\\.iti {)\n           ^")).toBe("rg: regex parse error:");
+  });
+
+  test("wilson and newcombe give the textbook intervals", () => {
+    const a = wilson(8, 10);
+    expect([a.lo, a.hi].map((x) => Number(x.toFixed(4)))).toEqual([0.4902, 0.9433]);
+    expect(wilson(0, 0)).toEqual({ k: 0, n: 0, p: 0, lo: 0, hi: 1 });
+    const d = difference(wilson(56, 70), wilson(48, 80));
+    expect([d.d, d.lo, d.hi].map((x) => Number(x.toFixed(4)))).toEqual([0.2, 0.0524, 0.3339]);
+    expect(compare(wilson(5, 100), wilson(40, 100))).toBe("fewer");
+    expect(compare(wilson(40, 100), wilson(5, 100))).toBe("more");
+    expect(compare(wilson(20, 100), wilson(24, 100))).toBe("no difference");
+    expect(compare(wilson(0, 3), wilson(40, 100))).toBe("too few");
+  });
+
+  test("binomial tail and the trigger verdict", () => {
+    expect(Number(binomTail(3, 10, 0.1).toFixed(4))).toBe(0.0702);
+    expect(binomTail(0, 10, 0.1)).toBe(1);
+    // chance 10%: a perfect trigger needs 2 fires to beat chance (0.1^2 = 0.01 < 0.05)
+    expect(triggerVerdict(1, 1, 0.1)).toBe("too few");
+    expect(triggerVerdict(9, 12, 0.1)).toBe("beats chance");
+    expect(triggerVerdict(1, 16, 0.1)).toBe("no better than chance");
+    expect(topK(8)).toBe(1);
+    expect(topK(95)).toBe(10);
+  });
+
+  test("balanced accuracy does not reward a judge that always says no", () => {
+    const rows = [...Array(9)].map(() => ({ label: false, said: false })).concat([{ label: true, said: false }]);
+    expect(balancedAccuracy(rows).acc).toBe(0.5);
+    expect(balancedAccuracy([{ label: true, said: true }, { label: false, said: false }]).acc).toBe(1);
+  });
+
+  test("trigger words are cut whole-word, and too little left is not judged", () => {
+    expect(withoutTriggers("bebasin skyhook, staco, kekini dari kyb", ["staco"])).toBe("bebasin skyhook, kekini dari kyb");
+    expect(withoutTriggers("cek otofiliate", ["otofiliate"])).toBeUndefined();
+    expect(withoutTriggers("pakai xendit buat storefront pos", ["xendit direct"])).toBe("pakai buat storefront pos");
+  });
+
+  test("a mistake is reminded only when its rule was injected before the first failure came back, and a repeat must be a later call", () => {
+    const err = (session: string, error: string, usedAt: number, ts: number, cmd = "grep -n 'a{' f") => ({ cmd, tool: "Bash", error, session: `/p/x/${session}.jsonl`, ts, usedAt });
+    const rg = "Exit code 2\nrg: regex parse error:";
+    const errors = [
+      err("s1", rg, 100, 110), err("s1", rg, 200, 210), // reminded at 90, repeated later
+      err("s2", rg, 100, 110), err("s2", rg, 105, 112), // reminded, second failure sent before the first came back: no repeat
+      err("s3", rg, 100, 110), err("s3", rg, 300, 310), // rule injected only at 250: not reminded, repeated
+      err("s4", "fatal: Needed a single revision", 100, 110), // no rule covers it
+    ];
+    const injected = injections([
+      { ts: new Date(90).toISOString(), session: "s1", fired: ["gotcha:RG"], ms: 1 },
+      { ts: new Date(95).toISOString(), session: "s2", fired: ["gotcha:RG"], ms: 1 },
+      { ts: new Date(250).toISOString(), session: "s3", fired: ["gotcha:RG"], ms: 1 },
+    ]);
+    const cases = preventionCases(errors, new Map([["rg: regex parse error:", ["gotcha:RG"]]]), injected);
+    expect(cases.map((c) => [c.session, c.group, c.repeated]).sort()).toEqual([
+      ["s1", "reminded", true],
+      ["s2", "reminded", false],
+      ["s3", "unreminded", true],
+      ["s4", "uncovered", false],
+    ]);
   });
 });
