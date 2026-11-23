@@ -14,7 +14,7 @@ import { answers, attribute, compareRules, injectedHeadline, type RuleResult, ty
 import { auditPrompts } from "../scripts/prompt-audit.ts";
 import { gitIndex, judgePath, namedPaths, resolveRoot } from "../scripts/memory-audit.ts";
 import { neverFired } from "../scripts/rule-select.ts";
-import { mine, signature } from "../scripts/lesson-mine.ts";
+import { mine, redact, signature } from "../scripts/lesson-mine.ts";
 import { copiesOf, shareMemory } from "../scripts/memory-share.ts";
 import { routeLessons, ruleFile, staleFiles } from "../scripts/lessons-route.ts";
 import { regenAll, routeRepo, writeRoutes } from "../src/lessons.ts";
@@ -2014,5 +2014,15 @@ describe("transcript walk", () => {
     const files = transcriptFiles(root, 0).map((f) => f.slice(root.length)).sort();
     expect(files).toEqual(["/-Users-dev-shop/6f1c2e0a.jsonl", "/-Users-dev-shop/6f1c2e0a/subagents/workflows/agent-a1.jsonl"]);
     rmSync(root, { recursive: true, force: true });
+  });
+});
+
+describe("lesson-mine report", () => {
+  test("a credential in an example command is masked before it is printed", () => {
+    expect(redact("PGPASSWORD=hunter2_prod psql -h 127.0.0.1 -U salesos -c 'select 1'")).toBe("PGPASSWORD=*** psql -h 127.0.0.1 -U salesos -c 'select 1'");
+    expect(redact("MIDTRANS_SERVER_KEY='SB-Mid-server-abc' DATABASE_URL=postgres://app:s3cret@db:5432/app bun run seed")).toBe("MIDTRANS_SERVER_KEY=*** DATABASE_URL=*** bun run seed");
+    expect(redact("psql postgres://app:s3cret@db:5432/app")).toBe("psql postgres://app:***@db:5432/app");
+    expect(redact("export GH_TOKEN=ghp_x; curl -H 'Authorization: Bearer abc.def' https://api.example.com")).toBe("export GH_TOKEN=***; curl -H 'Authorization: Bearer ***' https://api.example.com");
+    expect(redact("PORT=3410 NODE_ENV=test bun run dev")).toBe("PORT=3410 NODE_ENV=test bun run dev");
   });
 });

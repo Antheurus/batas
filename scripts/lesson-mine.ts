@@ -33,6 +33,15 @@ export function signature(error: string): string | undefined {
   return sig.replace(/<\w+>|[^A-Za-z]/g, "").length >= 6 ? sig : undefined;
 }
 
+// The report prints real commands from transcripts, and those carry inline credentials (`PGPASSWORD=... psql`).
+const SECRET_ENV = /\b(\w*(?:PASS(?:WORD)?|SECRET|TOKEN|KEY|DSN|URL))=("[^"]*"|'[^']*'|[^\s;&|]+)/gi;
+export function redact(cmd: string): string {
+  return cmd
+    .replace(SECRET_ENV, "$1=***")
+    .replace(/(\w+:\/\/[^\s:/@]+:)[^\s@]+@/g, "$1***@")
+    .replace(/\b(Bearer|Basic)\s+[^\s'"]+/g, "$1 ***");
+}
+
 export type Candidate = {
   signature: string;
   sessions: number;
@@ -81,7 +90,7 @@ if (import.meta.main) {
   // Subagent transcripts repeat their parent's failures under another file name; count each session once.
   const files = transcriptFiles(config.projectsDir, since).filter((f) => !f.includes("/subagents/"));
   const candidates = mine(files.flatMap(errorsIn), Triggers.load(), min);
-  const clip = (s: string, n: number) => s.replace(/\s+/g, " ").slice(0, n);
+  const clip = (s: string, n: number) => redact(s).replace(/\s+/g, " ").slice(0, n);
   const uncovered = candidates.filter((c) => !c.coveredBy.length);
   console.log(`${files.length} sessions over ${days} days; ${candidates.length} error signatures in >= ${min} sessions`);
   console.log(`${uncovered.length} with no rule firing on their commands (lesson drafts), ${candidates.length - uncovered.length} repeating despite a rule\n`);
