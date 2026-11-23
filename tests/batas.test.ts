@@ -18,7 +18,7 @@ import { mine, signature } from "../scripts/lesson-mine.ts";
 import { copiesOf, shareMemory } from "../scripts/memory-share.ts";
 import { routeLessons, ruleFile, staleFiles } from "../scripts/lessons-route.ts";
 import { regenAll, routeRepo, writeRoutes } from "../src/lessons.ts";
-import { errorsIn } from "../scripts/transcripts.ts";
+import { errorsIn, transcriptFiles } from "../scripts/transcripts.ts";
 import { allMemorySources, countFamilyItems, familyDefects, familyGaps, parseFamily, parseMemory, readRetiredIds, retiredIdPattern } from "../src/corpus.ts";
 import { mutedIds, readAcks, readFeedback, setMuted } from "../src/feedback.ts";
 import { appendHookLog, liveSessions, readHookLog } from "../src/log.ts";
@@ -2000,5 +2000,19 @@ describe("rule-audit never-fired selection", () => {
   });
   test("a replay or live fire removes it", () => {
     expect(neverFired(ids, specs, new Map([["g:CMD", 2]]), new Map([["g:HOT", 1]]))).toEqual([]);
+  });
+});
+
+describe("transcript walk", () => {
+  test("a dangling symlink (a workflow dir another session removed) is skipped, the rest still listed", () => {
+    const root = mkdtempSync(join(tmpdir(), "batas-transcripts-"));
+    const session = join(root, "-Users-dev-shop", "6f1c2e0a", "subagents", "workflows");
+    mkdirSync(session, { recursive: true });
+    writeFileSync(join(root, "-Users-dev-shop", "6f1c2e0a.jsonl"), "{}\n");
+    writeFileSync(join(session, "agent-a1.jsonl"), "{}\n");
+    symlinkSync(join(root, "gone", "wf_bc37bd0e-7a6"), join(session, "wf_bc37bd0e-7a6"));
+    const files = transcriptFiles(root, 0).map((f) => f.slice(root.length)).sort();
+    expect(files).toEqual(["/-Users-dev-shop/6f1c2e0a.jsonl", "/-Users-dev-shop/6f1c2e0a/subagents/workflows/agent-a1.jsonl"]);
+    rmSync(root, { recursive: true, force: true });
   });
 });
