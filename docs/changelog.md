@@ -1,5 +1,16 @@
 # batas Changelog
 
+## v0.28.0 — Agent lebih sering bertanya ke batas sendiri, dan ada angkanya
+
+- Baru di `just eval`: bagian 5 "Inisiatif". Bagian ini menghitung berapa kali agent memanggil `recall` atau `check` atas inisiatif sendiri, di dua momen yang paling penting: setelah sebuah tool gagal, dan sebelum perintah yang merusak seperti `reset --hard`, `push --force` atau `DROP TABLE`. Pakai `--cutover=<tanggal>` untuk membandingkan sebelum dan sesudah sebuah perubahan.
+- Angka awal, 30 hari sampai 26 Nov, sebelum perubahan di bawah: setelah tool gagal, agent bertanya ke batas di 0,2% kasus (11 dari 6.151). Sebelum perintah destruktif: 0 dari 534. Dari 3.437 sesi, cuma 118 yang pernah bertanya ke batas sama sekali.
+- `recall` dan `check` sekarang langsung tersedia di setiap sesi baru. Sebelumnya tool ini harus dimuat dulu lewat `ToolSearch`, dan langkah tambahan itu ada di 92 dari 118 sesi yang pernah memanggil batas.
+- Setiap kali sebuah tool gagal, agent mendapat satu baris pengingat untuk memanggil `recall` dengan pesan error itu. Pengingat muncul sekali per jenis error dan paling banyak 5 kali per sesi. Pencariannya tetap ditulis agent sendiri, supaya pertanyaannya sesuai dengan apa yang ia pahami.
+- `recall` sekarang juga menyebut memori yang terhubung lewat `[[link]]`, ke dua arah. Contohnya: sebuah keputusan, insiden yang melatarbelakanginya, dan memori lama yang ia gantikan muncul bersama.
+- Tidak perlu tindakan apa pun. Perubahan ini berlaku di sesi Claude berikutnya. Untuk melihat apakah inisiatif agent naik, jalankan `just eval 7 --cutover=2026-11-26T00:00` di repo batas setelah beberapa hari kerja.
+
+---
+
 ## v0.27.0 — just eval: rapor batas dengan angka yang bisa dicek, plus 4 rule baru dari kesalahan yang paling sering
 
 - Baru: `just eval` di repo batas. Satu perintah, sekitar 4 menit, dan hasilnya empat angka dari 30 hari sesi asli: apakah kesalahan berkurang setelah agent diingatkan, apakah memori yang disuntik nyambung dengan permintaan, berapa banyak kesalahan berulang yang sudah punya rule, dan apakah hasilnya datang tepat waktu. Setiap angka disertai rentang kepercayaan 95% dan pembanding, dan setiap run dibandingkan dengan run sebelumnya.
