@@ -61,6 +61,10 @@ export type ProjectSource = "arg" | "roots" | "cwd" | "none";
 export type SessionContext = { cwd?: string; root?: Promise<string | undefined> };
 
 const GLOBAL_KINDS: Kind[] = ["rule", "rule-section", "reference"];
+// recall: the linked neighbours of the top LINKED_FROM_TOP memory hits, MAX_LINKED lines at most (~150 chars each), so
+// the graph adds context without outgrowing the ten hits it hangs off.
+const LINKED_FROM_TOP = 3;
+const MAX_LINKED = 6;
 const GLOBAL_ONLY = "scope: global only (no project known for this session; pass project)";
 const NO_PROJECT = "no project for this session — pass project_dir (absolute repo path)";
 const PROJECT_DIR =
@@ -113,7 +117,7 @@ export function createServer(ctx: SessionContext): McpServer {
     "check",
     {
       description:
-        "Pre-flight guardrail: BEFORE running a non-trivial command, editing a file in an unfamiliar area, or starting a task, " +
+        "Pre-flight guardrail: BEFORE running a non-trivial or destructive command (reset --hard, push --force, DROP, volume rm), editing a file in an unfamiliar area, or starting a task, " +
         "ask which recorded rules, past mistakes and user preferences apply. Pass the exact command and/or file path and/or a " +
         "one-line intent. Returns full rule text for trigger matches plus the closest recorded lessons, memories and project rules.",
       inputSchema: {
@@ -122,6 +126,9 @@ export function createServer(ctx: SessionContext): McpServer {
         intent: z.string().optional().describe("One line: what you are about to do, e.g. 'restore prod dump into local postgres'"),
       },
       annotations: { readOnlyHint: true },
+      // Kept out of tool search: a deferred tool costs a ToolSearch before its first call, and that extra step is where
+      // 92 of the 118 sessions that ever asked batas spent their first call (just eval, initiative, 2026-11-26).
+      _meta: { "anthropic/alwaysLoad": true },
     },
     async ({ command, file, intent }) => {
       try {
@@ -162,7 +169,7 @@ export function createServer(ctx: SessionContext): McpServer {
       description:
         "Search everything the user and past sessions have recorded: global rules and incident references, per-project memory " +
         "(user preferences, feedback, decisions), project rules, docs/progress.md, docs/changelog.md, docs/context/, docs/lessons/ and docs/qa/context.md of every repo. " +
-        "Use it for 'have we hit this before?', 'what does the user prefer about X?', 'how did another repo solve Y?'.",
+        "Use it for 'have we hit this before?' (above all right after a tool call fails: pass the error line), 'what does the user prefer about X?', 'how did another repo solve Y?'.",
       inputSchema: {
         query: z.string().describe("Keywords, error text, tool or concept names"),
         kinds: z.array(z.enum(KINDS)).optional().describe("Restrict to entry kinds"),
@@ -170,6 +177,9 @@ export function createServer(ctx: SessionContext): McpServer {
         limit: z.number().int().min(1).max(30).optional(),
       },
       annotations: { readOnlyHint: true },
+      // Kept out of tool search: a deferred tool costs a ToolSearch before its first call, and that extra step is where
+      // 92 of the 118 sessions that ever asked batas spent their first call (just eval, initiative, 2026-11-26).
+      _meta: { "anthropic/alwaysLoad": true },
     },
     async ({ query, kinds, project, limit }) => {
       try {
@@ -194,9 +204,22 @@ export function createServer(ctx: SessionContext): McpServer {
         const [known, past] = await Promise.all([search(KNOWLEDGE, n), search(["progress", "changelog"], Math.max(2, Math.ceil(n / 3)))]);
         if (!known || !past) return answer(WARMING);
         if (!known.length && !past.length) return answer(`No entries match "${query}".`);
+        // A memory rarely stands alone: the decision it records links to the incident behind it and the memory it
+        // replaced, so the top memory hits bring their [[linked]] neighbours, named and not expanded.
+        const shown = new Set(known.map((h) => h.id));
+        const linked: string[] = [];
+        for (const h of known.filter((x) => x.kind === "memory").slice(0, LINKED_FROM_TOP)) {
+          for (const nb of s.neighbours(h.id)) {
+            if (shown.has(nb.id) || linked.length >= MAX_LINKED) continue;
+            shown.add(nb.id);
+            const e = s.get(nb.id);
+            linked.push(`- ${nb.id} — ${(e?.title ?? "").split(" · triggers:")[0]}\n  (${nb.dir === "to" ? "linked from" : "links to"} ${h.id})`);
+          }
+        }
         return answer(
           [
             ...known.map(line),
+            ...(linked.length ? ["", "# Linked memories ([[links]] of the memories above; read the ones that fit with get)", ...linked] : []),
             ...(past.length ? ["", "# From session history (progress / changelog)", ...past.map(line)] : []),
           ].join("\n"),
         );

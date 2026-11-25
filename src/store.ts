@@ -129,6 +129,33 @@ export class Store {
     ];
   }
 
+  // Memories linked to one memory by [[name]], both ways: the ones it names and the ones naming it, resolved in its own
+  // project first (1,259 of 1,318 links on 2026-11-26) and then by a name only one other project uses. Built per call
+  // rather than kept beside refresh(): ~1,000 memories take a few ms, and refresh() is on the hook's hot path.
+  neighbours(id: string): { id: string; dir: "to" | "from" }[] {
+    const all = this.entries("memory");
+    const nameOf = (e: Entry) => [e.id.slice(e.id.lastIndexOf("/") + 1), e.title.match(/^\[[^\]]*\] (.+?) — /)?.[1]].filter(Boolean) as string[];
+    const local = new Map<string, string>();
+    const global = new Map<string, string[]>();
+    for (const e of all)
+      for (const n of nameOf(e)) {
+        local.set(`${e.scope}\u0000${n}`, e.id);
+        global.set(n, [...new Set([...(global.get(n) ?? []), e.id])]);
+      }
+    const resolve = (from: Entry, raw: string) => {
+      const n = raw.split("|")[0]?.split("#")[0]?.replace(/\.md$/, "").trim() ?? "";
+      const other = global.get(n) ?? [];
+      return local.get(`${from.scope}\u0000${n}`) ?? (other.length === 1 ? other[0] : undefined);
+    };
+    const targets = (e: Entry) => [...e.body.matchAll(WIKI)].map((m) => resolve(e, m[1] ?? "")).filter((x): x is string => !!x && x !== e.id);
+    const self = this.byId.get(id);
+    if (!self || self.kind !== "memory") return [];
+    const out = new Map<string, "to" | "from">();
+    for (const t of targets(self)) out.set(t, "to");
+    for (const e of all) if (e.id !== id && !out.has(e.id) && targets(e).includes(id)) out.set(e.id, "from");
+    return [...out].map(([nid, dir]) => ({ id: nid, dir }));
+  }
+
   // undefined = batasd is not answering (it is started on the way); [] = it answered and nothing is close.
   async search(query: string, opts: { kinds?: Kind[]; scope?: string; limit?: number; timeoutMs?: number } = {}): Promise<Hit[] | undefined> {
     const hits = await semanticSearch(query, opts);

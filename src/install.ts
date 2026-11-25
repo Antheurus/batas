@@ -27,6 +27,8 @@ const WANT: { event: string; matcher?: string }[] = [
   // Attributes files a Bash command changed (scripts, redirects, sed) to the session, for the collision guard.
   // mcp__batas__record: the correction check reads which session recorded (src/hook.ts captureCorrection)
   { event: "PostToolUse", matcher: "Bash|mcp__batas__record" },
+  // every tool: after a failure the agent is cued to recall it (src/hook.ts failureCue)
+  { event: "PostToolUseFailure" },
   { event: "UserPromptSubmit" },
   { event: "Stop" },
 ];

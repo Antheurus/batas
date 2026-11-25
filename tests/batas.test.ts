@@ -15,7 +15,7 @@ import { auditPrompts } from "../scripts/prompt-audit.ts";
 import { gitIndex, judgePath, namedPaths, resolveRoot } from "../scripts/memory-audit.ts";
 import { neverFired } from "../scripts/rule-select.ts";
 import { mine, redact, signature } from "../scripts/lesson-mine.ts";
-import { balancedAccuracy, binomTail, compare, difference, injections, minFires, preventionCases, topK, triggersAt, triggerVerdict, wilson, withoutTriggers } from "../scripts/eval.ts";
+import { balancedAccuracy, binomTail, compare, difference, initiativeCases, injections, isDestructive, minFires, preventionCases, topK, triggersAt, triggerVerdict, wilson, withoutTriggers } from "../scripts/eval.ts";
 import { copiesOf, shareMemory } from "../scripts/memory-share.ts";
 import { routeLessons, ruleFile, staleFiles } from "../scripts/lessons-route.ts";
 import { regenAll, routeRepo, writeRoutes } from "../src/lessons.ts";
@@ -1142,7 +1142,7 @@ describe("install", () => {
       const changes = installHooks();
       expect(changes).toContain("Stop (duplicate removed)");
       const hooks = (JSON.parse(readFileSync(file, "utf8")) as { hooks: Record<string, { matcher?: string; hooks: { command: string }[] }[]> }).hooks;
-      for (const ev of ["Stop", "PostToolUse", "PreToolUse", "UserPromptSubmit"]) {
+      for (const ev of ["Stop", "PostToolUse", "PostToolUseFailure", "PreToolUse", "UserPromptSubmit"]) {
         const ours = (hooks[ev] ?? []).flatMap((g) => g.hooks).filter((h) => h.command.includes("src/hook.ts"));
         expect(ours.map((h) => h.command)).toEqual([canonical]);
       }
@@ -1236,8 +1236,12 @@ describe("mcp server", () => {
         cwd: demo,
       }),
     );
-    const tools = (await client.listTools()).tools.map((x) => x.name).sort();
+    const listed = (await client.listTools()).tools;
+    const tools = listed.map((x) => x.name).sort();
     expect(tools).toEqual(["check", "get", "log_changelog", "log_progress", "mute", "recall", "record", "status"]);
+    // the two the agent should reach for unasked skip tool search; the rest stay deferred and cost nothing up front
+    const always = listed.filter((x) => (x._meta as Record<string, unknown> | undefined)?.["anthropic/alwaysLoad"] === true).map((x) => x.name).sort();
+    expect(always).toEqual(["check", "recall"]);
     const get = (await client.callTool({ name: "get", arguments: { id: "lessons:C18" } })) as { content: { text: string }[] };
     expect(get.content[0]?.text).toContain("git stash push");
     const draft = (await client.callTool({
@@ -2114,5 +2118,142 @@ describe("eval replay", () => {
     expect(ids('grep --fixed-strings "a(" src/x.ts')).toEqual([]);
     expect(ids('source .venv/bin/activate && python -c "import numpy"')).toEqual([]);
     expect(ids("python3 -c 'import yaml; print(1)'")).toEqual(["lessons:B61"]);
+  });
+});
+
+describe("initiative eval", () => {
+  // one minute between calls, as in a real transcript, so the cue window (seconds) separates them
+  const MIN = 60_000;
+  const use = (id: string, name: string, ts: number, extra: { cmd?: string; query?: string } = {}) => ({ type: "use" as const, id, name, ts: ts * MIN, ...extra });
+  const err = (id: string, tool: string, error: string, ts: number) => ({ type: "error" as const, id, tool, error, ts: ts * MIN });
+
+  test("a failure counts as acted only when recall or check follows within the window, once per signature", () => {
+    const events = [
+      use("a", "Bash", 1, { cmd: "python3 -c 'import yaml'" }),
+      err("a", "Bash", "Exit code 1\nModuleNotFoundError: No module named 'yaml'", 2),
+      use("b", "Bash", 3, { cmd: "python3 -c 'import yaml'" }),
+      err("b", "Bash", "Exit code 1\nModuleNotFoundError: No module named 'yaml'", 4),
+      use("c", "ToolSearch", 5, { query: "select:mcp__batas__recall" }),
+      use("d", "mcp__batas__recall", 6, { query: "yaml" }),
+      use("e", "Bash", 7, { cmd: "ls /nope" }),
+      err("e", "Bash", "Exit code 1\nls: /nope: No such file or directory", 8),
+      ...["f", "g", "h", "i", "j"].map((x, k) => use(x, "Read", 9 + k)),
+      use("k", "mcp__batas__check", 20),
+    ];
+    const r = initiativeCases("s1", events, [8 * MIN + 300]);
+    const failures = r.cases.filter((c) => c.moment === "failure");
+    expect(failures.map((c) => [c.acted, c.cued])).toEqual([
+      [true, false],
+      [false, true],
+    ]);
+    expect(r.first).toEqual({ session: "s1", at: 6 * MIN, loadedFirst: true });
+  });
+
+  test("a failure of batas or ToolSearch itself, or a user saying no, is not a moment", () => {
+    const events = [
+      use("a", "mcp__batas__recall", 1),
+      err("a", "mcp__batas__recall", "batas semantic search failed: connection refused", 2),
+      use("b", "Bash", 3),
+      err("b", "Bash", "The user doesn't want to proceed with this tool use.", 4),
+    ];
+    expect(initiativeCases("s2", events).cases).toEqual([]);
+  });
+
+  test("a destructive command counts as acted only when check or recall came in the calls before it", () => {
+    const asked = [use("a", "mcp__batas__check", 1), use("b", "Bash", 2, { cmd: "git reset --hard origin/main" })];
+    const unasked = [use("a", "Read", 1), use("b", "Bash", 2, { cmd: "git -C ../x push --force origin main" })];
+    expect(initiativeCases("s3", asked).cases.map((c) => c.acted)).toEqual([true]);
+    expect(initiativeCases("s4", unasked).cases.map((c) => c.acted)).toEqual([false]);
+  });
+
+  test("isDestructive keeps to what the rules name destructive", () => {
+    for (const cmd of [
+      "git reset --hard origin/main",
+      "git clean -fdq -- .",
+      "git push -q -f origin HEAD:refs/heads/wip/x",
+      "git branch -D feat/x",
+      "git checkout -- .",
+      "git restore .",
+      "git stash drop stash@{0}",
+      "docker compose -f t.yml down -v --remove-orphans",
+      "docker volume rm pgdata",
+      `psql "$URL" -c "DROP DATABASE IF EXISTS app_test"`,
+      "bunx prisma migrate reset --force",
+    ])
+      expect([cmd, isDestructive(cmd)]).toEqual([cmd, true]);
+    for (const cmd of [
+      "rm -f /tmp/x.json",
+      "rm -rf node_modules",
+      "lsof -ti:3000 | xargs kill -9",
+      "git branch -d merged-branch",
+      "git push --force-with-lease origin HEAD:refs/heads/wip/x",
+      "git push origin main 2>&1 | tail -2; rm -f /tmp/msg.txt",
+      "cat > drizzle/down/0000_init.sql <<'EOF'\nDROP TABLE users;\nEOF",
+      "cat > stores/upsell.ts <<'EOF'\nconst x = truncate(name)\nEOF",
+      "git restore --staged src/a.ts",
+    ])
+      expect([cmd, isDestructive(cmd)]).toEqual([cmd, false]);
+  });
+});
+
+describe("failure cue", () => {
+  const store = new Store();
+  const t = new Triggers({});
+  const fail = (session_id: string, error: string, extra: Record<string, unknown> = {}) =>
+    evaluate({ session_id, cwd: "/tmp/demo", hook_event_name: "PostToolUseFailure", tool_name: "Bash", tool_input: { command: "python3 -c 'import yaml'" }, error, ...extra }, store, t);
+  const ctx = (r: { output: object }) => (r.output as { hookSpecificOutput?: { hookEventName?: string; additionalContext?: string } }).hookSpecificOutput;
+
+  test("a failed call is cued to recall once per distinct failure, with the failure as the query", () => {
+    const s = `cue-${Date.now()}`;
+    const first = fail(s, "Exit code 1\nModuleNotFoundError: No module named 'yaml'");
+    expect(first.fired).toEqual(["cue:recall"]);
+    expect(ctx(first)?.hookEventName).toBe("PostToolUseFailure");
+    expect(ctx(first)?.additionalContext).toContain('mcp__batas__recall({query: "ModuleNotFoundError: No module named"})');
+    expect(fail(s, "Exit code 1\nModuleNotFoundError: No module named 'yaml'").fired).toEqual([]);
+    expect(fail(s, "Exit code 1\nModuleNotFoundError: No module named 'PIL'").fired).toEqual([]);
+    expect(fail(s, "Exit code 128\nfatal: not a git repository (or any of the parent directories): .git").fired).toEqual(["cue:recall"]);
+  });
+
+  test("cues stop at the session cap", () => {
+    const s = `cap-${Date.now()}`;
+    const fired = Array.from({ length: config.inject.failureCues + 2 }, (_, i) => fail(s, `Exit code 1\nfatal: cannot open thing number ${"x".repeat(i + 1)}`).fired.length);
+    expect(fired).toEqual([...Array(config.inject.failureCues).fill(1), 0, 0]);
+  });
+
+  test("no cue for an interrupt, a user saying no, or a failure of batas or tool search itself", () => {
+    const s = `skip-${Date.now()}`;
+    expect(fail(s, "Exit code 1\nfatal: not a git repository", { is_interrupt: true }).fired).toEqual([]);
+    expect(fail(s, "The user doesn't want to proceed with this tool use.").fired).toEqual([]);
+    expect(fail(s, "Error: batasd connection refused", { tool_name: "mcp__batas__recall" }).fired).toEqual([]);
+    expect(fail(s, "Error: no matching deferred tools found", { tool_name: "ToolSearch" }).fired).toEqual([]);
+  });
+});
+
+describe("memory neighbours", () => {
+  test("a memory's [[links]] resolve both ways, by file name or name: field, own project first", () => {
+    const dir = mkdtempSync(join(tmpdir(), "batas-nb-"));
+    const mem = (proj: string, file: string, name: string, body: string) => {
+      mkdirSync(join(dir, proj), { recursive: true });
+      const f = join(dir, proj, `${file}.md`);
+      writeFileSync(f, `---\nname: ${name}\ndescription: d\nmetadata:\n  type: project\n---\n\n${body}\n`);
+      return { file: f, parse: () => [parseMemory(f, proj)] };
+    };
+    const store = new Store();
+    store.refresh("rules", [
+      mem("-p-a", "decision", "the-decision", "We chose X. See [[incident-file]] and [[old-way]] and [[elsewhere-note]] and [[nobody]]."),
+      mem("-p-a", "incident-file", "incident", "What broke."),
+      mem("-p-a", "old", "old-way", "Replaced by X."),
+      mem("-p-a", "follow-up", "follow-up", "Builds on [[the-decision]]."),
+      mem("-p-b", "elsewhere-note", "elsewhere-note", "Only in project b."),
+      mem("-p-b", "incident-file", "incident", "A same-named file in project b must not win."),
+    ]);
+    expect(store.neighbours("memory:-p-a/decision").sort((x, y) => x.id.localeCompare(y.id))).toEqual([
+      { id: "memory:-p-a/follow-up", dir: "from" },
+      { id: "memory:-p-a/incident-file", dir: "to" },
+      { id: "memory:-p-a/old", dir: "to" },
+      { id: "memory:-p-b/elsewhere-note", dir: "to" },
+    ]);
+    expect(store.neighbours("memory:-p-a/incident-file")).toEqual([{ id: "memory:-p-a/decision", dir: "from" }]);
+    rmSync(dir, { recursive: true, force: true });
   });
 });

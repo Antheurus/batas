@@ -77,3 +77,43 @@ export function errorsIn(file: string): ToolError[] {
   }
   return out;
 }
+
+// Every tool call and every failed result of one session, in transcript order: what the initiative eval walks to ask
+// whether the agent turned to batas around a failure or before a destructive command.
+export type ToolEvent =
+  | { type: "use"; id: string; name: string; cmd?: string; query?: string; ts: number }
+  | { type: "error"; id: string; tool: string; error: string; ts: number };
+
+export function eventsIn(file: string): ToolEvent[] {
+  const names = new Map<string, string>();
+  const out: ToolEvent[] = [];
+  for (const line of readFileSync(file, "utf8").split("\n")) {
+    const isUse = line.includes('"tool_use"');
+    const isErr = line.includes('"is_error":true');
+    if (!isUse && !isErr) continue;
+    let row: { timestamp?: string; message?: { content?: unknown } };
+    try {
+      row = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    const content = row.message?.content;
+    if (!Array.isArray(content)) continue;
+    const ts = Date.parse(row.timestamp ?? "") || 0;
+    for (const b of content as Record<string, unknown>[]) {
+      if (b.type === "tool_use" && typeof b.id === "string") {
+        const input = (b.input ?? {}) as Record<string, unknown>;
+        const name = String(b.name ?? "");
+        names.set(b.id, name);
+        out.push({ type: "use", id: b.id, name, cmd: typeof input.command === "string" ? input.command : undefined, query: typeof input.query === "string" ? input.query : undefined, ts });
+      } else if (b.type === "tool_result" && b.is_error === true) {
+        const c = b.content;
+        const error = typeof c === "string" ? c : Array.isArray(c) ? c.map((x: { text?: string }) => x.text ?? "").join("\n") : "";
+        const id = String(b.tool_use_id ?? "");
+        out.push({ type: "error", id, tool: names.get(id) ?? "?", error, ts });
+      }
+    }
+  }
+  return out;
+}
+

@@ -1,4 +1,4 @@
-// Does batas earn its keep? Four evals over real use. Each one is a set of cases with a baseline and a 95% interval, so a
+// Does batas earn its keep? Five evals over real use. Each one is a set of cases with a baseline and a 95% interval, so a
 // change to a rule, a trigger or the daemon shows up as a number that moved rather than an impression.
 //
 //   prevention  a mistake made in a session: after the rule for it was injected, did the session make it again?
@@ -15,7 +15,9 @@
 // The relevance judge is itself checked first (scripts/semantic-eval.ts, 80 probes with known answers), and every run is
 // saved to ~/.batas/eval/ and compared with the previous one.
 //
-//   bun scripts/eval.ts [days=30] [prompts=400] [--seed=7] [--no-judge] [--no-save]
+//   initiative  at a failure or before a destructive command, did the agent call recall/check unasked?
+//
+//   bun scripts/eval.ts [days=30] [prompts=400] [--seed=7] [--no-judge] [--no-save] [--cutover=<ISO>]
 //   bun scripts/eval.ts [days=30] --label-sample=40    unlabelled pairs to judge by hand, as JSON for the labels file
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
@@ -27,7 +29,54 @@ import { semanticSearch } from "../src/semantic.ts";
 import { Store } from "../src/store.ts";
 import { type TriggerSpec, Triggers } from "../src/triggers.ts";
 import { mine, redact, signature } from "./lesson-mine.ts";
-import { callsIn, errorsIn, type ToolError, transcriptFiles } from "./transcripts.ts";
+import { callsIn, errorsIn, eventsIn, type ToolError, type ToolEvent, transcriptFiles } from "./transcripts.ts";
+
+// Initiative: the moments a person would expect the agent to turn to batas on its own, and whether it did. A failure
+// counts once per (session, signature), so a session retrying one mistake twenty times weighs as one case; the window is
+// the next INITIATIVE_WINDOW tool calls after the failure (a retry is usually the first or second call, and a ToolSearch
+// that loads batas plus the recall itself take two more), or the INITIATIVE_WINDOW calls before a destructive command.
+export const INITIATIVE_WINDOW = 5;
+export const BATAS_ASK = /^mcp__batas__(recall|check)$/;
+// What the rules call destructive (lessons C7 and C12 for git, gotcha B1/B11 for databases), and nothing else: a cache
+// `rm -rf` or a `kill -9` is routine, and SQL counts only when a client runs it, never a DROP written into a migration.
+const GIT_DESTRUCTIVE =
+  /\bgit\s+(?:-C\s+\S+\s+)?(reset\s+--hard|clean\s+-[a-zA-Z]*f|push\s+[^;&|\n]*(--force(?!-with-lease)\b|\s-f\b)|branch\s+-D\b|checkout\s+(--\s+)?['"]?[.*]['"]?(\s|$)|restore\s+(--\S+\s+)*['"]?[.*]['"]?(\s|$)|stash\s+(drop|clear)\b)/;
+const SQL_CLIENT = /\b(psql|mysql|sqlite3|clickhouse-client)\b/;
+const SQL_DESTRUCTIVE = /\b(DROP\s+(TABLE|DATABASE|SCHEMA)|TRUNCATE\s+(TABLE\s+)?["\w.]+)/i;
+const OTHER_DESTRUCTIVE = /\bdocker\s+(volume\s+(rm|prune)|system\s+prune|compose\s+[^;&|\n]*\bdown\b[^;&|\n]*\s-v\b)|\bmigrate\s+reset\b|--force-reset\b/;
+export function isDestructive(cmd: string): boolean {
+  return GIT_DESTRUCTIVE.test(cmd) || OTHER_DESTRUCTIVE.test(cmd) || (SQL_CLIENT.test(cmd) && SQL_DESTRUCTIVE.test(cmd) && !/<<\s*['"]?\w+['"]?\s*\n?[\s\S]*>\s*\S+\.sql/.test(cmd));
+}
+const SELF = /^(mcp__batas__|ToolSearch$)/;
+
+export type InitiativeCase = { session: string; moment: "failure" | "destructive"; at: number; acted: boolean; cued: boolean; what: string };
+export type FirstAsk = { session: string; at: number; loadedFirst: boolean };
+
+// cues: when the hook told this session, after a failure, that recall exists (fired "cue:recall"), by session id.
+export function initiativeCases(session: string, events: ToolEvent[], cues: number[] = []): { cases: InitiativeCase[]; first?: FirstAsk } {
+  const uses = events.filter((e): e is Extract<ToolEvent, { type: "use" }> => e.type === "use");
+  const cases: InitiativeCase[] = [];
+  const seen = new Set<string>();
+  for (const [i, e] of events.entries()) {
+    if (e.type !== "error" || SELF.test(e.tool)) continue;
+    const sig = signature(e.error);
+    if (!sig || seen.has(sig)) continue;
+    seen.add(sig);
+    const next = events.slice(i + 1).filter((x) => x.type === "use").slice(0, INITIATIVE_WINDOW);
+    // a cue is logged by the hook that ran on this failure, so it lands within seconds of the result
+    const cued = cues.some((c) => c >= e.ts - 2000 && c <= e.ts + 15000);
+    cases.push({ session, moment: "failure", at: e.ts, acted: next.some((x) => x.type === "use" && BATAS_ASK.test(x.name)), cued, what: sig });
+  }
+  for (const [i, u] of uses.entries()) {
+    if (u.name !== "Bash" || !u.cmd || !isDestructive(u.cmd)) continue;
+    const before = uses.slice(Math.max(0, i - INITIATIVE_WINDOW), i);
+    cases.push({ session, moment: "destructive", at: u.ts, acted: before.some((x) => BATAS_ASK.test(x.name)), cued: false, what: u.cmd.replace(/\s+/g, " ").slice(0, 80) });
+  }
+  const k = uses.findIndex((u) => BATAS_ASK.test(u.name));
+  const ask = k >= 0 ? uses[k] : undefined;
+  const loadedFirst = ask ? uses.slice(Math.max(0, k - 3), k).some((u) => u.name === "ToolSearch" && /batas/i.test(u.query ?? "")) : false;
+  return { cases, first: ask ? { session, at: ask.ts, loadedFirst } : undefined };
+}
 
 export type Interval = { k: number; n: number; p: number; lo: number; hi: number };
 
@@ -421,6 +470,27 @@ if (import.meta.main) {
   const toolOnTime = within("PreToolUse", config.latencyBudgetMs.tool);
   const promptOnTime = within("UserPromptSubmit", config.latencyBudgetMs.prompt);
 
+  // 5. Initiative, every session in the window; --cutover=<ISO> splits the cases before and after a change.
+  const cueAt = new Map<string, number[]>();
+  for (const r of rows) if (r.session && r.fired.includes("cue:recall")) cueAt.set(r.session, [...(cueAt.get(r.session) ?? []), Date.parse(r.ts)]);
+  const ini = files.map((f) => initiativeCases(sessionOf(f), eventsIn(f), cueAt.get(sessionOf(f))));
+  const iCases = ini.flatMap((x) => x.cases);
+  const firsts = ini.flatMap((x) => (x.first ? [x.first] : []));
+  const acted = (xs: InitiativeCase[]) => wilson(xs.filter((c) => c.acted).length, xs.length);
+  const onFailure = acted(iCases.filter((c) => c.moment === "failure"));
+  const onDestructive = acted(iCases.filter((c) => c.moment === "destructive"));
+  const askedSessions = wilson(firsts.length, files.length);
+  const loadedFirst = wilson(firsts.filter((f) => f.loadedFirst).length, firsts.length);
+  const cuedFailures = acted(iCases.filter((c) => c.moment === "failure" && c.cued));
+  const cutoverArg = args.find((a) => a.startsWith("--cutover="))?.slice(10);
+  const cutover = cutoverArg ? Date.parse(cutoverArg) : undefined;
+  const split = cutover
+    ? {
+        before: acted(iCases.filter((c) => c.moment === "failure" && c.at < cutover)),
+        after: acted(iCases.filter((c) => c.moment === "failure" && c.at >= cutover)),
+      }
+    : undefined;
+
   const headline = {
     at: new Date().toISOString(),
     days,
@@ -431,6 +501,7 @@ if (import.meta.main) {
     relevance: { hit: relHit, chance, noisy: noise.length, judged: noise.length + beats.length, injections30d: pairsTotal, onRelevant, onIrrelevant, tuningPrecision, heldOutPrecision },
     coverage,
     onTime: { semantic: warm, tool: toolOnTime, prompt: promptOnTime },
+    initiative: { onFailure, onDestructive, askedSessions, loadedFirst, cuedFailures, window: INITIATIVE_WINDOW },
   };
   const dir = join(config.stateDir, "eval");
   const previous = existsSync(dir)
@@ -486,6 +557,17 @@ if (import.meta.main) {
   say("4. ON TIME");
   say(`   prompt semantic match inside the ${config.latencyBudgetMs.prompt} ms budget: ${span(warm)}${delta(warm.p, before?.onTime?.semantic.p)}   (the rest arrive on the next tool call)`);
   say(`   tool hook within ${config.latencyBudgetMs.tool} ms: ${span(toolOnTime)}; prompt hook within ${config.latencyBudgetMs.prompt} ms: ${span(promptOnTime)}`);
+
+  say("");
+  say(`5. INITIATIVE — at the moments the agent should turn to batas unasked, did it call recall or check?`);
+  say(`   after a failure (next ${INITIATIVE_WINDOW} calls)     ${span(onFailure)}${delta(onFailure.p, before?.initiative?.onFailure.p)}`);
+  say(`   before a destructive command (last ${INITIATIVE_WINDOW})  ${span(onDestructive)}${delta(onDestructive.p, before?.initiative?.onDestructive.p)}`);
+  say(`   sessions that asked batas at all        ${span(askedSessions)}${delta(askedSessions.p, before?.initiative?.askedSessions.p)}`);
+  say(`   first ask preceded by a ToolSearch load ${span(loadedFirst)}   (the extra step alwaysLoad removes)`);
+  say(cuedFailures.n ? `   failures the hook cued, then asked      ${span(cuedFailures)}` : "   failures the hook cued: none in the window yet");
+  if (split) say(`   failure -> ask, before vs after ${cutoverArg}: ${span(split.before)} vs ${span(split.after)} -> ${pt(difference(split.after, split.before))} ${compare(split.after, split.before)}`);
+  const ex = iCases.filter((c) => c.moment === "destructive" && !c.acted).slice(-3);
+  for (const c of ex) say(`     destructive, unasked: ${c.session.slice(0, 8)} ${clip(c.what, 70)}`);
 
   if (!args.includes("--no-save")) {
     mkdirSync(dir, { recursive: true });

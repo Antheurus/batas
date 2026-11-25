@@ -86,7 +86,10 @@ export const config = {
   // The shared MCP server binds loopback only. Claude Code sends no DELETE on a hard kill, so idleMs is the only session
   // cleanup; rootsMs bounds the wait for a client's GET stream plus its roots/list answer before a session goes projectless.
   http: { host: "127.0.0.1", idleMs: 6 * 3600 * 1000, rootsMs: 5000, watchMs: 2000, settleMs: 1000 },
-  inject: { maxItems: 3, maxChars: 9000, maxPromptHints: 5, maxMemories: 2, memoryChars: 1500, maxMoreMemories: 8, maxRepoList: 12, sessionBytes: 64000 },
+  // failureCues: recall cues per session after a failed tool call, one per distinct failure. Sessions average 1.8
+  // distinct failures (6,151 over 3,437, 30 days to 2026-11-26), so 5 reaches nearly all of them while a session stuck
+  // in a failing loop cannot fill its context with cues.
+  inject: { maxItems: 3, maxChars: 9000, maxPromptHints: 5, maxMemories: 2, memoryChars: 1500, maxMoreMemories: 8, maxRepoList: 12, sessionBytes: 64000, failureCues: 5 },
 };
 
 export type Config = typeof config;

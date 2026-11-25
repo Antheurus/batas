@@ -6,6 +6,7 @@ import { mutedIds, recordAck, reportWrong } from "./feedback.ts";
 import { filesInCommand, lessonsDir, regenAll, regenIfLessonsChanged, routedLessons } from "./lessons.ts";
 import { appendHookLog, liveSessions } from "./log.ts";
 import { semanticSearch, takeStashed, type SemanticHit } from "./semantic.ts";
+import { signature } from "./signature.ts";
 import { Store } from "./store.ts";
 
 const SEMANTIC_KINDS: Kind[] = ["memory", "rule", "rule-section", "project-rule", "context"];
@@ -36,6 +37,9 @@ type HookInput = {
   cursor_version?: string;
   workspace_roots?: string[];
   loop_count?: number;
+  // PostToolUseFailure: the failed call's error text, and whether the user interrupted it
+  error?: string;
+  is_interrupt?: boolean;
 };
 
 // Cursor's names for the events and tools batas handles. Cursor translates a Claude-shaped reply back on its own (its
@@ -107,6 +111,8 @@ type SessionState = {
   recordedAt?: number;
   // commits this session made, so a push that carries only these needs no ack while another session is live
   commits?: string[];
+  // failure signatures this session was already cued to recall, see failureCue
+  cued?: string[];
 };
 
 type Pending = { key: string; kind: "prompt" | "write"; at: number; file?: string };
@@ -519,6 +525,7 @@ function loadSession(id: string): SessionState {
       correction: s.correction,
       recordedAt: s.recordedAt,
       commits: s.commits ?? [],
+      cued: s.cued ?? [],
     };
   } catch {
     return { injected: [], hinted: [], lastPrompt: [], muted: [], touched: [], started: Date.now(), bashStart: 0, spent: 0, pending: [], listed: [] };
@@ -800,6 +807,26 @@ export function lateSemantic(
   return { text, fired };
 }
 
+// After a failed tool call the agent is told, once per distinct failure, that recall exists and what to ask it, in the
+// result it is already reading. The search itself is left to the agent on purpose: the agent words the question from what
+// it understands of the failure, which a trigger written in advance cannot. Measured before this cue (just eval,
+// initiative): 11 of 6,151 failures were followed by a recall or check within five calls.
+const CUE_SKIP = /^(mcp__batas__|ToolSearch$|AskUserQuestion$|ExitPlanMode$)/;
+function failureCue(input: HookInput, session: string): { output: object; fired: string[] } {
+  const none = { output: {}, fired: [] };
+  if (input.is_interrupt || !input.error || CUE_SKIP.test(input.tool_name ?? "")) return none;
+  const sig = signature(input.error);
+  if (!sig) return none;
+  const st = loadSession(session);
+  const cued = st.cued ?? [];
+  if (cued.includes(sig) || cued.length >= config.inject.failureCues) return none;
+  st.cued = [...cued, sig];
+  saveSession(session, st);
+  const query = sig.replace(/<\w+>/g, " ").replace(/\s+/g, " ").trim();
+  const text = `batas: this ${input.tool_name ?? "tool"} call failed. If this failure may have happened before, a fix may already be recorded: call mcp__batas__recall({query: ${JSON.stringify(query)}}) — reword it if you know better — before retrying.`;
+  return { output: { hookSpecificOutput: { hookEventName: "PostToolUseFailure", additionalContext: text } }, fired: ["cue:recall"] };
+}
+
 export function evaluate(input: HookInput, store: Store, triggers: Triggers, semantic?: SemanticHit[]): { output: object; fired: string[] } {
   const event = input.hook_event_name ?? "";
   const session = input.session_id ?? "nosession";
@@ -822,6 +849,8 @@ export function evaluate(input: HookInput, store: Store, triggers: Triggers, sem
     ].join("\n");
     return { output: { decision: "block", reason }, fired: matches.map((m) => m.id) };
   }
+
+  if (event === "PostToolUseFailure") return failureCue(input, session);
 
   if (event === "PostToolUse") {
     if (input.tool_name === "mcp__batas__record") {

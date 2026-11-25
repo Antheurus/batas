@@ -20,6 +20,7 @@ git, and readable by a human. batas indexes them and puts them in front of the a
 | Surface | When | What it does |
 |---|---|---|
 | `PreToolUse` hook | a Bash command or a Read/Edit/Write path matches a trigger, or the code being written matches a `code` pattern (optionally scoped to one `repo`) | injects the full rule or memory via `additionalContext`, once per session |
+| `PostToolUseFailure` hook | any tool call fails with a new error signature (not an interrupt, a user's no, or batas itself), up to 5 per session | one line in the failed result: call `recall` with the error, worded by the agent; logged as `cue:recall` |
 | `PostToolUse` hook, Bash | a file the command wrote (heredoc, redirect, script) matches a `code` trigger — a new file whole, a tracked one only its added lines | same, after the write |
 | `UserPromptSubmit` hook | a prompt phrase matches | injects one-line hints naming the rule ids |
 | `UserPromptSubmit` hook | the prompt says one of a memory's `triggers`, or (batasd warm) a memory stands out by meaning: memory gap ≥ 0.045 | injects up to 2 memory bodies in full, once per session — so `MEMORY.md` only needs a short pointer line (`just memory-index` keeps it short); another project's triggered memory is listed by id |
@@ -30,7 +31,7 @@ git, and readable by a human. batas indexes them and puts them in front of the a
 | `PreToolUse` hook, other shared-checkout git command | another session live in the same root | warns once per set of sessions |
 | `PreToolUse` hook, always-on family rule | a family trigger fires (`gotcha:`, `lessons:`, `cs:`, ...) | injects the item's verbatim full text from `~/.claude/references/{gotcha,lessons}-full.md` or `~/.claude/references/rules-full/<file>`, not the condensed line already in context |
 | `Stop` hook | the final reply matches a known mistake pattern | blocks once with the rule, and honours `stop_hook_active` |
-| MCP `batas` | when the agent calls it | `check`, `recall`, `get`, `record`, `log_progress`, `log_changelog`, `status` |
+| MCP `batas` | when the agent calls it | `check`, `recall`, `get`, `record`, `log_progress`, `log_changelog`, `status`; `check` and `recall` carry `_meta["anthropic/alwaysLoad"]`, so Claude Code keeps them out of tool search and the first call needs no `ToolSearch`; `recall` also names the `[[linked]]` memories of its top memory hits, both directions |
 | Skill `batas` | on its trigger phrases | tells the agent which tool fits which situation |
 
 The hooks are the reliable path, because they fire without the agent having to remember anything. The MCP tools
@@ -125,7 +126,7 @@ parse the markdown files directly (the rules in ~8 ms, all ~8,000 entries in ~26
 
 ## Measuring it — `just eval`
 
-Four evals over the last 30 days of real sessions. Each is a set of cases with a baseline and a 95% interval (Wilson;
+Five evals over the last 30 days of real sessions. Each is a set of cases with a baseline and a 95% interval (Wilson;
 Newcombe for a difference), so a change to a rule, a trigger or the daemon shows up as a number that moved. Every run is
 saved to `~/.batas/eval/` and the next one prints the change against it.
 
@@ -135,6 +136,7 @@ saved to `~/.batas/eval/` and the next one prints the change against it.
 | Relevance | a memory a trigger word pulled into a prompt: did it help with that prompt? | — | the share of hand labels marked relevant is the triggers' precision; only `held-out` labels (not the ones trigger edits were chosen on) measure a change. The embedding judge (top 10% of the project's memories) is printed beside it with its own accuracy, and lists noise candidates for a person to read |
 | Coverage | the same mistakes: does a rule fire on them at all? | — | the uncovered ones are lesson candidates |
 | On time | the prompt's semantic match inside the 150 ms budget; hook latency within budget | — | — |
+| Initiative | a failed tool call (once per session and error signature), and a destructive command (`reset --hard`, push `--force`, `branch -D`, `checkout .`/`restore .`, `stash drop`, `DROP`/`TRUNCATE` run by a SQL client, `docker volume rm`, `compose down -v`, `migrate reset`): did the agent call `recall` or `check` within the next / last 5 calls, unasked? Also the share of sessions that asked at all, and how many first asks needed a `ToolSearch` | `--cutover=<ISO>` splits the failure cases before and after a change; cued failures are printed apart | measured 2026-11-26, before the cue and `alwaysLoad`: 11/6,151 failures (0.2%), 0/534 destructive commands, 118/3,437 sessions asked, 92/118 first asks loaded the tool first |
 
 The numbers are only as good as their judges, so the report starts with them. **When a rule was injected is replayed
 from the transcript** (the hook injects a rule once, on its first trigger match), **against `triggers.toml` as it was
