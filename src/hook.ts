@@ -811,6 +811,11 @@ export function lateSemantic(
 // result it is already reading. The search itself is left to the agent on purpose: the agent words the question from what
 // it understands of the failure, which a trigger written in advance cannot. Measured before this cue (just eval,
 // initiative): 11 of 6,151 failures were followed by a recall or check within five calls.
+// A session's place in a control group, stable for its whole life: the first 8 hex digits of its id's sha1 as a fraction.
+export function heldOut(session: string, share: number): boolean {
+  const h = new Bun.CryptoHasher("sha1").update(session).digest("hex");
+  return Number.parseInt(h.slice(0, 8), 16) / 0x100000000 < share;
+}
 const CUE_SKIP = /^(mcp__batas__|ToolSearch$|AskUserQuestion$|ExitPlanMode$)/;
 function failureCue(input: HookInput, session: string): { output: object; fired: string[] } {
   const none = { output: {}, fired: [] };
@@ -822,6 +827,8 @@ function failureCue(input: HookInput, session: string): { output: object; fired:
   if (cued.includes(sig) || cued.length >= config.inject.failureCues) return none;
   st.cued = [...cued, sig];
   saveSession(session, st);
+  // The held group passes the same dedupe and cap, so a held failure is the same kind of case as a cued one.
+  if (heldOut(session, config.holdout.cue)) return { output: {}, fired: ["cue:held"] };
   const query = sig.replace(/<\w+>/g, " ").replace(/\s+/g, " ").trim();
   const text = `batas: this ${input.tool_name ?? "tool"} call failed. If this failure may have happened before, a fix may already be recorded: call mcp__batas__recall({query: ${JSON.stringify(query)}}) — reword it if you know better — before retrying.`;
   return { output: { hookSpecificOutput: { hookEventName: "PostToolUseFailure", additionalContext: text } }, fired: ["cue:recall"] };

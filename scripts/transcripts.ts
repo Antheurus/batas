@@ -117,3 +117,24 @@ export function eventsIn(file: string): ToolEvent[] {
   return out;
 }
 
+// How the session was first offered batas's recall: "deferred" (behind tool search), "loaded" (alwaysLoad), or
+// undefined when it never had batas. Read from the harness's own records in the transcript (deferred_tools_delta lists
+// what went behind tool search, tool_offer_record what was offered directly), so the alwaysLoad control group needs no
+// session id on the MCP side.
+export function recallListing(file: string): "deferred" | "loaded" | undefined {
+  for (const line of readFileSync(file, "utf8").split("\n")) {
+    if (!line.includes("mcp__batas__recall")) continue;
+    const deferred = line.includes('"deferred_tools_delta"');
+    const offered = line.includes('"tool_offer_record"');
+    if (!deferred && !offered) continue;
+    let row: { attachment?: { addedNames?: unknown; offered?: unknown } };
+    try {
+      row = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    const names = (deferred ? row.attachment?.addedNames : row.attachment?.offered) as unknown;
+    if (Array.isArray(names) && names.includes("mcp__batas__recall")) return deferred ? "deferred" : "loaded";
+  }
+  return undefined;
+}

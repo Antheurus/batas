@@ -29,7 +29,7 @@ import { semanticSearch } from "../src/semantic.ts";
 import { Store } from "../src/store.ts";
 import { type TriggerSpec, Triggers } from "../src/triggers.ts";
 import { mine, redact, signature } from "./lesson-mine.ts";
-import { callsIn, errorsIn, eventsIn, type ToolError, type ToolEvent, transcriptFiles } from "./transcripts.ts";
+import { callsIn, errorsIn, eventsIn, recallListing, type ToolError, type ToolEvent, transcriptFiles } from "./transcripts.ts";
 
 // Initiative: the moments a person would expect the agent to turn to batas on its own, and whether it did. A failure
 // counts once per (session, signature), so a session retrying one mistake twenty times weighs as one case; the window is
@@ -49,11 +49,18 @@ export function isDestructive(cmd: string): boolean {
 }
 const SELF = /^(mcp__batas__|ToolSearch$)/;
 
-export type InitiativeCase = { session: string; moment: "failure" | "destructive"; at: number; acted: boolean; cued: boolean; what: string };
+// When the control groups went live (batas v0.28.1 landing): sessions born earlier were all listed deferred (before
+// v0.28.0) or all loaded (v0.28.0 alone) and never held, so counting them in an arm would compare against another week.
+export const HOLDOUT_SINCE_ISO = "2026-11-27T00:00:00+07:00";
+export const HOLDOUT_SINCE = Date.parse(HOLDOUT_SINCE_ISO);
+
+// arm: for a failure after the cue shipped, whether the hook cued it or held it back (config.holdout.cue); undefined
+// before then, or when the hook log no longer holds the session.
+export type InitiativeCase = { session: string; moment: "failure" | "destructive"; at: number; acted: boolean; cued: boolean; arm?: "cued" | "held"; what: string };
 export type FirstAsk = { session: string; at: number; loadedFirst: boolean };
 
 // cues: when the hook told this session, after a failure, that recall exists (fired "cue:recall"), by session id.
-export function initiativeCases(session: string, events: ToolEvent[], cues: number[] = []): { cases: InitiativeCase[]; first?: FirstAsk } {
+export function initiativeCases(session: string, events: ToolEvent[], cues: number[] = [], held: number[] = []): { cases: InitiativeCase[]; first?: FirstAsk } {
   const uses = events.filter((e): e is Extract<ToolEvent, { type: "use" }> => e.type === "use");
   const cases: InitiativeCase[] = [];
   const seen = new Set<string>();
@@ -64,8 +71,10 @@ export function initiativeCases(session: string, events: ToolEvent[], cues: numb
     seen.add(sig);
     const next = events.slice(i + 1).filter((x) => x.type === "use").slice(0, INITIATIVE_WINDOW);
     // a cue is logged by the hook that ran on this failure, so it lands within seconds of the result
-    const cued = cues.some((c) => c >= e.ts - 2000 && c <= e.ts + 15000);
-    cases.push({ session, moment: "failure", at: e.ts, acted: next.some((x) => x.type === "use" && BATAS_ASK.test(x.name)), cued, what: sig });
+    const near = (c: number) => c >= e.ts - 2000 && c <= e.ts + 15000;
+    const cued = cues.some(near);
+    const arm = cued ? ("cued" as const) : held.some(near) ? ("held" as const) : undefined;
+    cases.push({ session, moment: "failure", at: e.ts, acted: next.some((x) => x.type === "use" && BATAS_ASK.test(x.name)), cued, ...(arm ? { arm } : {}), what: sig });
   }
   for (const [i, u] of uses.entries()) {
     if (u.name !== "Bash" || !u.cmd || !isDestructive(u.cmd)) continue;
@@ -472,8 +481,13 @@ if (import.meta.main) {
 
   // 5. Initiative, every session in the window; --cutover=<ISO> splits the cases before and after a change.
   const cueAt = new Map<string, number[]>();
-  for (const r of rows) if (r.session && r.fired.includes("cue:recall")) cueAt.set(r.session, [...(cueAt.get(r.session) ?? []), Date.parse(r.ts)]);
-  const ini = files.map((f) => initiativeCases(sessionOf(f), eventsIn(f), cueAt.get(sessionOf(f))));
+  const heldAt = new Map<string, number[]>();
+  for (const r of rows) {
+    if (!r.session) continue;
+    if (r.fired.includes("cue:recall")) cueAt.set(r.session, [...(cueAt.get(r.session) ?? []), Date.parse(r.ts)]);
+    if (r.fired.includes("cue:held")) heldAt.set(r.session, [...(heldAt.get(r.session) ?? []), Date.parse(r.ts)]);
+  }
+  const ini = files.map((f) => ({ f, ...initiativeCases(sessionOf(f), eventsIn(f), cueAt.get(sessionOf(f)), heldAt.get(sessionOf(f))) }));
   const iCases = ini.flatMap((x) => x.cases);
   const firsts = ini.flatMap((x) => (x.first ? [x.first] : []));
   const acted = (xs: InitiativeCase[]) => wilson(xs.filter((c) => c.acted).length, xs.length);
@@ -482,6 +496,19 @@ if (import.meta.main) {
   const askedSessions = wilson(firsts.length, files.length);
   const loadedFirst = wilson(firsts.filter((f) => f.loadedFirst).length, firsts.length);
   const cuedFailures = acted(iCases.filter((c) => c.moment === "failure" && c.cued));
+  // The two control groups, each against its own treated group over the same days, so a change in the work itself
+  // (another week, other repos) cannot pass for an effect.
+  const armCued = acted(iCases.filter((c) => c.arm === "cued"));
+  const armHeld = acted(iCases.filter((c) => c.arm === "held"));
+  const listing = new Map(ini.map((x) => [x.f, recallListing(x.f)]));
+  const sinceHoldout = ini.filter((x) => statSync(x.f).birthtimeMs >= HOLDOUT_SINCE && listing.get(x.f));
+  const byListing = (l: "deferred" | "loaded") => sinceHoldout.filter((x) => listing.get(x.f) === l);
+  const askedIn = (xs: typeof ini) => wilson(xs.filter((x) => x.first).length, xs.length);
+  const failAskIn = (xs: typeof ini) => acted(xs.flatMap((x) => x.cases.filter((c) => c.moment === "failure")));
+  const loadedAsked = askedIn(byListing("loaded"));
+  const deferredAsked = askedIn(byListing("deferred"));
+  const loadedFail = failAskIn(byListing("loaded"));
+  const deferredFail = failAskIn(byListing("deferred"));
   const cutoverArg = args.find((a) => a.startsWith("--cutover="))?.slice(10);
   const cutover = cutoverArg ? Date.parse(cutoverArg) : undefined;
   const split = cutover
@@ -501,7 +528,7 @@ if (import.meta.main) {
     relevance: { hit: relHit, chance, noisy: noise.length, judged: noise.length + beats.length, injections30d: pairsTotal, onRelevant, onIrrelevant, tuningPrecision, heldOutPrecision },
     coverage,
     onTime: { semantic: warm, tool: toolOnTime, prompt: promptOnTime },
-    initiative: { onFailure, onDestructive, askedSessions, loadedFirst, cuedFailures, window: INITIATIVE_WINDOW },
+    initiative: { onFailure, onDestructive, askedSessions, loadedFirst, cuedFailures, window: INITIATIVE_WINDOW, cue: { cued: armCued, held: armHeld }, alwaysLoad: { loadedAsked, deferredAsked, loadedFail, deferredFail } },
   };
   const dir = join(config.stateDir, "eval");
   const previous = existsSync(dir)
@@ -565,6 +592,10 @@ if (import.meta.main) {
   say(`   sessions that asked batas at all        ${span(askedSessions)}${delta(askedSessions.p, before?.initiative?.askedSessions.p)}`);
   say(`   first ask preceded by a ToolSearch load ${span(loadedFirst)}   (the extra step alwaysLoad removes)`);
   say(cuedFailures.n ? `   failures the hook cued, then asked      ${span(cuedFailures)}` : "   failures the hook cued: none in the window yet");
+  say(`   CONTROL GROUPS (sessions since ${HOLDOUT_SINCE_ISO}; the tool descriptions changed for both arms, so their effect is not separated)`);
+  say(`     failure cue      cued ${span(armCued)} vs held ${span(armHeld)}${armCued.n && armHeld.n ? ` -> ${pt(difference(armCued, armHeld))} ${compare(armCued, armHeld)}` : ""}`);
+  say(`     alwaysLoad       sessions asking: loaded ${span(loadedAsked)} vs deferred ${span(deferredAsked)}${loadedAsked.n && deferredAsked.n ? ` -> ${pt(difference(loadedAsked, deferredAsked))} ${compare(loadedAsked, deferredAsked)}` : ""}`);
+  say(`                      failure -> ask: loaded ${span(loadedFail)} vs deferred ${span(deferredFail)}`);
   if (split) say(`   failure -> ask, before vs after ${cutoverArg}: ${span(split.before)} vs ${span(split.after)} -> ${pt(difference(split.after, split.before))} ${compare(split.after, split.before)}`);
   const ex = iCases.filter((c) => c.moment === "destructive" && !c.acted).slice(-3);
   for (const c of ex) say(`     destructive, unasked: ${c.session.slice(0, 8)} ${clip(c.what, 70)}`);

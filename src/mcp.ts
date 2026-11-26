@@ -107,6 +107,8 @@ export function orphanTriggerIds(triggers: Triggers, ruleIds: string[]): string[
 
 export function createServer(ctx: SessionContext): McpServer {
   const server = new McpServer({ name: "batas", version: "0.1.0" });
+  // The alwaysLoad control group (config.holdout): this connection lists recall/check deferred, as before v0.28.0.
+  const listDeferred = Math.random() < config.holdout.alwaysLoad;
   if (!ctx.cwd) {
     server.server.setNotificationHandler(RootsListChangedNotificationSchema, () => {
       ctx.root = firstRoot(server);
@@ -128,7 +130,7 @@ export function createServer(ctx: SessionContext): McpServer {
       annotations: { readOnlyHint: true },
       // Kept out of tool search: a deferred tool costs a ToolSearch before its first call, and that extra step is where
       // 92 of the 118 sessions that ever asked batas spent their first call (just eval, initiative, 2026-11-26).
-      _meta: { "anthropic/alwaysLoad": true },
+      ...(listDeferred ? {} : { _meta: { "anthropic/alwaysLoad": true } }),
     },
     async ({ command, file, intent }) => {
       try {
@@ -179,7 +181,7 @@ export function createServer(ctx: SessionContext): McpServer {
       annotations: { readOnlyHint: true },
       // Kept out of tool search: a deferred tool costs a ToolSearch before its first call, and that extra step is where
       // 92 of the 118 sessions that ever asked batas spent their first call (just eval, initiative, 2026-11-26).
-      _meta: { "anthropic/alwaysLoad": true },
+      ...(listDeferred ? {} : { _meta: { "anthropic/alwaysLoad": true } }),
     },
     async ({ query, kinds, project, limit }) => {
       try {

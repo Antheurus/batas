@@ -89,6 +89,14 @@ export const config = {
   // failureCues: recall cues per session after a failed tool call, one per distinct failure. Sessions average 1.8
   // distinct failures (6,151 over 3,437, 30 days to 2026-11-26), so 5 reaches nearly all of them while a session stuck
   // in a failing loop cannot fill its context with cues.
+  // Control groups, so `just eval` can tell which initiative change worked: this share of sessions gets no failure cue
+  // (picked by session id, logged as cue:held), and this share of MCP sessions lists recall/check deferred again (read
+  // back from the transcript's deferred-tools record). 0.2 keeps about 40 held failures a day (6,159 in 30 days), enough
+  // for an interval within a couple of weeks, while 80% of sessions keep the benefit.
+  holdout: {
+    cue: Number(process.env.BATAS_HOLDOUT_CUE ?? 0.2),
+    alwaysLoad: Number(process.env.BATAS_HOLDOUT_ALWAYSLOAD ?? 0.2),
+  },
   inject: { maxItems: 3, maxChars: 9000, maxPromptHints: 5, maxMemories: 2, memoryChars: 1500, maxMoreMemories: 8, maxRepoList: 12, sessionBytes: 64000, failureCues: 5 },
 };
 

@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
@@ -9,7 +9,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { ListRootsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { config } from "../src/config.ts";
-import { captureCorrection, evaluate, fromCodex, fromCursor, lateSemantic, logFlags, ownWords } from "../src/hook.ts";
+import { captureCorrection, evaluate, fromCodex, fromCursor, heldOut, lateSemantic, logFlags, ownWords } from "../src/hook.ts";
 import { answers, attribute, compareRules, injectedHeadline, type RuleResult, type RulesRun } from "../scripts/delivery-eval.ts";
 import { auditPrompts } from "../scripts/prompt-audit.ts";
 import { gitIndex, judgePath, namedPaths, resolveRoot } from "../scripts/memory-audit.ts";
@@ -19,7 +19,7 @@ import { balancedAccuracy, binomTail, compare, difference, initiativeCases, inje
 import { copiesOf, shareMemory } from "../scripts/memory-share.ts";
 import { routeLessons, ruleFile, staleFiles } from "../scripts/lessons-route.ts";
 import { regenAll, routeRepo, writeRoutes } from "../src/lessons.ts";
-import { errorsIn, transcriptFiles } from "../scripts/transcripts.ts";
+import { errorsIn, recallListing, transcriptFiles } from "../scripts/transcripts.ts";
 import { allMemorySources, countFamilyItems, familyDefects, familyGaps, parseFamily, parseMemory, readRetiredIds, retiredIdPattern } from "../src/corpus.ts";
 import { mutedIds, readAcks, readFeedback, setMuted } from "../src/feedback.ts";
 import { appendHookLog, liveSessions, readHookLog } from "../src/log.ts";
@@ -1232,7 +1232,7 @@ describe("mcp server", () => {
       new StdioClientTransport({
         command: "bun",
         args: [join(import.meta.dir, "..", "src", "mcp.ts")],
-        env: { ...(process.env as Record<string, string>) },
+        env: { ...(process.env as Record<string, string>), BATAS_HOLDOUT_ALWAYSLOAD: "0" },
         cwd: demo,
       }),
     );
@@ -1242,6 +1242,11 @@ describe("mcp server", () => {
     // the two the agent should reach for unasked skip tool search; the rest stay deferred and cost nothing up front
     const always = listed.filter((x) => (x._meta as Record<string, unknown> | undefined)?.["anthropic/alwaysLoad"] === true).map((x) => x.name).sort();
     expect(always).toEqual(["check", "recall"]);
+    // the control group: a connection in it lists every tool deferred, as before alwaysLoad
+    const held = new Client({ name: "batas-test", version: "0" });
+    await held.connect(new StdioClientTransport({ command: "bun", args: [join(import.meta.dir, "..", "src", "mcp.ts")], env: { ...(process.env as Record<string, string>), BATAS_HOLDOUT_ALWAYSLOAD: "1" }, cwd: demo }));
+    expect((await held.listTools()).tools.filter((x) => (x._meta as Record<string, unknown> | undefined)?.["anthropic/alwaysLoad"] === true)).toEqual([]);
+    await held.close();
     const get = (await client.callTool({ name: "get", arguments: { id: "lessons:C18" } })) as { content: { text: string }[] };
     expect(get.content[0]?.text).toContain("git stash push");
     const draft = (await client.callTool({
@@ -2149,6 +2154,29 @@ describe("initiative eval", () => {
     expect(r.first).toEqual({ session: "s1", at: 6 * MIN, loadedFirst: true });
   });
 
+  test("a failure is put in the cued or held arm by the hook log row next to it, and in neither without one", () => {
+    const events = [use("a", "Bash", 1), err("a", "Bash", "Exit code 1\nfatal: not a git repository", 2), use("b", "Bash", 3), err("b", "Bash", "Exit code 1\nls: x: No such file or directory", 4), use("c", "Bash", 5), err("c", "Bash", "Exit code 1\nError: connect ECONNREFUSED", 6)];
+    const arms = initiativeCases("s5", events, [2 * MIN + 100], [4 * MIN + 100]).cases.map((c) => c.arm ?? "none");
+    expect(arms).toEqual(["cued", "held", "none"]);
+  });
+
+  test("recallListing reads the arm from the harness's deferred and offered records", () => {
+    const dir = mkdtempSync(join(tmpdir(), "batas-listing-"));
+    const write = (name: string, rows: object[]) => {
+      const f = join(dir, name);
+      writeFileSync(f, rows.map((r) => JSON.stringify(r)).join("\n"));
+      return f;
+    };
+    const deferred = write("d.jsonl", [{ type: "attachment", attachment: { type: "deferred_tools_delta", addedNames: ["Monitor", "mcp__batas__check", "mcp__batas__recall"] } }]);
+    const loaded = write("l.jsonl", [
+      { type: "attachment", attachment: { type: "deferred_tools_delta", addedNames: ["Monitor", "mcp__batas__get"] } },
+      { type: "attachment", attachment: { type: "tool_offer_record", offered: ["Bash", "mcp__batas__check", "mcp__batas__recall"] } },
+    ]);
+    const none = write("n.jsonl", [{ type: "user", message: { content: "mcp__batas__recall is mentioned here only in prose" } }]);
+    expect([recallListing(deferred), recallListing(loaded), recallListing(none)]).toEqual(["deferred", "loaded", undefined]);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
   test("a failure of batas or ToolSearch itself, or a user saying no, is not a moment", () => {
     const events = [
       use("a", "mcp__batas__recall", 1),
@@ -2197,6 +2225,14 @@ describe("initiative eval", () => {
 });
 
 describe("failure cue", () => {
+  // the control group is sampled by session id; these cases pin it off, the holdout test below pins it on
+  const share = config.holdout.cue;
+  beforeAll(() => {
+    config.holdout.cue = 0;
+  });
+  afterAll(() => {
+    config.holdout.cue = share;
+  });
   const store = new Store();
   const t = new Triggers({});
   const fail = (session_id: string, error: string, extra: Record<string, unknown> = {}) =>
@@ -2218,6 +2254,28 @@ describe("failure cue", () => {
     const s = `cap-${Date.now()}`;
     const fired = Array.from({ length: config.inject.failureCues + 2 }, (_, i) => fail(s, `Exit code 1\nfatal: cannot open thing number ${"x".repeat(i + 1)}`).fired.length);
     expect(fired).toEqual([...Array(config.inject.failureCues).fill(1), 0, 0]);
+  });
+
+  test("a held-out session gets no cue but the failure is counted and logged as cue:held, under the same dedupe", () => {
+    const s = `held-${Date.now()}`;
+    config.holdout.cue = 1;
+    try {
+      const r = fail(s, "Exit code 1\nModuleNotFoundError: No module named 'yaml'");
+      expect(r).toEqual({ output: {}, fired: ["cue:held"] });
+      expect(fail(s, "Exit code 1\nModuleNotFoundError: No module named 'yaml'").fired).toEqual([]);
+    } finally {
+      config.holdout.cue = 0;
+    }
+  });
+
+  test("heldOut is stable per session and takes about its share", () => {
+    expect(heldOut("abc", 0.2)).toBe(heldOut("abc", 0.2));
+    expect(heldOut("abc", 0)).toBe(false);
+    expect(heldOut("abc", 1)).toBe(true);
+    const n = 20000;
+    const k = Array.from({ length: n }, (_, i) => heldOut(`session-${i}`, 0.2)).filter(Boolean).length;
+    expect(k / n).toBeGreaterThan(0.19);
+    expect(k / n).toBeLessThan(0.21);
   });
 
   test("no cue for an interrupt, a user saying no, or a failure of batas or tool search itself", () => {
