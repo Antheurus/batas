@@ -1,5 +1,15 @@
 # batas Changelog
 
+## v0.28.1 — Kelompok pembanding: sekarang bisa dilihat bagian mana yang benar-benar bekerja
+
+- Sekitar 20% sesi sengaja tidak mendapat pengingat `recall` setelah tool gagal, dan sekitar 20% sesi lain mendapat `recall`/`check` yang masih tersembunyi di balik `ToolSearch`, seperti sebelum v0.28.0. Pembagiannya acak dan tetap per sesi.
+- `just eval` bagian 5 sekarang membandingkan tiap perubahan dengan kelompok pembandingnya pada hari-hari yang sama. Jadi kalau angkanya naik, kelihatan apakah yang berjasa pengingatnya atau `alwaysLoad`-nya. Hanya sesi yang dimulai sejak 27 Nov 00:00 WIB yang dihitung.
+- Satu hal yang belum bisa dipisah: deskripsi tool baru berlaku untuk semua sesi, jadi efeknya tetap tercampur.
+- Harganya: 20% sesi tidak mendapat masing-masing perbaikan. Persentasenya bisa diubah lewat `BATAS_HOLDOUT_CUE` dan `BATAS_HOLDOUT_ALWAYSLOAD` (isi 0 untuk mematikan kelompok pembanding).
+- Tidak perlu tindakan apa pun. Setelah sekitar dua minggu, jalankan `just eval` di repo batas dan baca baris "CONTROL GROUPS".
+
+---
+
 ## v0.28.0 — Agent lebih sering bertanya ke batas sendiri, dan ada angkanya
 
 - Baru di `just eval`: bagian 5 "Inisiatif". Bagian ini menghitung berapa kali agent memanggil `recall` atau `check` atas inisiatif sendiri, di dua momen yang paling penting: setelah sebuah tool gagal, dan sebelum perintah yang merusak seperti `reset --hard`, `push --force` atau `DROP TABLE`. Pakai `--cutover=<tanggal>` untuk membandingkan sebelum dan sesudah sebuah perubahan.
